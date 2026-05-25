@@ -1,6 +1,14 @@
+# ===================================================================
+# Imports
+# ===================================================================
+
 import uuid
 from django.db import models
 from django.contrib.auth.models import AbstractUser
+
+
+# ===================================================================
+
 
 def upload_thumbnail(instance, filename):
     path = f'thumbnails/{instance.username}'
@@ -10,6 +18,8 @@ def upload_thumbnail(instance, filename):
     return path
 
 
+# ===================================================================
+# Models
 # ===================================================================
 
 
@@ -63,37 +73,22 @@ class User(AbstractUser):
     help_text="Date when user joined"
   )
 
-  favorite_genres = models.JSONField(
-    default=list,
-    blank=True,
-    help_text="List of favorite genres"
-  )
-
-  favorite_authors = models.JSONField(
-    default=list,
-    blank=True,
-    help_text="List of favorite authors"
-  )
-
-  def __str__(self):
-    return f"@{self.username}"
-
-  """
   favorite_genres = models.ManyToManyField(
-    "core.Genre",
+    "books.Genres",
     blank=True,
     related_name="user_favorite_genres",
     help_text="Preferred genres for content recommendations"
   )
 
   favorite_authors = models.ManyToManyField(
-    "core.Content",
+    "books.Authors",
     blank=True,
-    related_name="user_favorite_content",
-    help_text="Favorite content for recommendations"
+    related_name="user_favorite_authors",
+    help_text="Preferred authors for content recommendations"
   )
-  """
 
+  def __str__(self):
+    return f"@{self.username}"
 
 # ===================================================================
 

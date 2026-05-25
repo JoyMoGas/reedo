@@ -1,9 +1,16 @@
+# ===================================================================
+# Imports
+# ===================================================================
+
+from enum import unique
 from django.contrib.auth.password_validation import password_validators_help_text_html
 from django.db import models
 import uuid
 from django.conf import settings
 
 
+# ===================================================================
+# Models
 # ===================================================================
 
 
@@ -43,10 +50,16 @@ class Books(models.Model):
     help_text="URL of the cover image"
   )
 
-  genres = models.JSONField(
-    default=list,
-    blank=False,
-    help_text="List of genres"
+  genres = models.ManyToManyField(
+    "Genres",
+    related_name="books",
+    help_text="Genres of the book"
+  )
+
+  authors = models.ManyToManyField(
+    "Authors",
+    related_name="books",
+    help_text="Authors of the book"
   )
 
   total_pages = models.IntegerField(
@@ -372,3 +385,43 @@ class LibraryBook(models.Model):
 
   def __str__(self):
     return f"{self.book_id.title}"
+
+
+# ===================================================================
+
+
+class Genres(models.Model):
+  id = models.UUIDField(
+    primary_key=True, 
+    default=uuid.uuid4, 
+    editable=False
+  )
+
+  genre = models.CharField(
+    max_length=50,
+    unique=True,
+    help_text="Genre of the book"
+  )
+
+  def __str__(self):
+    return f"{self.genre}"
+
+
+# ===================================================================
+
+
+class Authors(models.Model):
+  id = models.UUIDField(
+    primary_key=True, 
+    default=uuid.uuid4, 
+    editable=False
+  )
+
+  name = models.CharField(
+    max_length=100,
+    unique=True,
+    help_text="Name of the author"
+  )
+
+  def __str__(self):
+    return f"{self.name}"
