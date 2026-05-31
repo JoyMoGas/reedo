@@ -1,8 +1,19 @@
+const nativewind = require("nativewind/preset");
+
 /** @type {import('tailwindcss').Config} */
 module.exports = {
-  content: ["./app/**/*.{js,jsx,ts,tsx}", "./components/**/*.{js,jsx,ts,tsx}"],
+  content: ["./App.tsx", "./app/**/*.{js,jsx,ts,tsx}", "./components/**/*.{js,jsx,ts,tsx}"],
+  presets: [nativewind],
   theme: {
-    extend: {},
+    extend: {
+      fontFamily: {
+        newsreader: ["Newsreader-Regular"],
+        "newsreader-bold": ["Newsreader-Bold"],
+      },
+      fontSize: {
+        "32": "32px",
+      },
+    },
   },
   plugins: [],
 }
