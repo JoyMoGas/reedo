@@ -1,23 +1,22 @@
+import React, { useEffect } from "react";
 import { StatusBar } from "expo-status-bar";
-import { Text, TouchableOpacity, View } from "react-native";
+import { Text, View, TouchableOpacity } from "react-native";
 import { useFonts } from "expo-font";
+import { useRouter } from "expo-router";
 
-import Logo from "./app/assets/LOGO.svg";
-import PresentImage from "./app/assets/PresentImage.svg";
+import Logo from "./assets/LOGO.svg";
+import PresentImage from "./assets/PresentImage.svg";
 
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useSignUpStore } from "../store/useSignUpStore";
 
-export default function App() {
-  const [fontsLoaded] = useFonts({
-    "Newsreader-Italic": require("./app/assets/fonts/Newsreader/static/Newsreader_36pt-Italic.ttf"),
-    "Newsreader-Regular": require("./app/assets/fonts/Newsreader/static/Newsreader_36pt-Regular.ttf"),
-    "Newsreader-Bold": require("./app/assets/fonts/Newsreader/static/Newsreader_14pt-Bold.ttf"),
+export default function WelcomeScreen() {
+  const router = useRouter();
+  const { reset } = useSignUpStore();
 
-    "PublicSans-Regular": require("./app/assets/fonts/Public_Sans/static/PublicSans-Regular.ttf"),
-    "PublicSans-Bold": require("./app/assets/fonts/Public_Sans/static/PublicSans-Bold.ttf"),
-  });
-
-  if (!fontsLoaded) return null;
+  useEffect(() => {
+    reset();
+  }, []);
 
   return (
     <SafeAreaView className="flex-1 bg-[#FFF8F0] justify-start pt-10 px-4">
@@ -31,7 +30,7 @@ export default function App() {
         </Text>
       </View>
 
-      <View className="flex-col items-center justify-center w-full px-5">
+      <View className="flex-col items-center justify-center w-full px-5 mt-6">
         <PresentImage width={350} height={350} />
         <Text
           className="text-5xl text-[#212842] text-center mt-5"
@@ -41,7 +40,8 @@ export default function App() {
         </Text>
       </View>
 
-      <View className="flex-col items-center justify-center w-full px-5 mt-10">
+      {/* Sección de la descripción corta */}
+      <View className="flex-col items-center justify-center w-full px-5 mt-8">
         <Text
           className="text-xl text-[#5C5E69] text-center"
           style={{ fontFamily: "PublicSans-Regular" }}
@@ -51,7 +51,11 @@ export default function App() {
         </Text>
       </View>
 
-      <TouchableOpacity className="w-full bg-[#212842] rounded-full py-3 mt-10">
+      {/* Botón: Crear Cuenta (Registro Step 1) */}
+      <TouchableOpacity 
+        className="w-full bg-[#212842] rounded-full py-3 mt-10"
+        onPress={() => router.push("/(auth)/signin")}
+      >
         <View className="flex-col items-center justify-center w-full my-3">
           <Text
             className="text-[#FFFFFF] text-center text-2xl"
@@ -62,6 +66,7 @@ export default function App() {
         </View>
       </TouchableOpacity>
 
+      {/* Enlace: Ir a Login */}
       <View className="flex-col items-center justify-center w-full mt-10">
         <Text
           className="text-xl text-[#5C5E69] text-center"
@@ -71,14 +76,12 @@ export default function App() {
           <Text
             className="text-[#212842]"
             style={{ fontFamily: "PublicSans-Bold" }}
-            onPress={() => console.log("Navigate to Login")}
+            onPress={() => router.push("/(auth)/login")}
           >
             Login
           </Text>
         </Text>
       </View>
-
-
       <StatusBar style="dark" />
     </SafeAreaView>
   );
