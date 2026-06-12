@@ -40,7 +40,8 @@ SECRET_KEY = env('SECRET_KEY')
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = env('DEBUG')
 
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', '10.0.2.2']
+# * ALLOWED_HOSTS = ['localhost', '127.0.0.1', '10.0.2.2']
+ALLOWED_HOSTS = ['*']
 
 
 
@@ -56,6 +57,7 @@ INSTALLED_APPS = [
 
     'rest_framework',
     'corsheaders',
+    'rest_framework_simplejwt',
 
     'users',
     'books',
@@ -141,3 +143,8 @@ USE_TZ = True
 STATIC_URL = 'static/'
 
 AUTH_USER_MODEL = 'users.User'
+
+AUTHENTICATION_BACKENDS = [
+    'django.contrib.auth.backends.ModelBackend',
+    'users.backends.EmailOrUsernameModelBackend',
+]
