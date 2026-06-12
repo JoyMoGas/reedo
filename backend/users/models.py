@@ -37,23 +37,37 @@ class User(AbstractUser):
   thumbnail = models.ImageField(
     upload_to=upload_thumbnail,
     null=True,
-    blank=True
+    blank=True,
+    help_text="Profile picture of the user"
   )
+
+  full_name = models.CharField(
+    max_length=255,
+    null=True,
+    blank=True,
+    help_text="Full name of the user"
+  )
+
+  first_name = None
+  last_name = None
 
   birth_date = models.DateField(
     null=True, 
-    blank=True
+    blank=True,
+    help_text="Date of birth of the user"
   )
 
   bio = models.TextField(
     null=True, 
-    blank=True
+    blank=True,
+    help_text="Biography of the user"
   )
 
   city_residence = models.CharField(
     max_length=150,
     null=True, 
-    blank=True
+    blank=True,
+    help_text="City of residence of the user"
   )
 
   honor_points = models.IntegerField(
