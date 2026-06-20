@@ -1,4 +1,3 @@
-import { StatusBar } from "expo-status-bar";
 import { Text, TouchableOpacity, View } from "react-native";
 import { useFonts } from "expo-font";
 
@@ -78,8 +77,6 @@ export default function App() {
         </Text>
       </View>
 
-
-      <StatusBar style="dark" />
     </SafeAreaView>
   );
 }
