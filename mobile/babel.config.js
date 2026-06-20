@@ -19,7 +19,7 @@ module.exports = function (api) {
             "boxicons:moon-filled",
             "flowbite:fire-solid",
             "ic:baseline-minus",
-            "ic:baseline-plus",
+            "material-symbols:add-circle",
             "material-symbols:block",
             "material-symbols:bolt-rounded",
             "material-symbols:flag",
@@ -31,12 +31,13 @@ module.exports = function (api) {
             "mdi:users",
             "mingcute:user-add-fill",
             "mynaui:add-queue-solid",
-            "ph:chat",
             "ph:chats",
+            "ph:chats-fill",
             "ph:seal-check-bold",
             "ri:amazon-fill",
             "sidekickicons:quotation-mark-16-solid",
             "solar:sun-bold",
+            "tabler:heart-filled",
 
             // ==========================================
             // OUTLINED & LINE ICONS

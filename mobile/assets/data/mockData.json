@@ -1,0 +1,186 @@
+{
+  "books": [
+    {
+      "id": "1",
+      "title": "Dracula",
+      "author": "Bram Stoker",
+      "coverUrl": "https://images-na.ssl-images-amazon.com/images/P/8415618836.01.LZZZZZZZ.jpg",
+      "progress": 72,
+      "rating": 5,
+      "pagesTotal": 418,
+      "pagesRead": 301,
+      "genre": "Gothic Horror",
+      "lastRead": "2026-06-12T10:30:00Z"
+    },
+    {
+      "id": "2",
+      "title": "Alchemised",
+      "author": "SenLinYu",
+      "coverUrl": "https://images-na.ssl-images-amazon.com/images/P/0593972708.01.LZZZZZZZ.jpg",
+      "progress": 12,
+      "rating": null,
+      "pagesTotal": 350,
+      "pagesRead": 42,
+      "genre": "Fantasy Fiction",
+      "lastRead": "2026-06-10T11:00:00Z"
+    },
+    {
+      "id": "3",
+      "title": "Harry Potter and the Sorcerer's Stone",
+      "author": "J.K. Rowling",
+      "coverUrl": "https://images-na.ssl-images-amazon.com/images/P/059035342X.01.LZZZZZZZ.jpg",
+      "progress": 0,
+      "rating": null,
+      "pagesTotal": 309,
+      "pagesRead": 0,
+      "genre": "Fantasy",
+      "lastRead": null
+    },
+    {
+      "id": "4",
+      "title": "Meditations",
+      "author": "Marcus Aurelius",
+      "coverUrl": "https://images-na.ssl-images-amazon.com/images/P/0140449330.01.LZZZZZZZ.jpg",
+      "progress": 45,
+      "rating": 5,
+      "pagesTotal": 254,
+      "pagesRead": 114,
+      "genre": "Philosophy",
+      "lastRead": "2026-06-11T18:15:00Z"
+    },
+    {
+      "id": "5",
+      "title": "Atomic Habits",
+      "author": "James Clear",
+      "coverUrl": "https://images-na.ssl-images-amazon.com/images/P/0735211299.01.LZZZZZZZ.jpg",
+      "progress": 20,
+      "rating": 4,
+      "pagesTotal": 320,
+      "pagesRead": 64,
+      "genre": "Self-Improvement",
+      "lastRead": "2026-06-08T09:00:00Z"
+    },
+    {
+      "id": "6",
+      "title": "The Shadow of the Wind",
+      "author": "Carlos Ruiz Zafón",
+      "coverUrl": "https://images-na.ssl-images-amazon.com/images/P/0143126393.01.LZZZZZZZ.jpg",
+      "progress": 95,
+      "rating": 5,
+      "pagesTotal": 487,
+      "pagesRead": 462,
+      "genre": "Gothic Fiction",
+      "lastRead": "2026-06-12T14:45:00Z"
+    },
+    {
+      "id": "7",
+      "title": "Deep Work",
+      "author": "Cal Newport",
+      "coverUrl": "https://images-na.ssl-images-amazon.com/images/P/1455586692.01.LZZZZZZZ.jpg",
+      "progress": 35,
+      "rating": 4,
+      "pagesTotal": 304,
+      "pagesRead": 106,
+      "genre": "Productivity",
+      "lastRead": "2026-06-05T22:30:00Z"
+    },
+    {
+      "id": "8",
+      "title": "Kafka on the Shore",
+      "author": "Haruki Murakami",
+      "coverUrl": "https://images-na.ssl-images-amazon.com/images/P/1400079276.01.LZZZZZZZ.jpg",
+      "progress": 0,
+      "rating": null,
+      "pagesTotal": 464,
+      "pagesRead": 0,
+      "genre": "Magical Realism",
+      "lastRead": null
+    },
+    {
+      "id": "9",
+      "title": "Dune",
+      "author": "Frank Herbert",
+      "coverUrl": "https://images-na.ssl-images-amazon.com/images/P/0441172717.01.LZZZZZZZ.jpg",
+      "progress": 0,
+      "rating": null,
+      "pagesTotal": 608,
+      "pagesRead": 0,
+      "genre": "Science Fiction",
+      "lastRead": null
+    },
+    {
+      "id": "10",
+      "title": "The Great Gatsby",
+      "author": "F. Scott Fitzgerald",
+      "coverUrl": "https://images-na.ssl-images-amazon.com/images/P/0743273567.01.LZZZZZZZ.jpg",
+      "progress": 100,
+      "rating": 4,
+      "pagesTotal": 180,
+      "pagesRead": 180,
+      "genre": "Classic Literature",
+      "lastRead": "2026-05-15T12:00:00Z"
+    }
+  ],
+  "posts": [
+    {
+      "id": "p1",
+      "username": "clara_read",
+      "userFullName": "Clara Oswald",
+      "userAvatar": "https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=150&auto=format&fit=crop",
+      "bookTitle": "Meditations",
+      "bookAuthor": "Marcus Aurelius",
+      "content": "You have power over your mind - not outside events. Realize this, and you will find strength. Re-reading this passage today made me appreciate the stoic control we have over our reactions.",
+      "likes": 24,
+      "commentsCount": 5,
+      "createdAt": "2h ago"
+    },
+    {
+      "id": "p2",
+      "username": "julian_reads",
+      "userFullName": "Julian Vance",
+      "userAvatar": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=150&auto=format&fit=crop",
+      "bookTitle": "Atomic Habits",
+      "bookAuthor": "James Clear",
+      "content": "Every action you take is a vote for the type of person you wish to become. Start small. A 1% improvement daily is 37x better in a year. The power of compounding habits is real.",
+      "likes": 42,
+      "commentsCount": 12,
+      "createdAt": "5h ago"
+    },
+    {
+      "id": "p3",
+      "username": "elena_r",
+      "userFullName": "Elena Rostova",
+      "userAvatar": "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?q=80&w=150&auto=format&fit=crop",
+      "bookTitle": "The Shadow of the Wind",
+      "bookAuthor": "Carlos Ruiz Zafón",
+      "content": "Books are mirrors: you only see in them what you already have inside you. Zafón's prose is incredibly rich and atmospheric. Highly recommend this for gothic mystery lovers.",
+      "likes": 56,
+      "commentsCount": 8,
+      "createdAt": "1 day ago"
+    },
+    {
+      "id": "p4",
+      "username": "liam_t",
+      "userFullName": "Liam Thorne",
+      "userAvatar": "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=150&auto=format&fit=crop",
+      "bookTitle": "Deep Work",
+      "bookAuthor": "Cal Newport",
+      "content": "To produce at your peak level you need to work for extended periods with full concentration on a single task, free from distraction. It is so hard in the notification age, but incredibly rewarding.",
+      "likes": 18,
+      "commentsCount": 3,
+      "createdAt": "2 days ago"
+    },
+    {
+      "id": "p5",
+      "username": "sophia_reads",
+      "userFullName": "Sophia Chen",
+      "userAvatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=150&auto=format&fit=crop",
+      "bookTitle": "Kafka on the Shore",
+      "bookAuthor": "Haruki Murakami",
+      "content": "And once the storm is over, you won’t remember how you made it through. You won’t even be sure whether the storm is really over. But one thing is certain: when you come out of the storm, you won’t be the same person who walked in.",
+      "likes": 89,
+      "commentsCount": 15,
+      "createdAt": "3 days ago"
+    }
+  ]
+}

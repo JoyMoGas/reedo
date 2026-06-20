@@ -1,0 +1,62 @@
+[
+  {
+    "id": "e1",
+    "username": "diego_read",
+    "userFullName": "Diego Rivera",
+    "userAvatar": "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=150&auto=format&fit=crop",
+    "bookTitle": "A Game of Thrones",
+    "bookAuthor": "George R.R. Martin",
+    "content": "A reader lives a thousand lives before he dies, the man who never reads lives only one. Starting George R.R. Martin's A Game of Thrones today!",
+    "likes": 34,
+    "commentsCount": 7,
+    "createdAt": "4h ago"
+  },
+  {
+    "id": "e2",
+    "username": "cami_books",
+    "userFullName": "Camila Parker",
+    "userAvatar": "https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=150&auto=format&fit=crop",
+    "bookTitle": "Pride and Prejudice",
+    "bookAuthor": "Jane Austen",
+    "content": "Just finished reading 'Pride and Prejudice' by Jane Austen. The tension between Elizabeth and Darcy is unmatched even after two centuries.",
+    "likes": 57,
+    "commentsCount": 14,
+    "createdAt": "8h ago"
+  },
+  {
+    "id": "e3",
+    "username": "mateo_s",
+    "userFullName": "Mateo Silva",
+    "userAvatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=150&auto=format&fit=crop",
+    "bookTitle": "One Hundred Years of Solitude",
+    "bookAuthor": "Gabriel García Márquez",
+    "content": "Deeply moved by 'One Hundred Years of Solitude' by Gabriel García Márquez. Macondo is a state of mind.",
+    "likes": 92,
+    "commentsCount": 23,
+    "createdAt": "1 day ago"
+  },
+  {
+    "id": "e4",
+    "username": "val_reads",
+    "userFullName": "Valeria Gómez",
+    "userAvatar": "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?q=80&w=150&auto=format&fit=crop",
+    "bookTitle": "1984",
+    "bookAuthor": "George Orwell",
+    "content": "1984 by George Orwell remains as relevant today as it was in 1949. Doublethink is all around us.",
+    "likes": 48,
+    "commentsCount": 11,
+    "createdAt": "2 days ago"
+  },
+  {
+    "id": "e5",
+    "username": "lucas_m",
+    "userFullName": "Lucas Martín",
+    "userAvatar": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=150&auto=format&fit=crop",
+    "bookTitle": "Siddhartha",
+    "bookAuthor": "Hermann Hesse",
+    "content": "Siddhartha by Hermann Hesse is a masterclass in self-discovery. The river teaches us that everything returns, everything is now.",
+    "likes": 75,
+    "commentsCount": 19,
+    "createdAt": "4 days ago"
+  }
+]

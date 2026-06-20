@@ -5,7 +5,7 @@
   "moonFilled": "boxicons:moon-filled",
   "fireSolid": "flowbite:fire-solid",
   "minus": "ic:baseline-minus",
-  "plus": "ic:baseline-plus",
+  "plus": "material-symbols:add-circle",
   "block": "material-symbols:block",
   "bolt": "material-symbols:bolt-rounded",
   "flag": "material-symbols:flag",
@@ -17,8 +17,8 @@
   "users": "mdi:users",
   "userAdd": "mingcute:user-add-fill",
   "addQueue": "mynaui:add-queue-solid",
-  "chat": "ph:chat",
-  "chats": "ph:chats",
+  "chat": "ph:chats",
+  "chats": "ph:chats-fill",
   "sealCheck": "ph:seal-check-bold",
   "amazon": "ri:amazon-fill",
   "quote": "sidekickicons:quotation-mark-16-solid",
@@ -71,5 +71,6 @@
   "moonLineDuotone": "solar:moon-line-duotone",
   "officeShelf": "streamline-ultimate:office-shelf-1",
   "heart": "tabler:heart",
+  "heartFilled": "tabler:heart-filled",
   "snowflake": "uil:snowflake"
 }
