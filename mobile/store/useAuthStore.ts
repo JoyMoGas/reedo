@@ -8,6 +8,7 @@ export interface UserProfile {
   email: string;
   thumbnail: string | null;
   honor_points: number;
+  streak_days: number;
 }
 
 interface AuthState {
