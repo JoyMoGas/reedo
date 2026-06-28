@@ -1,5 +1,4 @@
 import React, { useState, useRef } from "react";
-import { StatusBar } from "expo-status-bar";
 import {
   Text,
   View,
@@ -22,12 +21,12 @@ export default function LoginScreen() {
   const router = useRouter();
   const { login } = useAuthStore();
 
+  const [focusedField, setFocusedField] = useState<string | null>(null);
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<{ identifier?: string; password?: string; general?: string }>({});
   const [showPassword, setShowPassword] = useState(false);
-  const [focusedField, setFocusedField] = useState<string | null>(null);
 
   const passwordRef = useRef<TextInput>(null);
 
@@ -129,7 +128,6 @@ export default function LoginScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-[#FFF8F0] justify-between">
-      <StatusBar style="dark" />
 
       {/* Top Navigation Header (Fixed) */}
       <View>

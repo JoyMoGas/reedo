@@ -1,5 +1,4 @@
 import React, { useState, useRef, useEffect } from "react";
-import { StatusBar } from "expo-status-bar";
 import {
   Text,
   View,
@@ -7,31 +6,46 @@ import {
   ScrollView,
   Animated,
   Easing,
+  ActivityIndicator,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Logo from "../assets/LOGO.svg";
+import api from "../../store/api";
+import { useSignUpStore } from "../../store/useSignUpStore";
 
-const GENRES = [
-  { id: "classic", name: "Classic", symbol: "📖" },
-  { id: "fantasy", name: "Fantasy", symbol: "✨" },
-  { id: "scifi", name: "Sci-Fi", symbol: "🚀" },
-  { id: "biography", name: "Biography", symbol: "👤" },
-  { id: "philosophy", name: "Philosophy", symbol: "🧠" },
-  { id: "poetry", name: "Poetry", symbol: "✒️" },
-  { id: "mystery", name: "Mystery", symbol: "🔍" },
-  { id: "history", name: "History", symbol: "🏛️" },
-];
+const genreSymbols: { [key: string]: string } = {
+  "fiction": "📖",
+  "fantasy": "✨",
+  "science": "🚀",
+  "computers": "💻",
+  "history": "🏛️",
+  "biography": "👤",
+  "mystery": "🔍",
+  "poetry": "✒️",
+  "business": "💼",
+  "self-help": "🧠",
+  "romance": "💖",
+  "classic": "📚",
+};
+
+const getSymbol = (name: string) => {
+  const norm = name.toLowerCase();
+  for (const key in genreSymbols) {
+    if (norm.includes(key)) {
+      return genreSymbols[key];
+    }
+  }
+  return "📚";
+};
 
 export default function SignInStep3Screen() {
   const router = useRouter();
+  const [genres, setGenres] = useState<{ id: string; name: string; symbol: string }[]>([]);
+  const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  // Pre-select 'classic', 'biography', and 'philosophy' to match the design mockup visual
-  const [selectedGenres, setSelectedGenres] = useState<string[]>([
-    "classic",
-    "biography",
-    "philosophy",
-  ]);
+  const setFavoriteGenres = useSignUpStore((state) => state.setFavoriteGenres);
 
   // Animated values
   const progressAnim = useRef(new Animated.Value(2 / 6)).current;
@@ -53,6 +67,35 @@ export default function SignInStep3Screen() {
       easing: Easing.out(Easing.cubic),
       useNativeDriver: false,
     }).start();
+
+    // Fetch genres from the database
+    const fetchGenres = async () => {
+      try {
+        const response = await api.get("api/books/genres/");
+        const fetched = response.data.map((g: any) => ({
+          id: g.id,
+          name: g.genre,
+          symbol: getSymbol(g.genre)
+        }));
+        setGenres(fetched);
+        
+        // Default pre-select some genres if they match popular ones
+        const preselected = fetched
+          .filter((g: any) => 
+            g.name.toLowerCase().includes("fiction") || 
+            g.name.toLowerCase().includes("fantasy") || 
+            g.name.toLowerCase().includes("history") ||
+            g.name.toLowerCase().includes("science")
+          )
+          .map((g: any) => g.id);
+        setSelectedGenres(preselected.slice(0, 3));
+      } catch (error) {
+        console.error("Error fetching genres:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchGenres();
   }, []);
 
   const progressWidth = progressAnim.interpolate({
@@ -89,13 +132,13 @@ export default function SignInStep3Screen() {
   };
 
   const handleContinue = () => {
-    // Navigate to step 4 (authors.tsx)
+    // Guardar en el store y avanzar a autores
+    setFavoriteGenres(selectedGenres);
     router.push("/(auth)/authors");
   };
 
   return (
     <SafeAreaView className="flex-1 bg-[#FFF8F0]">
-      <StatusBar style="dark" />
 
       {/* Top Navigation Header (Fixed) */}
       <View>
@@ -159,38 +202,44 @@ export default function SignInStep3Screen() {
         </Text>
 
         {/* Grid Layout of Genre Cards */}
-        <View className="flex-row flex-wrap justify-between w-full mt-8">
-          {GENRES.map((genre) => {
-            const isSelected = selectedGenres.includes(genre.id);
-            return (
-              <TouchableOpacity
-                key={genre.id}
-                onPress={() => toggleGenre(genre.id)}
-                className={`w-[47%] h-36 rounded-2xl mb-4 items-center justify-center relative border-2 ${
-                  isSelected
-                    ? "bg-[#FFF8F0] border-[#212842]"
-                    : "bg-[#FAF3E8] border-transparent"
-                }`}
-                activeOpacity={0.8}
-              >
-                <Text className="text-3xl mb-3">{genre.symbol}</Text>
-                <Text
-                  className="text-[#212842] text-center text-lg"
-                  style={{ fontFamily: "Newsreader-Bold" }}
+        {loading ? (
+          <View className="py-20 justify-center items-center">
+            <ActivityIndicator size="large" color="#212842" />
+          </View>
+        ) : (
+          <View className="flex-row flex-wrap justify-between w-full mt-8">
+            {genres.map((genre) => {
+              const isSelected = selectedGenres.includes(genre.id);
+              return (
+                <TouchableOpacity
+                  key={genre.id}
+                  onPress={() => toggleGenre(genre.id)}
+                  className={`w-[47%] h-36 rounded-2xl mb-4 items-center justify-center relative border-2 ${
+                    isSelected
+                      ? "bg-[#FFF8F0] border-[#212842]"
+                      : "bg-[#FAF3E8] border-transparent"
+                  }`}
+                  activeOpacity={0.8}
                 >
-                  {genre.name}
-                </Text>
+                  <Text className="text-3xl mb-3">{genre.symbol}</Text>
+                  <Text
+                    className="text-[#212842] text-center text-lg"
+                    style={{ fontFamily: "Newsreader-Bold" }}
+                  >
+                    {genre.name}
+                  </Text>
 
-                {/* Top-Right Checkbox Badge for Selected State */}
-                {isSelected && (
-                  <View className="absolute top-3 right-3 w-5 h-5 rounded-full bg-[#212842] items-center justify-center">
-                    <Text className="text-[#FFF8F0] text-[10px] font-bold">✓</Text>
-                  </View>
-                )}
-              </TouchableOpacity>
-            );
-          })}
-        </View>
+                  {/* Checkbox Badge */}
+                  {isSelected && (
+                    <View className="absolute top-3 right-3 w-5 h-5 rounded-full bg-[#212842] items-center justify-center">
+                      <Text className="text-[#FFF8F0] text-[10px] font-bold">✓</Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        )}
 
         {/* Cozy and welcoming UX Login Shortcut */}
         <TouchableOpacity

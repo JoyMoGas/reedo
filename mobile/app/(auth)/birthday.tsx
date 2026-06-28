@@ -1,5 +1,4 @@
 import React, { useState, useRef, useEffect } from "react";
-import { StatusBar } from "expo-status-bar";
 import {
   Text,
   View,
@@ -172,7 +171,6 @@ export default function SignInStep2Screen() {
 
   return (
     <SafeAreaView className="flex-1 bg-[#FFF8F0] justify-between">
-      <StatusBar style="dark" />
 
       {/* Top Navigation Header */}
       <View>

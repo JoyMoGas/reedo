@@ -1,12 +1,13 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import '../global.css';
 import { Stack, useRouter, useSegments, useRootNavigationState } from 'expo-router';
 
 import { useAuthStore } from '../store/useAuthStore';
-import { ActivityIndicator, View, LogBox } from 'react-native';
+import { ActivityIndicator, View, LogBox, Text } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
+import Logo from './assets/LOGO.svg';
 
 // Suppress all React Native and Expo development warnings on-screen
 LogBox.ignoreAllLogs();
@@ -43,6 +44,8 @@ export default function RootLayout() {
   const router = useRouter();
   const navigationState = useRootNavigationState();
 
+  const [isNavigationResolved, setIsNavigationResolved] = useState(false);
+
   // Load all custom fonts dynamically from app/assets/fonts for global app availability
   const [fontsLoaded, fontError] = useFonts({
     'Newsreader-Regular': require('./assets/fonts/Newsreader/static/Newsreader_36pt-Regular.ttf'),
@@ -50,18 +53,19 @@ export default function RootLayout() {
     'Newsreader-Italic': require('./assets/fonts/Newsreader/static/Newsreader_36pt-Italic.ttf'),
     'PublicSans-Regular': require('./assets/fonts/Public_Sans/static/PublicSans-Regular.ttf'),
     'PublicSans-Bold': require('./assets/fonts/Public_Sans/static/PublicSans-Bold.ttf'),
+    'PublicSans-Italic': require('./assets/fonts/Public_Sans/static/PublicSans-Italic.ttf'),
   });
 
   useEffect(() => {
     checkSession();
   }, []);
 
-  // Hide the splash screen when both fonts and session state are resolved
+  // Hide the native splash screen as soon as fonts are loaded so our custom React-based splash screen is revealed
   useEffect(() => {
-    if ((fontsLoaded || fontError) && !isAuthLoading) {
+    if (fontsLoaded || fontError) {
       SplashScreen.hideAsync();
     }
-  }, [fontsLoaded, fontError, isAuthLoading]);
+  }, [fontsLoaded, fontError]);
 
   useEffect(() => {
     // Wait until both fonts and authentication state are loaded,
@@ -78,18 +82,29 @@ export default function RootLayout() {
       } else if (isAuthenticated && (inAuthGroup || isAtWelcome)) {
         // Redirect authenticated users trying to access login/signup/welcome screens to the home screen
         router.replace('/(tabs)/home');
+      } else {
+        // Already on the correct screen, resolve navigation to hide splash screen
+        setIsNavigationResolved(true);
       }
     }, 0);
 
     return () => clearTimeout(timer);
   }, [isAuthenticated, isAuthLoading, fontsLoaded, segments, navigationState?.key]);
 
-  // While loading initial fonts or authenticating, keep showing the loading state
-  if (!fontsLoaded || isAuthLoading) {
+  // While loading fonts/session or waiting for navigation to redirect, show the splash screen
+  if (!isNavigationResolved) {
     return (
-      <View className="flex-1 items-center justify-center bg-slate-950">
-        <ActivityIndicator size="large" color="#10b981" />
-        <StatusBar style="light" />
+      <View className="flex-1 items-center justify-center bg-[#FFF8F0]">
+        <View className="flex-col items-center justify-center">
+          <Logo width={80} height={80} />
+          <Text
+            className="text-[30px] text-[#212842] text-center mt-3"
+            style={{ fontFamily: fontsLoaded ? "Newsreader-Bold" : "System" }}
+          >
+            REEDO
+          </Text>
+        </View>
+        <StatusBar style="dark" />
       </View>
     );
   }
@@ -101,7 +116,7 @@ export default function RootLayout() {
         <Stack.Screen name="(auth)" />
         <Stack.Screen name="(tabs)" />
       </Stack>
-      <StatusBar style="light" />
+      <StatusBar style="dark" />
     </>
   );
 }

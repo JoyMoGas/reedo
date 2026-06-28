@@ -1,5 +1,4 @@
 import React, { useEffect } from "react";
-import { StatusBar } from "expo-status-bar";
 import { Text, View, TouchableOpacity } from "react-native";
 import { useFonts } from "expo-font";
 import { useRouter } from "expo-router";
@@ -82,7 +81,6 @@ export default function WelcomeScreen() {
           </Text>
         </Text>
       </View>
-      <StatusBar style="dark" />
     </SafeAreaView>
   );
 }

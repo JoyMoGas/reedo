@@ -1,5 +1,4 @@
-import React, { useState, useRef } from "react";
-import { StatusBar } from "expo-status-bar";
+import React, { useState, useRef, useEffect } from "react";
 import {
   Text,
   View,
@@ -26,6 +25,17 @@ export default function SignInStep1Screen() {
   const [username, setUsername] = useState(storedUsername || "");
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<{ fullName?: string; username?: string }>({});
+
+  const [isUsernameManual, setIsUsernameManual] = useState(false);
+  const generateTimeoutRef = useRef<any>(null);
+
+  useEffect(() => {
+    return () => {
+      if (generateTimeoutRef.current) {
+        clearTimeout(generateTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const handleContinue = async () => {
     setErrors({});
@@ -99,7 +109,6 @@ export default function SignInStep1Screen() {
 
   return (
     <SafeAreaView className="flex-1 bg-[#FFF8F0] justify-between">
-      <StatusBar style="dark" />
 
       {/* Top Navigation Header */}
       <View>
@@ -187,6 +196,39 @@ export default function SignInStep1Screen() {
                     onChangeText={(val) => {
                       setFullName(val);
                       if (errors.fullName) setErrors(prev => ({ ...prev, fullName: undefined }));
+
+                      if (!isUsernameManual) {
+                        // Instant local generation for immediate visual feedback
+                        const localUsername = val
+                          .normalize("NFD")
+                          .replace(/[\u0300-\u036f]/g, "")
+                          .toLowerCase()
+                          .replace(/[^a-z0-9]+/g, "_")
+                          .replace(/^_+|_+$/g, "");
+                        
+                        setUsername(localUsername);
+
+                        if (generateTimeoutRef.current) {
+                          clearTimeout(generateTimeoutRef.current);
+                        }
+
+                        if (val.trim()) {
+                          generateTimeoutRef.current = setTimeout(async () => {
+                            try {
+                              const response = await api.post("api/users/generate-username/", {
+                                fullname: val.trim(),
+                              });
+                              if (response.data?.username && !isUsernameManual) {
+                                setUsername(response.data.username);
+                              }
+                            } catch (e) {
+                              console.warn("Failed to auto-generate unique username:", e);
+                            }
+                          }, 500);
+                        } else {
+                          setUsername("");
+                        }
+                      }
                     }}
                     editable={!isLoading}
                   />
@@ -251,6 +293,39 @@ export default function SignInStep1Screen() {
                       const cleaned = val.replace(/@/g, "").replace(/\s+/g, "").toLowerCase();
                       setUsername(cleaned);
                       if (errors.username) setErrors(prev => ({ ...prev, username: undefined }));
+
+                      if (cleaned.length > 0) {
+                        setIsUsernameManual(true);
+                      } else {
+                        setIsUsernameManual(false);
+                        // Reset and auto-regenerate immediately from current fullName if cleared
+                        if (fullName.trim()) {
+                          const localUsername = fullName
+                            .normalize("NFD")
+                            .replace(/[\u0300-\u036f]/g, "")
+                            .toLowerCase()
+                            .replace(/[^a-z0-9]+/g, "_")
+                            .replace(/^_+|_+$/g, "");
+                          
+                          setUsername(localUsername);
+
+                          if (generateTimeoutRef.current) {
+                            clearTimeout(generateTimeoutRef.current);
+                          }
+                          generateTimeoutRef.current = setTimeout(async () => {
+                            try {
+                              const response = await api.post("api/users/generate-username/", {
+                                fullname: fullName.trim(),
+                              });
+                              if (response.data?.username) {
+                                setUsername(response.data.username);
+                              }
+                            } catch (e) {
+                              console.warn("Failed to auto-generate unique username:", e);
+                            }
+                          }, 500);
+                        }
+                      }
                     }}
                     editable={!isLoading}
                   />

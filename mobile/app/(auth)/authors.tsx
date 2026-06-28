@@ -1,5 +1,4 @@
 import React, { useState, useRef, useEffect } from "react";
-import { StatusBar } from "expo-status-bar";
 import {
   Text,
   View,
@@ -10,22 +9,43 @@ import {
   Easing,
   Platform,
   KeyboardAvoidingView,
+  ActivityIndicator,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Logo from "../assets/LOGO.svg";
+import api from "../../store/api";
+import { useSignUpStore } from "../../store/useSignUpStore";
 
-const AUTHORS = [
-  { id: "neil", name: "Nail Gaiman", role: "MASTER OF FANTASY", initials: "NG", bg: "#C69A5C" },
-  { id: "julian", name: "Julian Thorne", role: "METAPHYSICAL POETRY", initials: "JT", bg: "#697A5A" },
-  { id: "marcus", name: "Marcus H. Aris", role: "MORAL PYHYLOSOPHY", initials: "MA", bg: "#C86B4F" },
-  { id: "soren", name: "Soren K.", role: "MAGICAL REALISM", initials: "SK", bg: "#5C7C8A" },
-];
+const colors = ["#C69A5C", "#697A5A", "#C86B4F", "#5C7C8A", "#8A7C5C", "#7C5C8A"];
+
+const getInitials = (name: string) => {
+  const parts = name.trim().split(" ");
+  if (parts.length >= 2) {
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  }
+  return name.slice(0, 2).toUpperCase();
+};
+
+const getColorForName = (name: string) => {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const idx = Math.abs(hash) % colors.length;
+  return colors[idx];
+};
 
 export default function SignInStep4Screen() {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
-  const [followedAuthors, setFollowedAuthors] = useState<string[]>(["julian"]);
+  const [followedAuthors, setFollowedAuthors] = useState<string[]>([]);
+  const [suggestedAuthors, setSuggestedAuthors] = useState<{ id: string; name: string; role: string; initials: string; bg: string }[]>([]);
+  const [authors, setAuthors] = useState<{ id: string; name: string; role: string; initials: string; bg: string }[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const favoriteGenres = useSignUpStore((state) => state.favorite_genres);
+  const setFavoriteAuthors = useSignUpStore((state) => state.setFavoriteAuthors);
 
   // Animated values
   const progressAnim = useRef(new Animated.Value(3 / 6)).current;
@@ -47,7 +67,67 @@ export default function SignInStep4Screen() {
       easing: Easing.out(Easing.cubic),
       useNativeDriver: false,
     }).start();
-  }, []);
+
+    // Fetch author suggestions based on genres
+    const fetchSuggestedAuthors = async () => {
+      setLoading(true);
+      try {
+        const response = await api.get("api/books/authors/suggestions/", {
+          params: { genres: favoriteGenres.join(",") }
+        });
+        const mapped = response.data.map((a: any) => ({
+          id: a.id,
+          name: a.name,
+          role: "LITERARY VOICE",
+          initials: getInitials(a.name),
+          bg: getColorForName(a.name)
+        }));
+        setSuggestedAuthors(mapped);
+        setAuthors(mapped);
+        
+        // Pre-select some initial author if suggestions are loaded
+        if (mapped.length > 0) {
+          setFollowedAuthors([mapped[0].id]);
+        }
+      } catch (error) {
+        console.error("Error fetching author suggestions:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchSuggestedAuthors();
+  }, [favoriteGenres]);
+
+  // Debounced search trigger
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setAuthors(suggestedAuthors);
+      return;
+    }
+
+    const delayDebounceFn = setTimeout(async () => {
+      setLoading(true);
+      try {
+        const response = await api.get("api/books/authors/search/", {
+          params: { q: searchQuery }
+        });
+        const mapped = response.data.map((a: any) => ({
+          id: a.id,
+          name: a.name,
+          role: "SEARCH RESULT",
+          initials: getInitials(a.name),
+          bg: getColorForName(a.name)
+        }));
+        setAuthors(mapped);
+      } catch (error) {
+        console.error("Error searching authors:", error);
+      } finally {
+        setLoading(false);
+      }
+    }, 500);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [searchQuery, suggestedAuthors]);
 
   const progressWidth = progressAnim.interpolate({
     inputRange: [0, 1],
@@ -83,19 +163,15 @@ export default function SignInStep4Screen() {
   };
 
   const handleContinue = () => {
-    // Navigate to step 5 (books.tsx)
+    // Save to Zustand and navigate to Step 5
+    setFavoriteAuthors(followedAuthors);
     router.push("/(auth)/books");
   };
 
-  const filteredAuthors = AUTHORS.filter(
-    (a) =>
-      a.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      a.role.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredAuthors = authors;
 
   return (
     <SafeAreaView className="flex-1 bg-[#FFF8F0] justify-between">
-      <StatusBar style="dark" />
 
       {/* Top Navigation Header (Fixed) */}
       <View>
@@ -177,66 +253,72 @@ export default function SignInStep4Screen() {
         </View>
 
         {/* Grid Layout of Author Cards */}
-        <View className="flex-row flex-wrap justify-between w-full">
-          {filteredAuthors.map((author) => {
-            const isFollowing = followedAuthors.includes(author.id);
-            return (
-              <View
-                key={author.id}
-                className="w-[47%] bg-[#FAF3E8] rounded-3xl p-3 mb-4 flex-col justify-between"
-              >
-                <View>
-                  {/* Initials as Profile Picture */}
-                  <View
-                    style={{ backgroundColor: author.bg }}
-                    className="w-full aspect-square rounded-2xl items-center justify-center mb-3"
-                  >
+        {loading ? (
+          <View className="py-20 w-full justify-center items-center">
+            <ActivityIndicator size="large" color="#212842" />
+          </View>
+        ) : (
+          <View className="flex-row flex-wrap justify-between w-full">
+            {filteredAuthors.map((author) => {
+              const isFollowing = followedAuthors.includes(author.id);
+              return (
+                <View
+                  key={author.id}
+                  className="w-[47%] bg-[#FAF3E8] rounded-3xl p-3 mb-4 flex-col justify-between"
+                >
+                  <View>
+                    {/* Initials as Profile Picture */}
+                    <View
+                      style={{ backgroundColor: author.bg }}
+                      className="w-full aspect-square rounded-2xl items-center justify-center mb-3"
+                    >
+                      <Text
+                        className="text-[#FFF8F0] text-3xl font-bold"
+                        style={{ fontFamily: "Newsreader-Bold" }}
+                      >
+                        {author.initials}
+                      </Text>
+                    </View>
+
+                    {/* Author Name */}
                     <Text
-                      className="text-[#FFF8F0] text-3xl font-bold"
+                      className="text-[#212842] text-lg leading-tight"
                       style={{ fontFamily: "Newsreader-Bold" }}
                     >
-                      {author.initials}
+                      {author.name}
+                    </Text>
+
+                    {/* Role / Tagline */}
+                    <Text
+                      className="text-[9px] text-[#8E8B82] tracking-wider mt-1 uppercase"
+                      style={{ fontFamily: "PublicSans-Bold" }}
+                    >
+                      {author.role}
                     </Text>
                   </View>
 
-                  {/* Author Name */}
-                  <Text
-                    className="text-[#212842] text-lg leading-tight"
-                    style={{ fontFamily: "Newsreader-Bold" }}
-                  >
-                    {author.name}
-                  </Text>
-
-                  {/* Role / Tagline */}
-                  <Text
-                    className="text-[9px] text-[#8E8B82] tracking-wider mt-1 uppercase"
-                    style={{ fontFamily: "PublicSans-Bold" }}
-                  >
-                    {author.role}
-                  </Text>
-                </View>
-
-                {/* Follow Button */}
-                <TouchableOpacity
-                  onPress={() => toggleFollow(author.id)}
-                  className={`w-full rounded-full py-2 mt-4 items-center justify-center ${
-                    isFollowing ? "bg-[#212842]" : "bg-transparent border border-[#212842]"
-                  }`}
-                  activeOpacity={0.8}
-                >
-                  <Text
-                    className={`text-sm ${
-                      isFollowing ? "text-[#FFFFFF]" : "text-[#212842]"
+                  {/* Follow Button */}
+                  <TouchableOpacity
+                    onPress={() => toggleFollow(author.id)}
+                    className={`w-full rounded-full py-2 mt-4 items-center justify-center ${
+                      isFollowing ? "bg-[#212842]" : "bg-transparent border border-[#212842]"
                     }`}
-                    style={{ fontFamily: "PublicSans-Bold" }}
+                    activeOpacity={0.8}
                   >
-                    {isFollowing ? "✓ Following" : "Follow"}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            );
-          })}
-        </View>
+                    <Text
+                      className={`text-sm ${
+                        isFollowing ? "text-[#FFFFFF]" : "text-[#212842]"
+                      }`}
+                      style={{ fontFamily: "PublicSans-Bold" }}
+                    >
+                      {isFollowing ? "✓ Following" : "Follow"}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              );
+            })}
+          </View>
+        )}
 
         {/* Cozy and welcoming UX Login Shortcut */}
         <TouchableOpacity

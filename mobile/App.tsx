@@ -76,6 +76,7 @@ export default function App() {
           </Text>
         </Text>
       </View>
+      
 
     </SafeAreaView>
   );

@@ -1,5 +1,4 @@
 import React, { useState, useRef, useEffect } from "react";
-import { StatusBar } from "expo-status-bar";
 import {
   Text,
   View,
@@ -11,54 +10,25 @@ import {
   Easing,
   Platform,
   KeyboardAvoidingView,
+  ActivityIndicator,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Logo from "../assets/LOGO.svg";
-
-const BOOKS = [
-  {
-    id: "dracula",
-    title: "DRACULA",
-    author: "DRAM STOKER",
-    cover: "https://images.unsplash.com/photo-1509248961158-e54f6934749c?q=80&w=400&auto=format&fit=crop",
-  },
-  {
-    id: "stellar",
-    title: "Stellar Echoes",
-    author: "MARCUS VANE",
-    cover: "https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=400&auto=format&fit=crop",
-  },
-  {
-    id: "curated",
-    title: "The curated Mind",
-    author: "DR. JULIAN THORNE",
-    cover: "https://images.unsplash.com/photo-1507842217343-583bb7270b66?q=80&w=400&auto=format&fit=crop",
-  },
-  {
-    id: "whispers",
-    title: "Whispers of Salt",
-    author: "S. J. ARIS",
-    cover: "https://images.unsplash.com/photo-1505118380757-91f5f5632de0?q=80&w=400&auto=format&fit=crop",
-  },
-  {
-    id: "alchemist",
-    title: "The Alchemist's Shadow",
-    author: "ELENA MORETTI",
-    cover: "https://images.unsplash.com/photo-1512820790803-83ca734da794?q=80&w=400&auto=format&fit=crop",
-  },
-  {
-    id: "stellar2",
-    title: "Stellar Echoes",
-    author: "MARCUS VANE",
-    cover: "https://images.unsplash.com/photo-1544947950-fa07a98d237f?q=80&w=400&auto=format&fit=crop",
-  },
-];
+import api from "../../store/api";
+import { useSignUpStore } from "../../store/useSignUpStore";
 
 export default function SignInStep5Screen() {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedBooks, setSelectedBooks] = useState<string[]>([]);
+  const [suggestedBooks, setSuggestedBooks] = useState<{ id: string; title: string; author: string; cover: string }[]>([]);
+  const [books, setBooks] = useState<{ id: string; title: string; author: string; cover: string }[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const favoriteGenres = useSignUpStore((state) => state.favorite_genres);
+  const favoriteAuthors = useSignUpStore((state) => state.favorite_authors);
+  const setFavoriteBooks = useSignUpStore((state) => state.setFavoriteBooks);
 
   // Animated values
   const progressAnim = useRef(new Animated.Value(4 / 6)).current;
@@ -80,7 +50,63 @@ export default function SignInStep5Screen() {
       easing: Easing.out(Easing.cubic),
       useNativeDriver: false,
     }).start();
-  }, []);
+
+    // Fetch recommended books based on genres and authors
+    const fetchSuggestedBooks = async () => {
+      setLoading(true);
+      try {
+        const response = await api.get("api/books/suggestions/", {
+          params: { 
+            genres: favoriteGenres.join(","),
+            authors: favoriteAuthors.join(",")
+          }
+        });
+        const mapped = response.data.map((b: any) => ({
+          id: b.id,
+          title: b.title,
+          author: b.authors.join(", "),
+          cover: b.cover_image || "https://images.unsplash.com/photo-1544947950-fa07a98d237f?q=80&w=400&auto=format&fit=crop",
+        }));
+        setSuggestedBooks(mapped);
+        setBooks(mapped);
+      } catch (error) {
+        console.error("Error fetching book suggestions:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchSuggestedBooks();
+  }, [favoriteGenres, favoriteAuthors]);
+
+  // Debounced search trigger
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setBooks(suggestedBooks);
+      return;
+    }
+
+    const delayDebounceFn = setTimeout(async () => {
+      setLoading(true);
+      try {
+        const response = await api.get("api/books/search/", {
+          params: { q: searchQuery }
+        });
+        const mapped = response.data.map((b: any) => ({
+          id: b.id,
+          title: b.title,
+          author: b.authors.join(", "),
+          cover: b.cover_image || "https://images.unsplash.com/photo-1544947950-fa07a98d237f?q=80&w=400&auto=format&fit=crop",
+        }));
+        setBooks(mapped);
+      } catch (error) {
+        console.error("Error searching books:", error);
+      } finally {
+        setLoading(false);
+      }
+    }, 500);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [searchQuery, suggestedBooks]);
 
   const progressWidth = progressAnim.interpolate({
     inputRange: [0, 1],
@@ -116,19 +142,15 @@ export default function SignInStep5Screen() {
   };
 
   const handleContinue = () => {
-    // Navigate to step 6 (email.tsx)
+    // Save to Zustand and navigate to Step 6
+    setFavoriteBooks(selectedBooks);
     router.push("/(auth)/email");
   };
 
-  const filteredBooks = BOOKS.filter(
-    (b) =>
-      b.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      b.author.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredBooks = books;
 
   return (
     <SafeAreaView className="flex-1 bg-[#FFF8F0] justify-between">
-      <StatusBar style="dark" />
 
       {/* Top Navigation Header (Fixed) */}
       <View>
@@ -210,57 +232,63 @@ export default function SignInStep5Screen() {
         </View>
 
         {/* Grid Layout of Book Cards */}
-        <View className="flex-row flex-wrap justify-between w-full mb-6">
-          {filteredBooks.map((book) => {
-            const isSelected = selectedBooks.includes(book.id);
-            return (
-              <TouchableOpacity
-                key={book.id}
-                onPress={() => toggleSelectBook(book.id)}
-                className="w-[47%] mb-6"
-                activeOpacity={0.8}
-              >
-                {/* Book Cover Container */}
-                <View
-                  className={`w-full aspect-[2/3] rounded-2xl overflow-hidden bg-[#FAF3E8] relative shadow-md border-2 ${
-                    isSelected ? "border-[#212842]" : "border-transparent"
-                  }`}
+        {loading ? (
+          <View className="py-20 w-full justify-center items-center">
+            <ActivityIndicator size="large" color="#212842" />
+          </View>
+        ) : (
+          <View className="flex-row flex-wrap justify-between w-full mb-6">
+            {filteredBooks.map((book) => {
+              const isSelected = selectedBooks.includes(book.id);
+              return (
+                <TouchableOpacity
+                  key={book.id}
+                  onPress={() => toggleSelectBook(book.id)}
+                  className="w-[47%] mb-6"
+                  activeOpacity={0.8}
                 >
-                  <Image
-                    source={{ uri: book.cover }}
-                    className="w-full h-full"
-                    resizeMode="cover"
-                  />
+                  {/* Book Cover Container */}
+                  <View
+                    className={`w-full aspect-[2/3] rounded-2xl overflow-hidden bg-[#FAF3E8] relative shadow-md border-2 ${
+                      isSelected ? "border-[#212842]" : "border-transparent"
+                    }`}
+                  >
+                    <Image
+                      source={{ uri: book.cover }}
+                      className="w-full h-full"
+                      resizeMode="cover"
+                    />
 
-                  {/* Top-Right Checkbox Badge for Selected State */}
-                  {isSelected && (
-                    <View className="absolute top-2 right-2 w-5 h-5 rounded-full bg-[#212842] items-center justify-center shadow shadow-black">
-                      <Text className="text-[#FFF8F0] text-[10px] font-bold">✓</Text>
-                    </View>
-                  )}
-                </View>
+                    {/* Top-Right Checkbox Badge for Selected State */}
+                    {isSelected && (
+                      <View className="absolute top-2 right-2 w-5 h-5 rounded-full bg-[#212842] items-center justify-center shadow shadow-black">
+                        <Text className="text-[#FFF8F0] text-[10px] font-bold">✓</Text>
+                      </View>
+                    )}
+                  </View>
 
-                {/* Title */}
-                <Text
-                  className="text-[#212842] text-sm leading-tight mt-1"
-                  style={{ fontFamily: "PublicSans-Bold" }}
-                  numberOfLines={2}
-                >
-                  {book.title}
-                </Text>
+                  {/* Title */}
+                  <Text
+                    className="text-[#212842] text-sm leading-tight mt-1"
+                    style={{ fontFamily: "PublicSans-Bold" }}
+                    numberOfLines={2}
+                  >
+                    {book.title}
+                  </Text>
 
-                {/* Author */}
-                <Text
-                  className="text-[10px] text-[#8E8B82] mt-0.5 uppercase"
-                  style={{ fontFamily: "PublicSans-Regular" }}
-                  numberOfLines={1}
-                >
-                  {book.author}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
+                  {/* Author */}
+                  <Text
+                    className="text-[10px] text-[#8E8B82] mt-0.5 uppercase"
+                    style={{ fontFamily: "PublicSans-Regular" }}
+                    numberOfLines={1}
+                  >
+                    {book.author}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        )}
 
         {/* Cozy and welcoming UX Login Shortcut */}
         <TouchableOpacity

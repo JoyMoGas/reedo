@@ -1,5 +1,4 @@
 import React, { useState, useRef, useEffect } from "react";
-import { StatusBar } from "expo-status-bar";
 import {
   Text,
   View,
@@ -164,16 +163,33 @@ export default function SignInStep6Screen() {
       birth_date: signUpState.birth_date,
       password: password,
       password_confirm: repeatPassword,
-      random_genres: true,
-      random_authors: true,
+      favorite_genres: signUpState.favorite_genres,
+      favorite_authors: signUpState.favorite_authors,
+      random_genres: signUpState.favorite_genres.length === 0,
+      random_authors: signUpState.favorite_authors.length === 0,
     };
 
     try {
       const response = await api.post("api/users/signup/", payload);
       const { tokens, user: userProfile } = response.data;
       
-      // Save access token and user locally/globally
+      // Save onboarding favorite books to UserBook shelf in Supabase BEFORE logging in (to prevent race conditions with navigation redirect)
+      if (signUpState.favorite_books.length > 0) {
+        try {
+          for (const bookId of signUpState.favorite_books) {
+            await api.post("api/books/userbook/", 
+              { book_id: bookId, status: "READ_LATER" },
+              { headers: { Authorization: `Bearer ${tokens.access}` } }
+            );
+          }
+        } catch (bookError) {
+          console.error("Failed to save onboarding books:", bookError);
+        }
+      }
+
+      // Save access token and user locally/globally (this will trigger navigation redirect)
       await login(tokens.access, userProfile);
+
       signUpState.reset();
     } catch (error: any) {
       const errorData = error.response?.data;
@@ -224,7 +240,6 @@ export default function SignInStep6Screen() {
 
   return (
     <SafeAreaView className="flex-1 bg-[#FFF8F0] justify-between">
-      <StatusBar style="dark" />
 
       {/* Top Navigation Header (Fixed) */}
       <View>

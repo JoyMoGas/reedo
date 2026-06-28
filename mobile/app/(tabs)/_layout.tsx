@@ -1,22 +1,55 @@
-import React from "react";
-import { View, Text, TouchableOpacity, StyleSheet, Platform } from "react-native";
+import React, { useRef, useEffect } from "react";
+import { View, Text, TouchableOpacity, StyleSheet, Platform, Animated } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Tabs } from "expo-router";
-import { BottomTabBarProps } from "@react-navigation/bottom-tabs";
+import { Header } from "../../components/Header";
+import Icon from "../../core/Icon";
+import { useUIStore } from "../../store/useUIStore";
 
-function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
+const getTabBarIcon = (routeName: string, isFocused: boolean): string => {
+  switch (routeName) {
+    case "home":
+      return isFocused ? "home" : "homeOutline";
+    case "discover":
+      return isFocused ? "compass" : "compassOutline";
+    case "add":
+      return isFocused ? "plus" : "gridAddOutline";
+    case "library":
+      return isFocused ? "library" : "libraryOutline";
+    case "echoes":
+      return isFocused ? "chats" : "chat";
+    default:
+      return "star";
+  }
+};
+
+function CustomTabBar({ state, descriptors, navigation, animValue }: { state: any; descriptors: any; navigation: any; animValue: Animated.Value }) {
   const insets = useSafeAreaInsets();
 
+  const tabBarTranslateY = animValue.interpolate({
+    inputRange: [0, 1],
+    outputRange: [150, 0],
+  });
+
   return (
-    <View 
+    <Animated.View 
       style={[
         styles.tabBarContainer, 
-        { paddingBottom: Math.max(insets.bottom, 16), paddingTop: 14 }
+        { 
+          paddingBottom: Math.max(insets.bottom, 16), 
+          paddingTop: 14,
+          position: "absolute",
+          bottom: 0,
+          left: 0,
+          right: 0,
+          zIndex: 10,
+          transform: [{ translateY: tabBarTranslateY }]
+        }
       ]}
       className="bg-[#FFF8F0] border-t border-[#EBE7DF]"
     >
       <View className="flex-row justify-around items-center w-full px-2">
-        {state.routes.map((route, index) => {
+        {state.routes.map((route: any, index: number) => {
           const { options } = descriptors[route.key];
           const label =
             options.tabBarLabel !== undefined
@@ -47,6 +80,7 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
           };
 
           const displayLabel = typeof label === "string" ? label : route.name;
+          const iconName = getTabBarIcon(route.name, isFocused);
 
           return (
             <TouchableOpacity
@@ -60,72 +94,110 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
               style={styles.tabButton}
               activeOpacity={0.8}
             >
-              <Text
-                style={[
-                  styles.tabLabel,
-                  {
-                    fontFamily: isFocused ? "PublicSans-Bold" : "PublicSans-Regular",
-                    color: isFocused ? "#212842" : "#8E8B82",
-                  }
-                ]}
-                className="text-center tracking-wide"
-              >
-                {displayLabel}
-              </Text>
+              <Icon 
+                name={iconName}
+                size={32}
+                color={isFocused ? "#212842" : "#8E8B82"}
+              />
               
-              {/* Premium Active Dot Indicator */}
-              {isFocused ? (
-                <View style={styles.activeDot} className="bg-[#212842] mt-1.5" />
-              ) : (
-                <View style={styles.activeDotPlaceholder} className="mt-1.5" />
-              )}
+              
+              
             </TouchableOpacity>
           );
         })}
       </View>
-    </View>
+    </Animated.View>
   );
 }
 
 export default function TabLayout() {
+  const insets = useSafeAreaInsets();
+  const isNavbarVisible = useUIStore((state) => state.isNavbarVisible);
+  const animValue = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    Animated.timing(animValue, {
+      toValue: isNavbarVisible ? 1 : 0,
+      duration: 250,
+      useNativeDriver: true,
+    }).start();
+  }, [isNavbarVisible]);
+
+  const headerTranslateY = animValue.interpolate({
+    inputRange: [0, 1],
+    outputRange: [-(insets.top + 70), 0],
+  });
+
   return (
-    <Tabs
-      tabBar={(props) => <CustomTabBar {...props} />}
-      screenOptions={{
-        headerShown: false,
-      }}
-    >
-      <Tabs.Screen
-        name="home"
-        options={{
-          title: "Home",
+    <View className="flex-1 bg-[#FFF8F0]">
+      {/* Background container for the status bar (to prevent content from showing behind it on iOS/translucent screens) */}
+      {insets.top > 0 && (
+        <View
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            height: insets.top,
+            backgroundColor: "#FFF8F0",
+            zIndex: 11,
+          }}
+        />
+      )}
+
+      <View style={StyleSheet.absoluteFill}>
+        <Tabs
+          tabBar={(props) => <CustomTabBar {...props} animValue={animValue} />}
+          screenOptions={{
+            headerShown: false,
+          }}
+        >
+          <Tabs.Screen
+            name="home"
+            options={{
+              title: "Home",
+            }}
+          />
+          <Tabs.Screen
+            name="discover"
+            options={{
+              title: "Discover",
+            }}
+          />
+          <Tabs.Screen
+            name="add"
+            options={{
+              title: "Add",
+            }}
+          />
+          <Tabs.Screen
+            name="library"
+            options={{
+              title: "Library",
+            }}
+          />
+          <Tabs.Screen
+            name="echoes"
+            options={{
+              title: "Echoes",
+            }}
+          />
+        </Tabs>
+      </View>
+
+      <Animated.View
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          zIndex: 10,
+          transform: [{ translateY: headerTranslateY }],
         }}
-      />
-      <Tabs.Screen
-        name="discover"
-        options={{
-          title: "Discover",
-        }}
-      />
-      <Tabs.Screen
-        name="add"
-        options={{
-          title: "Add",
-        }}
-      />
-      <Tabs.Screen
-        name="library"
-        options={{
-          title: "Library",
-        }}
-      />
-      <Tabs.Screen
-        name="echoes"
-        options={{
-          title: "Echoes",
-        }}
-      />
-    </Tabs>
+      >
+        <Header />
+      </Animated.View>
+    </View>
   );
 }
 
