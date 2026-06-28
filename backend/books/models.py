@@ -32,10 +32,12 @@ class Books(models.Model):
     help_text="Title of the book"
   )
 
-  authors = models.JSONField(
-    default=list,
-    blank=False,
-    help_text="List of authors"
+  isbn = models.CharField(
+    max_length=255,
+    null=True,
+    blank=True,
+    unique=True,
+    help_text="ISBN-13 or ISBN-10 identifier"
   )
 
   synopsis = models.TextField(

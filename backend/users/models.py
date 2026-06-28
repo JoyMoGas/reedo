@@ -76,6 +76,11 @@ class User(AbstractUser):
     help_text="Total points for LeaderBoard ranking"
   )
 
+  streak_days = models.IntegerField(
+    default=0,
+    help_text="Current consecutive days of activity"
+  )
+
   show_spoilers = models.BooleanField(
     default=True,
     help_text="Show spoilers in content recommendations"

@@ -153,10 +153,11 @@ class UserSerializer(serializers.ModelSerializer):
             'bio',
             'city_residence',
             'honor_points',
+            'streak_days',
             'show_spoilers',
             'member_since_formatted',
         ]
-        read_only_fields = ['id', 'honor_points', 'member_since_formatted']
+        read_only_fields = ['id', 'honor_points', 'streak_days', 'member_since_formatted']
 
     def get_thumbnail(self, obj):
         if not obj.thumbnail:
