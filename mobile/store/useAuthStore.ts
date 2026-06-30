@@ -1,5 +1,7 @@
 import { create } from "zustand";
 import * as SecureStore from "expo-secure-store";
+import { queryClient } from "./queryClient";
+import { useSignUpStore } from "./useSignUpStore";
 
 export interface UserProfile {
   id: string;
@@ -49,6 +51,13 @@ export const useAuthStore = create<AuthState>((set) => ({
     try {
       await SecureStore.deleteItemAsync("token");
       await SecureStore.deleteItemAsync("user");
+      
+      // Clear React Query cache to prevent data leakage between user sessions
+      queryClient.clear();
+
+      // Reset signup draft state
+      useSignUpStore.getState().reset();
+
       set({
         token: null,
         user: null,
