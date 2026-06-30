@@ -6,8 +6,11 @@ from .views import (
     AuthorSuggestionsView,
     AuthorSearchView,
     BookSuggestionsView,
+    TrendingBooksView,
     UserBookSaveView,
-    DiscoverBooksView
+    DiscoverBooksView,
+    GlobalBookshelfView,
+    NewlyArrivedBooksView
 )
 
 urlpatterns = [
@@ -17,6 +20,9 @@ urlpatterns = [
     path('authors/suggestions/', AuthorSuggestionsView.as_view(), name='author-suggestions'),
     path('authors/search/', AuthorSearchView.as_view(), name='author-search'),
     path('suggestions/', BookSuggestionsView.as_view(), name='book-suggestions'),
+    path('trending/', TrendingBooksView.as_view(), name='trending-books'),
     path('userbook/', UserBookSaveView.as_view(), name='userbook-save'),
     path('discover/', DiscoverBooksView.as_view(), name='discover-books'),
+    path('global-bookshelf/', GlobalBookshelfView.as_view(), name='global-bookshelf'),
+    path('newly-arrived/', NewlyArrivedBooksView.as_view(), name='newly-arrived-books'),
 ]

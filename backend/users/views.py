@@ -186,4 +186,79 @@ class GenerateUsernameView(APIView):
       username = f"{base}_{counter}"
       counter += 1
 
-    return Response({'username': username}, status=200)
+    return Response({'username': username}, status=200)
+
+
+class UserSuggestionsView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        from django.contrib.auth import get_user_model
+        from books.models import UserBook
+        import random
+
+        UserModel = get_user_model()
+        current_user = request.user
+        
+        query = UserModel.objects.all()
+        if current_user and current_user.is_authenticated:
+            query = query.exclude(id=current_user.id)
+        
+        other_users = list(query[:30])
+        
+        if not other_users:
+            return Response([], status=200)
+
+        user_books = set()
+        user_genres = set()
+        user_city = ""
+        
+        if current_user and current_user.is_authenticated:
+            user_books = set(UserBook.objects.filter(user_id=current_user).values_list('book_id', flat=True))
+            user_genres = set(current_user.favorite_genres.values_list('genre', flat=True))
+            user_city = current_user.city_residence.strip().lower() if current_user.city_residence else ""
+
+        suggestions = []
+        
+        for ou in other_users:
+            relation = "Fellow reader"
+            score = 0
+            
+            ou_books = set(UserBook.objects.filter(user_id=ou).values_list('book_id', flat=True))
+            common_books = user_books.intersection(ou_books)
+            if common_books:
+                cnt = len(common_books)
+                relation = f"{cnt} book{'s' if cnt > 1 else ''} in common"
+                score += cnt * 10
+            else:
+                ou_genres = set(ou.favorite_genres.values_list('genre', flat=True))
+                common_genres = user_genres.intersection(ou_genres)
+                if common_genres:
+                    genre_name = list(common_genres)[0]
+                    relation = f"also likes {genre_name}"
+                    score += 5
+                elif ou_genres:
+                    genre_name = list(ou_genres)[0]
+                    relation = f"likes {genre_name}"
+                    score += 2
+                
+                if user_city and ou.city_residence and ou.city_residence.strip().lower() == user_city:
+                    relation = f"same city ({ou.city_residence})"
+                    score += 4
+
+            avatar_url = None
+            if ou.thumbnail:
+                avatar_url = request.build_absolute_uri(ou.thumbnail.url)
+
+            suggestions.append({
+                "id": str(ou.id),
+                "fullName": ou.full_name or ou.username,
+                "username": ou.username,
+                "avatar": avatar_url,
+                "relation": relation,
+                "score": score
+            })
+            
+        suggestions.sort(key=lambda x: x["score"], reverse=True)
+        
+        return Response(suggestions[:10], status=200)

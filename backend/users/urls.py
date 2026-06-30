@@ -6,7 +6,8 @@ from .views import (
     CheckEmailView,
     UpdateFavoriteGenresView,
     UpdateFavoriteAuthorsView,
-    GenerateUsernameView
+    GenerateUsernameView,
+    UserSuggestionsView
 )
 
 urlpatterns = [
@@ -17,4 +18,5 @@ urlpatterns = [
     path('generate-username/', GenerateUsernameView.as_view(), name='generate-username'),
     path('profile/genres/', UpdateFavoriteGenresView.as_view(), name='update-genres'),
     path('profile/authors/', UpdateFavoriteAuthorsView.as_view(), name='update-authors'),
+    path('suggestions/', UserSuggestionsView.as_view(), name='user-suggestions'),
 ]
