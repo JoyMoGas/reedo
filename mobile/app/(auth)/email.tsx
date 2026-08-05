@@ -176,9 +176,21 @@ export default function SignInStep6Screen() {
       // Save onboarding favorite books to UserBook shelf in Supabase BEFORE logging in (to prevent race conditions with navigation redirect)
       if (signUpState.favorite_books.length > 0) {
         try {
-          for (const bookId of signUpState.favorite_books) {
+          for (const book of signUpState.favorite_books) {
+            const raw = book.rawBook;
             await api.post("api/books/userbook/", 
-              { book_id: bookId, status: "READ_LATER" },
+              { 
+                book_id: book.id, 
+                status: "READ_LATER",
+                title: raw?.title || book.title,
+                authors: raw?.authors || [book.author],
+                cover_image: raw?.cover_image || book.cover,
+                synopsis: raw?.synopsis,
+                total_pages: raw?.total_pages,
+                isbn: raw?.isbn,
+                average_rating: raw?.average_rating,
+                genres: raw?.genres
+              },
               { headers: { Authorization: `Bearer ${tokens.access}` } }
             );
           }

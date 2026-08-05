@@ -16,6 +16,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import Logo from "../assets/LOGO.svg";
 import api from "../../store/api";
 import { useSignUpStore } from "../../store/useSignUpStore";
+import { useQuery } from "@tanstack/react-query";
 
 const colors = ["#C69A5C", "#697A5A", "#C86B4F", "#5C7C8A", "#8A7C5C", "#7C5C8A"];
 
@@ -39,13 +40,12 @@ const getColorForName = (name: string) => {
 export default function SignInStep4Screen() {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
-  const [followedAuthors, setFollowedAuthors] = useState<string[]>([]);
-  const [suggestedAuthors, setSuggestedAuthors] = useState<{ id: string; name: string; role: string; initials: string; bg: string }[]>([]);
-  const [authors, setAuthors] = useState<{ id: string; name: string; role: string; initials: string; bg: string }[]>([]);
-  const [loading, setLoading] = useState(true);
-
+  const [debouncedQuery, setDebouncedQuery] = useState("");
+  
   const favoriteGenres = useSignUpStore((state) => state.favorite_genres);
+  const favoriteAuthors = useSignUpStore((state) => state.favorite_authors);
   const setFavoriteAuthors = useSignUpStore((state) => state.setFavoriteAuthors);
+  const [followedAuthors, setFollowedAuthors] = useState<string[]>(favoriteAuthors);
 
   // Animated values
   const progressAnim = useRef(new Animated.Value(3 / 6)).current;
@@ -67,67 +67,64 @@ export default function SignInStep4Screen() {
       easing: Easing.out(Easing.cubic),
       useNativeDriver: false,
     }).start();
+  }, []);
 
-    // Fetch author suggestions based on genres
-    const fetchSuggestedAuthors = async () => {
-      setLoading(true);
-      try {
-        const response = await api.get("api/books/authors/suggestions/", {
-          params: { genres: favoriteGenres.join(",") }
-        });
-        const mapped = response.data.map((a: any) => ({
-          id: a.id,
-          name: a.name,
-          role: "LITERARY VOICE",
-          initials: getInitials(a.name),
-          bg: getColorForName(a.name)
-        }));
-        setSuggestedAuthors(mapped);
-        setAuthors(mapped);
-        
-        // Pre-select some initial author if suggestions are loaded
-        if (mapped.length > 0) {
-          setFollowedAuthors([mapped[0].id]);
-        }
-      } catch (error) {
-        console.error("Error fetching author suggestions:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchSuggestedAuthors();
-  }, [favoriteGenres]);
-
-  // Debounced search trigger
+  // Debounce search query
   useEffect(() => {
     if (!searchQuery.trim()) {
-      setAuthors(suggestedAuthors);
+      setDebouncedQuery("");
       return;
     }
-
-    const delayDebounceFn = setTimeout(async () => {
-      setLoading(true);
-      try {
-        const response = await api.get("api/books/authors/search/", {
-          params: { q: searchQuery }
-        });
-        const mapped = response.data.map((a: any) => ({
-          id: a.id,
-          name: a.name,
-          role: "SEARCH RESULT",
-          initials: getInitials(a.name),
-          bg: getColorForName(a.name)
-        }));
-        setAuthors(mapped);
-      } catch (error) {
-        console.error("Error searching authors:", error);
-      } finally {
-        setLoading(false);
-      }
+    const timer = setTimeout(() => {
+      setDebouncedQuery(searchQuery);
     }, 500);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
-    return () => clearTimeout(delayDebounceFn);
-  }, [searchQuery, suggestedAuthors]);
+  // Suggested authors query
+  const { data: suggestedAuthors = [], isLoading: suggestionsLoading } = useQuery({
+    queryKey: ["suggestedAuthors", favoriteGenres],
+    queryFn: async () => {
+      const response = await api.get("api/books/authors/suggestions/", {
+        params: { genres: favoriteGenres.join(",") }
+      });
+      return response.data.map((a: any) => ({
+        id: a.id,
+        name: a.name,
+        role: "LITERARY VOICE",
+        initials: getInitials(a.name),
+        bg: getColorForName(a.name)
+      }));
+    },
+  });
+
+  // Author search query
+  const { data: searchResults = [], isLoading: searchLoading } = useQuery({
+    queryKey: ["authorsSearch", debouncedQuery],
+    queryFn: async () => {
+      const response = await api.get("api/books/authors/search/", {
+        params: { q: debouncedQuery }
+      });
+      return response.data.map((a: any) => ({
+        id: a.id,
+        name: a.name,
+        role: "SEARCH RESULT",
+        initials: getInitials(a.name),
+        bg: getColorForName(a.name)
+      }));
+    },
+    enabled: debouncedQuery.trim().length > 0,
+  });
+
+  const loading = searchQuery.trim().length > 0 ? (debouncedQuery ? searchLoading : true) : suggestionsLoading;
+  const filteredAuthors = searchQuery.trim().length > 0 ? (debouncedQuery ? searchResults : []) : suggestedAuthors;
+
+  // Pre-select some initial author if suggestions are loaded and we have no selection
+  useEffect(() => {
+    if (suggestedAuthors.length > 0 && followedAuthors.length === 0) {
+      setFollowedAuthors([suggestedAuthors[0].id]);
+    }
+  }, [suggestedAuthors]);
 
   const progressWidth = progressAnim.interpolate({
     inputRange: [0, 1],
@@ -168,7 +165,7 @@ export default function SignInStep4Screen() {
     router.push("/(auth)/books");
   };
 
-  const filteredAuthors = authors;
+
 
   return (
     <SafeAreaView className="flex-1 bg-[#FFF8F0] justify-between">
@@ -259,7 +256,7 @@ export default function SignInStep4Screen() {
           </View>
         ) : (
           <View className="flex-row flex-wrap justify-between w-full">
-            {filteredAuthors.map((author) => {
+            {filteredAuthors.map((author: any) => {
               const isFollowing = followedAuthors.includes(author.id);
               return (
                 <View

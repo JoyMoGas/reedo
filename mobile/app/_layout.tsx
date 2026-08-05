@@ -8,6 +8,8 @@ import { StatusBar } from 'expo-status-bar';
 import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
 import Logo from './assets/LOGO.svg';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { queryClient } from '../store/queryClient';
 
 // Suppress all React Native and Expo development warnings on-screen
 LogBox.ignoreAllLogs();
@@ -110,13 +112,13 @@ export default function RootLayout() {
   }
 
   return (
-    <>
+    <QueryClientProvider client={queryClient}>
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="index" />
         <Stack.Screen name="(auth)" />
         <Stack.Screen name="(tabs)" />
       </Stack>
       <StatusBar style="dark" />
-    </>
+    </QueryClientProvider>
   );
 }

@@ -1,25 +1,23 @@
 import React, { useRef, useState, useEffect } from "react";
 import { Text, View, TouchableOpacity, Image, ScrollView, Animated } from "react-native";
-import * as SecureStore from "expo-secure-store";
 import api from "../../store/api";
 import Icon from "../../core/Icon";
 import NoCover from "../../app/assets/NoCover.svg";
 import { useQuery } from "@tanstack/react-query";
-import BookCard from "../BookCard";
 
-interface DiscoverBook {
+interface GlobalBook {
   id: string;
   title: string;
   author: string;
   cover: string;
 }
 
-interface DiscoverNextProps {
+interface GlobalBookshelfProps {
   refreshTrigger?: number;
   onLoadEnd?: () => void;
 }
 
-export default function DiscoverNext({ refreshTrigger = 0, onLoadEnd }: DiscoverNextProps) {
+export default function GlobalBookshelf({ refreshTrigger = 0, onLoadEnd }: GlobalBookshelfProps) {
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(true);
 
@@ -32,29 +30,16 @@ export default function DiscoverNext({ refreshTrigger = 0, onLoadEnd }: Discover
 
   // React Query fetch definition
   const { data: books = [], isLoading: loading, refetch } = useQuery({
-    queryKey: ["discoverBooks"],
+    queryKey: ["globalBookshelf"],
     queryFn: async () => {
-      // 1. Read keep IDs from secure store
-      const keptIdsStr = await SecureStore.getItemAsync("discover_keep_ids");
-      const keptIds = keptIdsStr ? keptIdsStr.split(",") : [];
-
-      // 2. Query discover endpoint with kept IDs
-      const response = await api.get("api/books/discover/", {
-        params: { keep: keptIds.join(",") }
-      });
-
-      const fetchedBooks = response.data.map((b: any) => ({
+      const response = await api.get("api/books/global-bookshelf/");
+      return response.data.map((b: any) => ({
         id: b.id,
         title: b.title,
         author: b.authors.join(", "),
         cover: b.cover_image || "",
+        addedCount: b.added_count || 0
       }));
-
-      // 3. Keep the first 5 IDs for subsequent cold starts
-      const firstFiveIds = fetchedBooks.slice(0, 5).map((b: any) => b.id);
-      await SecureStore.setItemAsync("discover_keep_ids", firstFiveIds.join(","));
-
-      return fetchedBooks;
     }
   });
 
@@ -79,14 +64,9 @@ export default function DiscoverNext({ refreshTrigger = 0, onLoadEnd }: Discover
 
   // Support manual pull-to-refresh triggered from parent page
   useEffect(() => {
-    const handleRefresh = async () => {
-      if (refreshTrigger > 0) {
-        // Clear stored IDs on explicit refresh
-        await SecureStore.deleteItemAsync("discover_keep_ids");
-        await refetch();
-      }
-    };
-    handleRefresh();
+    if (refreshTrigger > 0) {
+      refetch();
+    }
   }, [refreshTrigger]);
 
   // Propagate load end to parent scroll list coordinator
@@ -151,7 +131,7 @@ export default function DiscoverNext({ refreshTrigger = 0, onLoadEnd }: Discover
           className="text-xl font-bold text-[#76767E] tracking-widest mb-4"
           style={{ fontFamily: "PublicSans-Bold" }}
         >
-          DISCOVER YOUR NEXT READ
+          THE GLOBAL BOOKSHELF
         </Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} className="w-full">
           {[1, 2, 3, 4].map((i) => (
@@ -190,15 +170,27 @@ export default function DiscoverNext({ refreshTrigger = 0, onLoadEnd }: Discover
     );
   }
 
+  if (books.length === 0) {
+    return null;
+  }
+
   return (
     <View className="w-full mt-10">
       <View className="flex-row justify-between items-center w-full mb-4">
-        <Text
-          className="text-xl font-bold text-[#76767E] tracking-widest"
-          style={{ fontFamily: "PublicSans-Bold" }}
-        >
-          DISCOVER YOUR NEXT READ
-        </Text>
+        <View className="flex-col">
+          <Text
+            className="text-xl font-bold text-[#76767E] tracking-widest"
+            style={{ fontFamily: "PublicSans-Bold" }}
+          >
+            THE GLOBAL BOOKSHELF
+          </Text>
+          <Text
+            className="text-xs text-[#8E8B82] uppercase mt-0.5"
+            style={{ fontFamily: "PublicSans-Regular" }}
+          >
+            Most cataloged books by fellow curators
+          </Text>
+        </View>
         <View className="flex-row gap-4">
           <TouchableOpacity 
             className="p-1" 
@@ -236,13 +228,55 @@ export default function DiscoverNext({ refreshTrigger = 0, onLoadEnd }: Discover
         onLayout={handleLayout}
       >
         {books.map((book: any) => (
-          <BookCard
+          <TouchableOpacity
             key={book.id}
-            id={book.id}
-            title={book.title}
-            author={book.author}
-            cover={book.cover}
-          />
+            className="mr-6 flex-col"
+            activeOpacity={0.8}
+          >
+            <View
+              style={{
+                shadowColor: "#000",
+                shadowOffset: { width: 0, height: 6 },
+                shadowOpacity: 0.15,
+                shadowRadius: 6,
+                elevation: 4,
+              }}
+              className="bg-transparent mb-3 rounded-xl"
+            >
+              <View className="rounded-xl overflow-hidden bg-[#FCF3E0]">
+                {book.cover ? (
+                  <Image
+                    source={{ uri: book.cover }}
+                    style={{ width: 120, height: 180 }}
+                    resizeMode="cover"
+                  />
+                ) : (
+                  <NoCover width={120} height={180} />
+                )}
+              </View>
+            </View>
+            <Text
+              numberOfLines={1}
+              className="text-base font-bold text-[#212842] uppercase"
+              style={{ fontFamily: "PublicSans-Bold", width: 120 }}
+            >
+              {book.title}
+            </Text>
+            <Text
+              numberOfLines={1}
+              className="text-xs text-[#8E8B82] uppercase mt-1"
+              style={{ fontFamily: "PublicSans-Regular", width: 120 }}
+            >
+              {book.author}
+            </Text>
+            <Text
+              numberOfLines={1}
+              className="text-[10px] text-[#8A7C5C] font-bold uppercase mt-1"
+              style={{ fontFamily: "PublicSans-Bold", width: 120 }}
+            >
+              📖 {book.addedCount} {book.addedCount === 1 ? "save" : "saves"}
+            </Text>
+          </TouchableOpacity>
         ))}
       </ScrollView>
     </View>

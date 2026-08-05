@@ -13,6 +13,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import Logo from "../assets/LOGO.svg";
 import api from "../../store/api";
 import { useSignUpStore } from "../../store/useSignUpStore";
+import { useQuery } from "@tanstack/react-query";
 
 const genreSymbols: { [key: string]: string } = {
   "fiction": "📖",
@@ -41,11 +42,21 @@ const getSymbol = (name: string) => {
 
 export default function SignInStep3Screen() {
   const router = useRouter();
-  const [genres, setGenres] = useState<{ id: string; name: string; symbol: string }[]>([]);
-  const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
-  const [loading, setLoading] = useState(true);
-
+  const favoriteGenres = useSignUpStore((state) => state.favorite_genres);
   const setFavoriteGenres = useSignUpStore((state) => state.setFavoriteGenres);
+  const [selectedGenres, setSelectedGenres] = useState<string[]>(favoriteGenres);
+
+  const { data: genres = [], isLoading: loading } = useQuery({
+    queryKey: ["genres"],
+    queryFn: async () => {
+      const response = await api.get("api/books/genres/");
+      return response.data.map((g: any) => ({
+        id: g.id,
+        name: g.genre,
+        symbol: getSymbol(g.genre)
+      }));
+    }
+  });
 
   // Animated values
   const progressAnim = useRef(new Animated.Value(2 / 6)).current;
@@ -67,36 +78,22 @@ export default function SignInStep3Screen() {
       easing: Easing.out(Easing.cubic),
       useNativeDriver: false,
     }).start();
-
-    // Fetch genres from the database
-    const fetchGenres = async () => {
-      try {
-        const response = await api.get("api/books/genres/");
-        const fetched = response.data.map((g: any) => ({
-          id: g.id,
-          name: g.genre,
-          symbol: getSymbol(g.genre)
-        }));
-        setGenres(fetched);
-        
-        // Default pre-select some genres if they match popular ones
-        const preselected = fetched
-          .filter((g: any) => 
-            g.name.toLowerCase().includes("fiction") || 
-            g.name.toLowerCase().includes("fantasy") || 
-            g.name.toLowerCase().includes("history") ||
-            g.name.toLowerCase().includes("science")
-          )
-          .map((g: any) => g.id);
-        setSelectedGenres(preselected.slice(0, 3));
-      } catch (error) {
-        console.error("Error fetching genres:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchGenres();
   }, []);
+
+  // Pre-select some genres once loaded, only if we don't have any selected yet
+  useEffect(() => {
+    if (genres.length > 0 && selectedGenres.length === 0) {
+      const preselected = genres
+        .filter((g: any) => 
+          g.name.toLowerCase().includes("fiction") || 
+          g.name.toLowerCase().includes("fantasy") || 
+          g.name.toLowerCase().includes("history") ||
+          g.name.toLowerCase().includes("science")
+        )
+        .map((g: any) => g.id);
+      setSelectedGenres(preselected.slice(0, 3));
+    }
+  }, [genres]);
 
   const progressWidth = progressAnim.interpolate({
     inputRange: [0, 1],
@@ -208,7 +205,7 @@ export default function SignInStep3Screen() {
           </View>
         ) : (
           <View className="flex-row flex-wrap justify-between w-full mt-8">
-            {genres.map((genre) => {
+            {genres.map((genre: any) => {
               const isSelected = selectedGenres.includes(genre.id);
               return (
                 <TouchableOpacity

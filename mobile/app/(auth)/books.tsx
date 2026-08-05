@@ -17,18 +17,40 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import Logo from "../assets/LOGO.svg";
 import api from "../../store/api";
 import { useSignUpStore } from "../../store/useSignUpStore";
+import { useQuery } from "@tanstack/react-query";
+import NoCover from "../assets/NoCover.svg";
 
 export default function SignInStep5Screen() {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedBooks, setSelectedBooks] = useState<string[]>([]);
-  const [suggestedBooks, setSuggestedBooks] = useState<{ id: string; title: string; author: string; cover: string }[]>([]);
-  const [books, setBooks] = useState<{ id: string; title: string; author: string; cover: string }[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [debouncedQuery, setDebouncedQuery] = useState("");
+  const [isAdvancedSearch, setIsAdvancedSearch] = useState(false);
 
   const favoriteGenres = useSignUpStore((state) => state.favorite_genres);
   const favoriteAuthors = useSignUpStore((state) => state.favorite_authors);
+  const favoriteBooks = useSignUpStore((state) => state.favorite_books);
   const setFavoriteBooks = useSignUpStore((state) => state.setFavoriteBooks);
+  
+  const [selectedBooks, setSelectedBooks] = useState<any[]>(favoriteBooks);
+
+  const pulseAnim = useRef(new Animated.Value(0.4)).current;
+
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 0.8,
+          duration: 800,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 0.4,
+          duration: 800,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+  }, []);
 
   // Animated values
   const progressAnim = useRef(new Animated.Value(4 / 6)).current;
@@ -50,63 +72,67 @@ export default function SignInStep5Screen() {
       easing: Easing.out(Easing.cubic),
       useNativeDriver: false,
     }).start();
+  }, []);
 
-    // Fetch recommended books based on genres and authors
-    const fetchSuggestedBooks = async () => {
-      setLoading(true);
-      try {
-        const response = await api.get("api/books/suggestions/", {
-          params: { 
-            genres: favoriteGenres.join(","),
-            authors: favoriteAuthors.join(",")
-          }
-        });
-        const mapped = response.data.map((b: any) => ({
-          id: b.id,
-          title: b.title,
-          author: b.authors.join(", "),
-          cover: b.cover_image || "https://images.unsplash.com/photo-1544947950-fa07a98d237f?q=80&w=400&auto=format&fit=crop",
-        }));
-        setSuggestedBooks(mapped);
-        setBooks(mapped);
-      } catch (error) {
-        console.error("Error fetching book suggestions:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchSuggestedBooks();
-  }, [favoriteGenres, favoriteAuthors]);
-
-  // Debounced search trigger
+  // Debounce search query
   useEffect(() => {
     if (!searchQuery.trim()) {
-      setBooks(suggestedBooks);
+      setDebouncedQuery("");
+      setIsAdvancedSearch(false);
       return;
     }
-
-    const delayDebounceFn = setTimeout(async () => {
-      setLoading(true);
-      try {
-        const response = await api.get("api/books/search/", {
-          params: { q: searchQuery }
-        });
-        const mapped = response.data.map((b: any) => ({
-          id: b.id,
-          title: b.title,
-          author: b.authors.join(", "),
-          cover: b.cover_image || "https://images.unsplash.com/photo-1544947950-fa07a98d237f?q=80&w=400&auto=format&fit=crop",
-        }));
-        setBooks(mapped);
-      } catch (error) {
-        console.error("Error searching books:", error);
-      } finally {
-        setLoading(false);
-      }
+    const timer = setTimeout(() => {
+      setDebouncedQuery(searchQuery);
     }, 500);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
-    return () => clearTimeout(delayDebounceFn);
-  }, [searchQuery, suggestedBooks]);
+  // Fetch suggested books reactively using react-query
+  const { data: suggestedBooks = [], isLoading: suggestionsLoading } = useQuery({
+    queryKey: ["suggestedBooks", favoriteGenres, favoriteAuthors],
+    queryFn: async () => {
+      const response = await api.get("api/books/suggestions/", {
+        params: { 
+          genres: favoriteGenres.join(","),
+          authors: favoriteAuthors.join(",")
+        }
+      });
+      return response.data.map((b: any) => ({
+        id: b.id,
+        title: b.title,
+        author: b.authors.join(", "),
+        cover: b.cover_image || "",
+      }));
+    },
+  });
+
+  // Book search query
+  const { data: searchResults = [], isLoading: searchLoading } = useQuery({
+    queryKey: ["booksSearch", debouncedQuery, isAdvancedSearch],
+    queryFn: async () => {
+      const response = await api.get("api/books/search/", {
+        params: { 
+          q: debouncedQuery,
+          ...(isAdvancedSearch ? { advanced: "true" } : {})
+        }
+      });
+      return response.data.map((b: any) => ({
+        id: b.id,
+        title: b.title,
+        author: b.authors.join(", "),
+        cover: b.cover_image || "",
+        rawBook: b,
+      }));
+    },
+    enabled: debouncedQuery.trim().length > 0,
+  });
+
+  const handleAdvancedSearch = () => {
+    setIsAdvancedSearch(true);
+  };
+
+  const loading = searchQuery.trim().length > 0 ? (debouncedQuery ? searchLoading : true) : suggestionsLoading;
+  const filteredBooks = searchQuery.trim().length > 0 ? (debouncedQuery ? searchResults : []) : suggestedBooks;
 
   const progressWidth = progressAnim.interpolate({
     inputRange: [0, 1],
@@ -133,11 +159,11 @@ export default function SignInStep5Screen() {
     outputRange: ["#EBE7DF", "#212842"],
   });
 
-  const toggleSelectBook = (id: string) => {
-    if (selectedBooks.includes(id)) {
-      setSelectedBooks(selectedBooks.filter((b) => b !== id));
+  const toggleSelectBook = (book: any) => {
+    if (selectedBooks.some((b) => b.id === book.id)) {
+      setSelectedBooks(selectedBooks.filter((b) => b.id !== book.id));
     } else {
-      setSelectedBooks([...selectedBooks, id]);
+      setSelectedBooks([...selectedBooks, book]);
     }
   };
 
@@ -147,7 +173,7 @@ export default function SignInStep5Screen() {
     router.push("/(auth)/email");
   };
 
-  const filteredBooks = books;
+
 
   return (
     <SafeAreaView className="flex-1 bg-[#FFF8F0] justify-between">
@@ -232,18 +258,96 @@ export default function SignInStep5Screen() {
         </View>
 
         {/* Grid Layout of Book Cards */}
+        {searchQuery.trim().length > 0 && (
+          <View className="flex-row justify-between items-center w-full mb-4">
+            <Text 
+              className="text-xs font-bold text-[#76767E] tracking-widest"
+              style={{ fontFamily: "PublicSans-Bold" }}
+            >
+              SEARCH RESULTS
+            </Text>
+            {isAdvancedSearch && (
+              <View className="bg-[#FAF3E8] border border-[#212842] px-2.5 py-1 rounded-full">
+                <Text className="text-[#212842] text-[10px] font-bold uppercase tracking-wider" style={{ fontFamily: "PublicSans-Bold" }}>
+                  Hardcover
+                </Text>
+              </View>
+            )}
+          </View>
+        )}
+
         {loading ? (
-          <View className="py-20 w-full justify-center items-center">
-            <ActivityIndicator size="large" color="#212842" />
+          <View className="flex-row flex-wrap justify-between w-full mb-6">
+            {[1, 2, 3, 4, 5, 6].map((i) => (
+              <View key={i} className="w-[47%] mb-6">
+                <Animated.View
+                  style={{
+                    opacity: pulseAnim,
+                    aspectRatio: 2/3,
+                    backgroundColor: "#FAF3E8",
+                  }}
+                  className="w-full rounded-2xl"
+                />
+                <Animated.View
+                  style={{
+                    opacity: pulseAnim,
+                    height: 16,
+                    width: "80%",
+                    backgroundColor: "#FAF3E8",
+                  }}
+                  className="rounded mt-2"
+                />
+                <Animated.View
+                  style={{
+                    opacity: pulseAnim,
+                    height: 12,
+                    width: "50%",
+                    backgroundColor: "#FAF3E8",
+                  }}
+                  className="rounded mt-1"
+                />
+              </View>
+            ))}
+          </View>
+        ) : searchQuery.trim().length > 0 && filteredBooks.length === 0 ? (
+          <View className="py-12 items-center justify-center w-full">
+            <Text className="text-3xl mb-2">🔍</Text>
+            <Text
+              className="text-[#212842] text-center text-lg font-bold mb-1"
+              style={{ fontFamily: "Newsreader-Bold" }}
+            >
+              No books found
+            </Text>
+            <Text
+              className="text-[#76767E] text-center text-sm mt-1 mb-6 px-4"
+              style={{ fontFamily: "PublicSans-Regular" }}
+            >
+              Try searching for another title, author, or ISBN.
+            </Text>
+            {!isAdvancedSearch && (
+              <TouchableOpacity
+                className="flex-row items-center justify-center bg-[#212842] py-2.5 px-5 rounded-full"
+                onPress={handleAdvancedSearch}
+                activeOpacity={0.8}
+              >
+                <Text className="text-[#FAF3E8] mr-1.5 text-xs">🔍</Text>
+                <Text
+                  style={{ fontFamily: "PublicSans-Bold" }}
+                  className="text-white text-xs"
+                >
+                  Advanced Search
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
         ) : (
           <View className="flex-row flex-wrap justify-between w-full mb-6">
-            {filteredBooks.map((book) => {
-              const isSelected = selectedBooks.includes(book.id);
+            {filteredBooks.map((book: any) => {
+              const isSelected = selectedBooks.some((b) => b.id === book.id);
               return (
                 <TouchableOpacity
                   key={book.id}
-                  onPress={() => toggleSelectBook(book.id)}
+                  onPress={() => toggleSelectBook(book)}
                   className="w-[47%] mb-6"
                   activeOpacity={0.8}
                 >
@@ -253,11 +357,15 @@ export default function SignInStep5Screen() {
                       isSelected ? "border-[#212842]" : "border-transparent"
                     }`}
                   >
-                    <Image
-                      source={{ uri: book.cover }}
-                      className="w-full h-full"
-                      resizeMode="cover"
-                    />
+                    {book.cover ? (
+                      <Image
+                        source={{ uri: book.cover }}
+                        className="w-full h-full"
+                        resizeMode="cover"
+                      />
+                    ) : (
+                      <NoCover width="100%" height="100%" />
+                    )}
 
                     {/* Top-Right Checkbox Badge for Selected State */}
                     {isSelected && (
@@ -287,6 +395,31 @@ export default function SignInStep5Screen() {
                 </TouchableOpacity>
               );
             })}
+
+            {searchQuery.trim().length > 0 && !isAdvancedSearch && (
+              <TouchableOpacity
+                className="flex-row items-center justify-center bg-[#FAF3E8] border border-dashed border-[#212842] py-4 px-4 rounded-xl mt-2 w-full"
+                onPress={handleAdvancedSearch}
+                activeOpacity={0.8}
+              >
+                <Text className="text-[#212842] mr-2 text-base">🔍</Text>
+                <View className="ml-1 flex-1">
+                  <Text
+                    style={{ fontFamily: "PublicSans-Bold" }}
+                    className="text-[#212842] text-sm"
+                  >
+                    Can't find the book you are looking for?
+                  </Text>
+                  <Text
+                    style={{ fontFamily: "PublicSans-Regular" }}
+                    className="text-[#76767E] text-xs mt-0.5"
+                  >
+                    Try Advanced Search on Hardcover.
+                  </Text>
+                </View>
+                <Text className="text-[#212842] text-base font-bold">&gt;</Text>
+              </TouchableOpacity>
+            )}
           </View>
         )}
 

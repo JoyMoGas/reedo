@@ -15,12 +15,9 @@ import {
 import { useAuthStore } from "../../store/useAuthStore";
 import { Avatar } from "../../components/Avatar";
 import { useUIStore } from "../../store/useUIStore";
-import Svg, { Circle } from "react-native-svg";
-
-import mockData from "../../assets/data/mockData.json";
-import Icon from "../../core/Icon";
 import KeepReading from "../../components/home/KeepReading";
 import DiscoverNext from "../../components/home/DiscoverNext";
+import GlobalBookshelf from "../../components/home/GlobalBookshelf";
 import DailyQuest from "../../components/home/DailyQuest";
 import ReadingPulse from "../../components/home/ReadingPulse";
 import FriendsJourneys from "../../components/home/FriendsJourneys";
@@ -60,7 +57,7 @@ export default function HomeScreen() {
 
   const handleRefresh = () => {
     setRefreshing(true);
-    componentsToLoad.current = 2; // KeepReading and DiscoverNext
+    componentsToLoad.current = 3; // KeepReading, DiscoverNext and GlobalBookshelf
     setRefreshTrigger((prev) => prev + 1);
   };
 
@@ -107,6 +104,9 @@ export default function HomeScreen() {
 
         {/* Discover Carousel Section */}
         <DiscoverNext refreshTrigger={refreshTrigger} onLoadEnd={handleLoadEnd} />
+
+        {/* Global Bookshelf Section */}
+        <GlobalBookshelf refreshTrigger={refreshTrigger} onLoadEnd={handleLoadEnd} />
 
         {/* Daily Literary Quest Section */}
         <DailyQuest />
