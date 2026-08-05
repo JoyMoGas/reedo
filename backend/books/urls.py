@@ -10,7 +10,10 @@ from .views import (
     UserBookSaveView,
     DiscoverBooksView,
     GlobalBookshelfView,
-    NewlyArrivedBooksView
+    NewlyArrivedBooksView,
+    HiddenGemsBooksView,
+    AuthorSpotlightView,
+    BasedOnHistoryView
 )
 
 urlpatterns = [
@@ -25,4 +28,7 @@ urlpatterns = [
     path('discover/', DiscoverBooksView.as_view(), name='discover-books'),
     path('global-bookshelf/', GlobalBookshelfView.as_view(), name='global-bookshelf'),
     path('newly-arrived/', NewlyArrivedBooksView.as_view(), name='newly-arrived-books'),
+    path('hidden-gems/', HiddenGemsBooksView.as_view(), name='hidden-gems-books'),
+    path('author-spotlight/', AuthorSpotlightView.as_view(), name='author-spotlight'),
+    path('based-on-history/', BasedOnHistoryView.as_view(), name='based-on-history'),
 ]

@@ -868,3 +868,223 @@ class NewlyArrivedBooksView(APIView):
             })
 
         return Response(results, status=status.HTTP_200_OK)
+
+
+class HiddenGemsBooksView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        from django.db.models import Count, Q
+
+        hidden_gems = list(Books.objects.annotate(
+            interaction_count=Count('user_books')
+        ).filter(
+            Q(average_rating__gte=3.8) | Q(average_rating__isnull=True)
+        ).order_by('interaction_count', '-average_rating')[:20])
+
+        if len(hidden_gems) < 5:
+            fallback = Books.objects.all().order_by('-average_rating', '?')[:15]
+            for b in fallback:
+                if b not in hidden_gems:
+                    hidden_gems.append(b)
+
+        results = []
+        for book in hidden_gems[:15]:
+            results.append({
+                "id": str(book.id),
+                "title": book.title,
+                "synopsis": book.synopsis,
+                "cover_image": book.cover_image,
+                "isbn": book.isbn,
+                "average_rating": book.average_rating,
+                "total_pages": book.total_pages,
+                "published_date": book.published_date.strftime('%Y-%m-%d') if book.published_date else None,
+                "authors": [author.name for author in book.authors.all()],
+                "genres": [genre.genre for genre in book.genres.all()]
+            })
+
+        return Response(results, status=status.HTTP_200_OK)
+
+
+class AuthorSpotlightView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        import random
+        from django.db.models import Count
+
+        curated_authors = {
+            "H.P. Lovecraft": {
+                "headline": "Master of the Macabre",
+                "tag": "Cosmic Horror & Weird Fiction",
+                "reason": "Because you enjoyed Edgar Allan Poe",
+                "description": "American writer of weird, science, fantasy, and horror fiction. He is best known for his creation of what became the Cthulhu Mythos."
+            },
+            "Edgar Allan Poe": {
+                "headline": "Architect of the Gothic",
+                "tag": "Gothic Fiction & Mystery",
+                "reason": "Because you explored dark mysteries",
+                "description": "American writer, poet, and literary critic who is best known for his poetry and short stories, particularly his tales of mystery and the macabre."
+            },
+            "Jane Austen": {
+                "headline": "Wit of Georgian England",
+                "tag": "Classic Romance & Social Satire",
+                "reason": "Because you appreciate classic literature",
+                "description": "English novelist known primarily for her six major novels, which interpret, critique, and comment upon the British landed gentry."
+            },
+            "Oscar Wilde": {
+                "headline": "The Aesthetic Icon",
+                "tag": "Victorian Satire & Drama",
+                "reason": "Because you enjoy sharp wit and philosophy",
+                "description": "Irish poet and playwright. After writing in different forms throughout the 1880s, he became one of London's most popular playwrights in the early 1890s."
+            },
+            "Gabriel García Márquez": {
+                "headline": "Pioneer of Magical Realism",
+                "tag": "Magical Realism & Latin American Literature",
+                "reason": "Because you appreciate imaginative world-building",
+                "description": "Colombian novelist, short-story writer, screenwriter, and journalist, affectionately known as Gabo across Latin America."
+            },
+            "Isaac Asimov": {
+                "headline": "Visionary of the Future",
+                "tag": "Hard Science Fiction & Robotics",
+                "reason": "Because you explored futuristic concepts",
+                "description": "American writer and professor of biochemistry at Boston University, considered one of the 'Big Three' science fiction writers of his lifetime."
+            },
+            "Agatha Christie": {
+                "headline": "Queen of Mystery",
+                "tag": "Detective Fiction & Whodunits",
+                "reason": "Because you love thrilling mysteries",
+                "description": "English writer known for her 66 detective novels and 14 short story collections, particularly those revolving around Hercule Poirot and Miss Marple."
+            },
+            "J.R.R. Tolkien": {
+                "headline": "Father of High Fantasy",
+                "tag": "Epic Fantasy & Philology",
+                "reason": "Because you enjoy epic adventures",
+                "description": "English writer, poet, philologist, and academic, best known as the author of the high fantasy works The Hobbit and The Lord of the Rings."
+            },
+            "Virginia Woolf": {
+                "headline": "Modernist Pioneer",
+                "tag": "Modernist Fiction & Stream of Consciousness",
+                "reason": "Because you appreciate introspective narratives",
+                "description": "English writer, considered one of the most important modernist 20th-century authors and a pioneer in the use of stream of consciousness as a narrative device."
+            },
+            "George Orwell": {
+                "headline": "Voice of Dystopian Truth",
+                "tag": "Political Satire & Dystopian Fiction",
+                "reason": "Because you read thought-provoking classics",
+                "description": "English novelist, essayist, journalist, and critic whose work is characterised by lucid prose, social criticism, and opposition to totalitarianism."
+            }
+        }
+
+        selected_authors = []
+
+        if request.user and request.user.is_authenticated:
+            user_book_authors = list(Authors.objects.filter(books__user_books__user_id=request.user).distinct()[:5])
+            for ua in user_book_authors:
+                if ua not in selected_authors:
+                    selected_authors.append(ua)
+            
+            if len(selected_authors) < 5 and request.user.favorite_authors.exists():
+                for fa in request.user.favorite_authors.all()[:5]:
+                    if fa not in selected_authors:
+                        selected_authors.append(fa)
+
+        for name, info in curated_authors.items():
+            if len(selected_authors) >= 6:
+                break
+            auth_obj, _ = Authors.objects.get_or_create(name=name)
+            if auth_obj not in selected_authors:
+                selected_authors.append(auth_obj)
+
+        if len(selected_authors) < 5:
+            more_authors = Authors.objects.all().order_by('name')[:10]
+            for ma in more_authors:
+                if ma not in selected_authors and len(selected_authors) < 6:
+                    selected_authors.append(ma)
+
+        results = []
+        for auth in selected_authors[:6]:
+            author_info = curated_authors.get(auth.name, {
+                "headline": "Master of Storytelling",
+                "tag": "Literary Excellence",
+                "reason": "Recommended based on your reading preferences",
+                "description": "Renowned author whose remarkable storytelling and distinct voice have left a lasting imprint on the literary world and captivated readers globally."
+            })
+
+            parts = [p for p in auth.name.replace('.', ' ').split() if p]
+            if len(parts) == 1:
+                initials = parts[0][:2].upper()
+            elif len(parts) == 2:
+                initials = f"{parts[0][0]}.{parts[1][0]}."
+            else:
+                initials = f"{parts[0][0]}.{parts[1][0]}.{parts[-1][0]}."
+
+            results.append({
+                "id": str(auth.id),
+                "name": auth.name,
+                "initials": initials,
+                "headline": author_info["headline"],
+                "tag": author_info["tag"],
+                "reason": author_info["reason"],
+                "description": author_info["description"]
+            })
+
+        return Response(results, status=status.HTTP_200_OK)
+
+
+class BasedOnHistoryView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        import random
+        from django.db.models import Count, Q
+
+        section_title = "More from Victorian England"
+        reason_subtitle = "Because you explored classic literature"
+        books = []
+
+        if request.user and request.user.is_authenticated:
+            last_user_book = UserBook.objects.filter(user_id=request.user).order_by('-last_read_at', '-id').first()
+            if last_user_book and last_user_book.book_id:
+                book_obj = last_user_book.book_id
+                first_genre = book_obj.genres.first()
+                if first_genre:
+                    section_title = f"More from {first_genre.genre}"
+                    reason_subtitle = f"Because you read {book_obj.title}"
+                    books = list(Books.objects.filter(genres=first_genre).exclude(id=book_obj.id).distinct()[:15])
+                else:
+                    first_author = book_obj.authors.first()
+                    if first_author:
+                        section_title = f"More by {first_author.name}"
+                        reason_subtitle = f"Because you enjoyed {book_obj.title}"
+                        books = list(Books.objects.filter(authors=first_author).exclude(id=book_obj.id).distinct()[:15])
+
+        if len(books) < 4:
+            classic_genres = Genres.objects.filter(Q(genre__icontains="Classic") | Q(genre__icontains="History") | Q(genre__icontains="Fiction"))
+            if classic_genres.exists():
+                books = list(Books.objects.filter(genres__in=classic_genres).order_by('-average_rating', '?').distinct()[:15])
+            if len(books) < 4:
+                books = list(Books.objects.all().order_by('-average_rating', '?')[:15])
+            section_title = "More from Victorian England"
+            reason_subtitle = "Because you enjoyed Edgar Allan Poe and classic literature"
+
+        results = []
+        for book in books[:15]:
+            results.append({
+                "id": str(book.id),
+                "title": book.title,
+                "synopsis": book.synopsis,
+                "cover_image": book.cover_image,
+                "isbn": book.isbn,
+                "average_rating": book.average_rating,
+                "total_pages": book.total_pages,
+                "authors": [author.name for author in book.authors.all()],
+                "genres": [genre.genre for genre in book.genres.all()]
+            })
+
+        return Response({
+            "section_title": section_title,
+            "reason_subtitle": reason_subtitle,
+            "books": results
+        }, status=status.HTTP_200_OK)
+
