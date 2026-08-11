@@ -533,6 +533,7 @@ class UserBookSaveView(APIView):
                 "current_page": ub.current_page or 0,
                 "total_pages": book.total_pages or 0,
                 "progress_percentage": ub.progress_percentage or 0.0,
+                "average_rating": book.average_rating,
                 "authors": [author.name for author in book.authors.all()],
                 "genres": [genre.genre for genre in book.genres.all()]
             })
