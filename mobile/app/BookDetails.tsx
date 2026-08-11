@@ -38,8 +38,31 @@ function BookDetails() {
   const height = 270;
   const [isSummaryExpanded, setIsSummaryExpanded] = useState(false);
   const [globalShowSpoilers, setGlobalShowSpoilers] = useState(false);
+  const [visibleReviewsCount, setVisibleReviewsCount] = useState(5);
   const queryClient = useQueryClient();
   const { user } = useAuthStore();
+
+  const getFormattedShelvedCount = () => {
+    let rawCount = bookStats?.shelved_count;
+    if (rawCount === undefined && addedCount) {
+      rawCount = Number(addedCount);
+    }
+    if (!rawCount) return "0";
+    if (rawCount >= 1000) {
+      return `${(rawCount / 1000).toFixed(1)}k`;
+    }
+    return rawCount.toString();
+  };
+
+  const { data: bookStats } = useQuery({
+    queryKey: ["bookStats", bookId],
+    queryFn: async () => {
+      if (!bookId) return null;
+      const { data } = await api.get(`api/books/${bookId}/stats/`);
+      return data;
+    },
+    enabled: !!bookId,
+  });
 
   const { data: reviews = [], isLoading: isLoadingReviews } = useQuery({
     queryKey: ["reviews", bookId],
@@ -198,9 +221,11 @@ function BookDetails() {
                   className="text-2xl text-[#212842]"
                   style={{ fontFamily: "Newsreader-Bold" }}
                 >
-                  {averageRating && !isNaN(Number(averageRating))
-                    ? Number(averageRating).toFixed(1)
-                    : "N/A"}
+                {bookStats?.average_rating
+                  ? Number(bookStats.average_rating).toFixed(1)
+                  : (averageRating && !isNaN(Number(averageRating)) 
+                      ? Number(averageRating).toFixed(1) 
+                      : "N/A")}
                 </Text>
               </View>
             </View>
@@ -218,9 +243,7 @@ function BookDetails() {
                 className="text-2xl text-[#212842]"
                 style={{ fontFamily: "Newsreader-Bold" }}
               >
-                {addedCount
-                  ? `${(Number(addedCount) / 1000).toFixed(1)}k`
-                  : "12.4k"}
+                {getFormattedShelvedCount()}
               </Text>
             </View>
           </View>
@@ -400,7 +423,7 @@ function BookDetails() {
             </View>
           ) : (
             <View className="w-full flex-col">
-              {reviews.map((review: any) => (
+              {reviews.slice(0, visibleReviewsCount).map((review: any) => (
                 <ReviewItem 
                   key={review.id} 
                   review={review} 
@@ -412,6 +435,28 @@ function BookDetails() {
                   onDelete={(id) => deleteMutation.mutate(id)}
                 />
               ))}
+
+              {visibleReviewsCount < reviews.length ? (
+                <TouchableOpacity
+                  className="w-full py-4 mt-4 items-center justify-center border border-[#EBE7DF] rounded-xl bg-[#F9F7F2]"
+                  onPress={() => setVisibleReviewsCount(prev => prev + 10)}
+                  activeOpacity={0.7}
+                >
+                  <Text className="text-[#4A607A] text-base" style={{ fontFamily: "PublicSans-Bold" }}>
+                    Load More Reviews ({reviews.length - visibleReviewsCount} remaining)
+                  </Text>
+                </TouchableOpacity>
+              ) : (
+                <View className="w-full pt-6 pb-2 mt-4 items-center justify-center border-t border-[#EBE7DF]">
+                  <Icon name="quillWrite" size={24} color="#D8C395" />
+                  <Text className="text-[#8E8B82] text-sm text-center mt-3 tracking-wide" style={{ fontFamily: "PublicSans-Regular" }}>
+                    THE ARCHIVES HAVE BEEN FULLY EXPLORED
+                  </Text>
+                  <Text className="text-[#8E8B82] text-xs text-center mt-1" style={{ fontFamily: "PublicSans-Regular" }}>
+                    You have read all the thoughts left by others.
+                  </Text>
+                </View>
+              )}
             </View>
           )}
         </View>
