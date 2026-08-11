@@ -27,6 +27,9 @@ interface KeepReadingBook {
   pagesRead: number;
   pagesTotal: number;
   progress: number;
+  genres?: string;
+  description?: string;
+  averageRating?: string | number;
 }
 
 interface KeepReadingProps {
@@ -61,7 +64,10 @@ export default function KeepReading({ refreshTrigger = 0, onLoadEnd }: KeepReadi
       coverUrl: ub.cover_image || "",
       pagesRead: ub.current_page || 0,
       pagesTotal: ub.total_pages || 100,
-      progress: Math.round(ub.progress_percentage || 0)
+      progress: Math.round(ub.progress_percentage || 0),
+      genres: ub.genres ? ub.genres.join(",") : "",
+      description: ub.synopsis || "",
+      averageRating: ub.rating || ub.average_rating || "",
     }));
 
     let filtered = userBooksData
@@ -444,7 +450,16 @@ export default function KeepReading({ refreshTrigger = 0, onLoadEnd }: KeepReadi
           if (isFront) {
             router.push({
               pathname: "/BookDetails",
-              params: { bookId: book.bookId, bookName: book.title, author: book.author, cover: book.coverUrl }
+              params: { 
+                bookId: book.bookId, 
+                bookName: book.title, 
+                author: book.author, 
+                cover: book.coverUrl, 
+                genres: book.genres,
+                totalPages: book.pagesTotal ? book.pagesTotal.toString() : "",
+                description: book.description,
+                averageRating: book.averageRating ? book.averageRating.toString() : "",
+              }
             });
           }
         }}

@@ -1271,6 +1271,7 @@ export default function DiscoverScreen() {
                         width={130}
                         height={195}
                         titleLines={2}
+                        description={book.synopsis}
                       />
                     ))}
                   </ScrollView>

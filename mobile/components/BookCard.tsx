@@ -8,6 +8,11 @@ export interface BookCardProps {
   title: string;
   author?: string;
   cover?: string;
+  genres?: string;
+  totalPages?: string;
+  averageRating?: string;
+  addedCount?: string;
+  description?: string;
   width?: number;
   height?: number;
   onPress?: () => void;
@@ -21,6 +26,11 @@ export default function BookCard({
   title,
   author,
   cover,
+  genres,
+  totalPages,
+  averageRating,
+  addedCount,
+  description,
   width = 120,
   height = 180,
   onPress,
@@ -36,7 +46,7 @@ export default function BookCard({
     } else {
       router.push({
         pathname: "/BookDetails",
-        params: { bookId: id, bookName: title, author: author, cover: cover }
+        params: { bookId: id, bookName: title, author: author, cover: cover, genres: genres, totalPages: totalPages, averageRating: averageRating, addedCount: addedCount, description: description }
       });
     }
   };
@@ -49,13 +59,6 @@ export default function BookCard({
       className={containerClassName}
     >
       <View
-        style={{
-          shadowColor: "#000",
-          shadowOffset: { width: 0, height: 4 },
-          shadowOpacity: 0.12,
-          shadowRadius: 6,
-          elevation: 4,
-        }}
         className="bg-transparent mb-2 rounded-xl w-full"
       >
         <View className="rounded-xl overflow-hidden bg-[#FCF3E0]" style={{ width, height }}>

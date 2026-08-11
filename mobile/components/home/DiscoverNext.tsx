@@ -12,6 +12,10 @@ interface DiscoverBook {
   title: string;
   author: string;
   cover: string;
+  genres?: string;
+  totalPages?: string;
+  averageRating?: string;
+  description?: string;
 }
 
 interface DiscoverNextProps {
@@ -48,6 +52,10 @@ export default function DiscoverNext({ refreshTrigger = 0, onLoadEnd }: Discover
         title: b.title,
         author: b.authors.join(", "),
         cover: b.cover_image || "",
+        genres: b.genres ? b.genres.join(",") : "",
+        totalPages: b.total_pages ? b.total_pages.toString() : "",
+        averageRating: b.average_rating ? b.average_rating.toString() : "",
+        description: b.synopsis || "",
       }));
 
       // 3. Keep the first 5 IDs for subsequent cold starts
@@ -242,6 +250,10 @@ export default function DiscoverNext({ refreshTrigger = 0, onLoadEnd }: Discover
             title={book.title}
             author={book.author}
             cover={book.cover}
+            genres={book.genres}
+            totalPages={book.totalPages}
+            averageRating={book.averageRating}
+            description={book.description}
           />
         ))}
       </ScrollView>
