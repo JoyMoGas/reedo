@@ -13,7 +13,8 @@ from .views import (
     NewlyArrivedBooksView,
     HiddenGemsBooksView,
     AuthorSpotlightView,
-    BasedOnHistoryView
+    BasedOnHistoryView,
+    BookStatsView
 )
 
 urlpatterns = [
@@ -31,4 +32,5 @@ urlpatterns = [
     path('hidden-gems/', HiddenGemsBooksView.as_view(), name='hidden-gems-books'),
     path('author-spotlight/', AuthorSpotlightView.as_view(), name='author-spotlight'),
     path('based-on-history/', BasedOnHistoryView.as_view(), name='based-on-history'),
+    path('<uuid:book_id>/stats/', BookStatsView.as_view(), name='book-stats'),
 ]
