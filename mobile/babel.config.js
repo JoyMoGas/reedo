@@ -94,6 +94,8 @@ module.exports = function (api) {
             "tabler:heart",
             "uil:snowflake",
             "ph:chat",
+            "hugeicons:books-01",
+            "mdi:google",
           ],
         },
       ],

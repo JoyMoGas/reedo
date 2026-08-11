@@ -74,5 +74,7 @@
   "officeShelf": "streamline-ultimate:office-shelf-1",
   "heart": "tabler:heart",
   "heartFilled": "tabler:heart-filled",
-  "snowflake": "uil:snowflake"
+  "snowflake": "uil:snowflake",
+  "google": "mdi:google",
+  "bookshop": "hugeicons:books-01"
 }
