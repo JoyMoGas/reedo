@@ -1,3 +1,4 @@
+import BookCover from "../../components/BookCover";
 import React, { useEffect, useRef, useState } from "react";
 import {
   Text,
@@ -146,16 +147,24 @@ export default function DiscoverScreen() {
     setIsAdvancedSearch(true);
   };
 
-  const toggleConnect = (userId: string) => {
-    setConnectedUserIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(userId)) {
-        next.delete(userId);
-      } else {
-        next.add(userId);
+  const toggleConnect = async (userId: string) => {
+    try {
+      if (connectedUserIds.has(userId)) {
+        Alert.alert("Request already sent", "You have already sent a friend request to this user.");
+        return;
       }
-      return next;
-    });
+      
+      await api.post(`api/social/friends/request/`, { receiver_id: userId });
+      
+      setConnectedUserIds((prev) => {
+        const next = new Set(prev);
+        next.add(userId);
+        return next;
+      });
+    } catch (error) {
+      console.error("Error sending friend request:", error);
+      Alert.alert("Error", "Could not send friend request.");
+    }
   };
 
   // Fetch recommended fellow readers reactively using react-query
@@ -518,8 +527,18 @@ export default function DiscoverScreen() {
               ) : (
                 <View className="w-full flex-col gap-5 mt-2 mb-8">
                   {searchResults.map((book: any) => (
-                    <View 
+                    <TouchableOpacity 
                       key={book.id} 
+                      activeOpacity={0.8}
+                      onPress={() => router.push({
+                        pathname: "/BookDetails",
+                        params: {
+                          bookId: book.id,
+                          bookName: book.title,
+                          author: book.author,
+                          cover: book.cover
+                        }
+                      })}
                       className="flex-row items-center w-full bg-[#FCF3E0] rounded-xl p-4"
                       style={{
                         shadowColor: "#000",
@@ -540,8 +559,8 @@ export default function DiscoverScreen() {
                         className="rounded-lg overflow-hidden"
                       >
                         {book.cover ? (
-                          <Image
-                            source={{ uri: book.cover }}
+                          <BookCover
+                            uri={book.cover }
                             style={{ width: 70, height: 105 }}
                             resizeMode="cover"
                           />
@@ -598,7 +617,7 @@ export default function DiscoverScreen() {
                           </TouchableOpacity>
                         )}
                       </View>
-                    </View>
+                    </TouchableOpacity>
                   ))}
 
                   {!isAdvancedSearch && (
@@ -748,6 +767,15 @@ export default function DiscoverScreen() {
                         {/* Overlapping Book Cover Card */}
                         <TouchableOpacity
                           activeOpacity={0.8}
+                          onPress={() => router.push({
+                            pathname: "/BookDetails",
+                            params: {
+                              bookId: book.id,
+                              bookName: book.title,
+                              author: book.author,
+                              cover: book.cover
+                            }
+                          })}
                           style={{
                             position: "absolute",
                             left: 55,
@@ -762,8 +790,8 @@ export default function DiscoverScreen() {
                         >
                           <View className="rounded-xl overflow-hidden bg-[#FCF3E0]">
                             {book.cover ? (
-                              <Image
-                                source={{ uri: book.cover }}
+                              <BookCover
+                                uri={book.cover }
                                 style={{ width: 110, height: 165 }}
                                 resizeMode="cover"
                               />
@@ -834,8 +862,8 @@ export default function DiscoverScreen() {
                         >
                           <View className="rounded-xl overflow-hidden bg-[#FCF3E0]">
                             {book.cover ? (
-                              <Image
-                                source={{ uri: book.cover }}
+                              <BookCover
+                                uri={book.cover }
                                 style={{ width: 110, height: 165 }}
                                 resizeMode="cover"
                               />
@@ -871,7 +899,15 @@ export default function DiscoverScreen() {
                           <TouchableOpacity
                             activeOpacity={0.7}
                             className="border border-[#212842] rounded-full px-6 py-2 mt-4 items-center justify-center bg-transparent"
-                            onPress={() => console.log("Discover clicked:", book.title)}
+                            onPress={() => router.push({
+                              pathname: "/BookDetails",
+                              params: {
+                                bookId: book.id,
+                                bookName: book.title,
+                                author: book.author,
+                                cover: book.cover
+                              }
+                            })}
                           >
                             <Text
                               className="text-[10px] font-bold text-[#212842] uppercase tracking-wider"
@@ -947,7 +983,17 @@ export default function DiscoverScreen() {
                       <View className="flex-row items-center justify-center" style={{ width: "100%", height: 180 }}>
                         {/* Left Book Cover */}
                         {hiddenGemsBooks[0] && (
-                          <View
+                          <TouchableOpacity
+                            activeOpacity={0.8}
+                            onPress={() => router.push({
+                              pathname: "/BookDetails",
+                              params: {
+                                bookId: hiddenGemsBooks[0].id,
+                                bookName: hiddenGemsBooks[0].title,
+                                author: hiddenGemsBooks[0].author,
+                                cover: hiddenGemsBooks[0].cover
+                              }
+                            })}
                             style={{
                               shadowColor: "#000",
                               shadowOffset: { width: -4, height: 8 },
@@ -960,20 +1006,30 @@ export default function DiscoverScreen() {
                             className="rounded-xl overflow-hidden bg-[#FCF3E0]"
                           >
                             {hiddenGemsBooks[0].cover ? (
-                              <Image
-                                source={{ uri: hiddenGemsBooks[0].cover }}
+                              <BookCover
+                                uri={hiddenGemsBooks[0].cover }
                                 style={{ width: 115, height: 170 }}
                                 resizeMode="cover"
                               />
                             ) : (
                               <NoCover width={115} height={170} />
                             )}
-                          </View>
+                          </TouchableOpacity>
                         )}
 
                         {/* Right Book Cover */}
                         {hiddenGemsBooks[1] ? (
-                          <View
+                          <TouchableOpacity
+                            activeOpacity={0.8}
+                            onPress={() => router.push({
+                              pathname: "/BookDetails",
+                              params: {
+                                bookId: hiddenGemsBooks[1].id,
+                                bookName: hiddenGemsBooks[1].title,
+                                author: hiddenGemsBooks[1].author,
+                                cover: hiddenGemsBooks[1].cover
+                              }
+                            })}
                             style={{
                               shadowColor: "#000",
                               shadowOffset: { width: 4, height: 8 },
@@ -986,17 +1042,27 @@ export default function DiscoverScreen() {
                             className="rounded-xl overflow-hidden bg-[#FCF3E0]"
                           >
                             {hiddenGemsBooks[1].cover ? (
-                              <Image
-                                source={{ uri: hiddenGemsBooks[1].cover }}
+                              <BookCover
+                                uri={hiddenGemsBooks[1].cover }
                                 style={{ width: 115, height: 170 }}
                                 resizeMode="cover"
                               />
                             ) : (
                               <NoCover width={115} height={170} />
                             )}
-                          </View>
+                          </TouchableOpacity>
                         ) : hiddenGemsBooks[0] ? (
-                          <View
+                          <TouchableOpacity
+                            activeOpacity={0.8}
+                            onPress={() => router.push({
+                              pathname: "/BookDetails",
+                              params: {
+                                bookId: hiddenGemsBooks[0].id,
+                                bookName: hiddenGemsBooks[0].title,
+                                author: hiddenGemsBooks[0].author,
+                                cover: hiddenGemsBooks[0].cover
+                              }
+                            })}
                             style={{
                               shadowColor: "#000",
                               shadowOffset: { width: 4, height: 8 },
@@ -1009,7 +1075,7 @@ export default function DiscoverScreen() {
                             className="rounded-xl overflow-hidden bg-[#FCF3E0]"
                           >
                             <NoCover width={115} height={170} />
-                          </View>
+                          </TouchableOpacity>
                         ) : null}
                       </View>
                     )}

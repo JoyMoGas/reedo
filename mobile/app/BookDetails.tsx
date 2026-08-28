@@ -1,5 +1,6 @@
-import React, { useState } from "react";
-import { View, Text, ScrollView, Image, TouchableOpacity, Switch } from "react-native";
+import BookCover from "../components/BookCover";
+import React, { useState, useMemo } from "react";
+import { View, Text, ScrollView, Image, TouchableOpacity, Switch, Linking, StyleSheet, TouchableWithoutFeedback, Animated, Dimensions, PanResponder } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import NoCover from "./assets/NoCover.svg";
@@ -39,6 +40,57 @@ function BookDetails() {
   const [isSummaryExpanded, setIsSummaryExpanded] = useState(false);
   const [globalShowSpoilers, setGlobalShowSpoilers] = useState(false);
   const [visibleReviewsCount, setVisibleReviewsCount] = useState(5);
+  const [sortBy, setSortBy] = useState<'newest' | 'highest' | 'lowest'>('newest');
+  const [filterRating, setFilterRating] = useState<number | null>(null);
+  const [externalLink, setExternalLink] = useState<string | null>(null);
+  
+  const { height: screenHeight } = Dimensions.get("window");
+  const translateY = React.useRef(new Animated.Value(screenHeight)).current;
+  const opacity = React.useRef(new Animated.Value(0)).current;
+
+  const openLinkModal = (link: string) => {
+    setExternalLink(link);
+    Animated.parallel([
+      Animated.timing(translateY, { toValue: 0, duration: 300, useNativeDriver: true }),
+      Animated.timing(opacity, { toValue: 1, duration: 300, useNativeDriver: true }),
+    ]).start();
+  };
+
+  const closeLinkModal = () => {
+    Animated.parallel([
+      Animated.timing(translateY, { toValue: screenHeight, duration: 250, useNativeDriver: true }),
+      Animated.timing(opacity, { toValue: 0, duration: 250, useNativeDriver: true }),
+    ]).start(() => {
+      setExternalLink(null);
+    });
+  };
+
+  const panResponder = React.useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        return gestureState.dy > 0 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx);
+      },
+      onPanResponderMove: (_, gestureState) => {
+        if (gestureState.dy > 0) {
+          translateY.setValue(gestureState.dy);
+        }
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        if (gestureState.dy > 150 || gestureState.vy > 0.5) {
+          closeLinkModal();
+        } else {
+          Animated.spring(translateY, {
+            toValue: 0,
+            friction: 6,
+            tension: 50,
+            useNativeDriver: false,
+          }).start();
+        }
+      },
+    })
+  ).current;
+
   const queryClient = useQueryClient();
   const { user } = useAuthStore();
 
@@ -73,6 +125,26 @@ function BookDetails() {
     },
     enabled: !!bookId,
   });
+
+  const filteredAndSortedReviews = useMemo(() => {
+    let result = [...reviews];
+    if (filterRating !== null) {
+      result = result.filter((r: any) => r.rating === filterRating);
+    }
+    result.sort((a: any, b: any) => {
+      if (sortBy === 'newest') {
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      }
+      if (sortBy === 'highest') {
+        return b.rating - a.rating;
+      }
+      if (sortBy === 'lowest') {
+        return a.rating - b.rating;
+      }
+      return 0;
+    });
+    return result;
+  }, [reviews, sortBy, filterRating]);
 
   const likeMutation = useMutation({
     mutationFn: async ({ reviewId, isLiked }: { reviewId: string, isLiked: boolean }) => {
@@ -112,6 +184,17 @@ function BookDetails() {
     },
   });
 
+  const getStoreLinks = (isbn: string, title: string) => {
+    const encodedTitle = encodeURIComponent(title);
+    return {
+      amazon: `https://www.amazon.com/s?k=${isbn || encodedTitle}&tag=TU_TAG_AFILIADO`,
+      bookshop: `https://bookshop.org/search?keywords=${isbn || encodedTitle}`,
+      google: `https://play.google.com/store/search?q=${encodedTitle}&c=books`,
+    };
+  };
+
+  const storeLinks = getStoreLinks("", bookName || "");
+
   return (
     <SafeAreaView className="flex-1 bg-[#FFF8F0]">
       {/* Custom Header */}
@@ -142,8 +225,8 @@ function BookDetails() {
               style={{ width, height }}
             >
               {cover ? (
-                <Image
-                  source={{ uri: cover }}
+                <BookCover
+                  uri={cover }
                   style={{ width: "100%", height: "100%" }}
                   resizeMode="cover"
                 />
@@ -269,6 +352,7 @@ function BookDetails() {
           </Text>
 
           <TouchableOpacity
+            onPress={() => openLinkModal(storeLinks.amazon)}
             className={`w-full rounded-2xl py-4 px-6 mt-3 flex-row items-center bg-[#FCF3E0]`}
           >
             <Icon name="amazon" size={24} color="#212842" />
@@ -281,6 +365,7 @@ function BookDetails() {
             <Icon name="external" size={24} color="#212842" />
           </TouchableOpacity>
           <TouchableOpacity
+            onPress={() => openLinkModal(storeLinks.bookshop)}
             className={`w-full rounded-2xl py-4 px-6 mt-3 flex-row items-center bg-[#FCF3E0]`}
           >
             <Icon name="bookshop" size={24} color="#212842" />
@@ -293,6 +378,7 @@ function BookDetails() {
             <Icon name="external" size={24} color="#212842" />
           </TouchableOpacity>
           <TouchableOpacity
+            onPress={() => openLinkModal(storeLinks.google)}
             className={`w-full rounded-2xl py-4 px-6 mt-3 flex-row items-center bg-[#FCF3E0]`}
           >
             <Icon name="google" size={24} color="#212842" />
@@ -383,21 +469,51 @@ function BookDetails() {
             )}
           </View>
 
-          {/* Global Spoiler Toggle */}
-          {reviews.some((r: any) => r.is_spoiler) && (
-            <View className="flex-row items-center justify-between bg-[#F9F7F2] p-3 rounded-xl mb-6 border border-[#EBE7DF]">
-              <Text className="text-sm text-[#8E8B82]" style={{ fontFamily: "PublicSans-Bold" }}>
-                SHOW ALL SPOILERS
-              </Text>
-              <Switch
-                trackColor={{ false: "#EBE7DF", true: "#C95F44" }}
-                thumbColor="#FFF"
-                ios_backgroundColor="#EBE7DF"
-                onValueChange={setGlobalShowSpoilers}
-                value={globalShowSpoilers}
-                style={{ transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }] }}
-              />
-            </View>
+          {/* Filters Row */}
+          {reviews.length > 0 && (
+            <ScrollView 
+              horizontal 
+              showsHorizontalScrollIndicator={false} 
+              className="mb-6 flex-row"
+              contentContainerStyle={{ gap: 8, paddingHorizontal: 4 }}
+            >
+              {/* Sort By Chip */}
+              <TouchableOpacity
+                onPress={() => setSortBy(prev => prev === 'newest' ? 'highest' : prev === 'highest' ? 'lowest' : 'newest')}
+                className="flex-row items-center bg-[#FCF3E0] px-4 py-2 rounded-full border border-[#EBE7DF]"
+              >
+                <Icon name="dotsY" size={16} color="#212842" />
+                <Text className="text-sm text-[#212842] ml-2" style={{ fontFamily: "PublicSans-Bold" }}>
+                  Sort: {sortBy === 'newest' ? 'Newest' : sortBy === 'highest' ? 'Highest Rating' : 'Lowest Rating'}
+                </Text>
+              </TouchableOpacity>
+
+              {/* Spoiler Toggle Chip */}
+              {reviews.some((r: any) => r.is_spoiler) && (
+                <TouchableOpacity
+                  onPress={() => setGlobalShowSpoilers(!globalShowSpoilers)}
+                  className={`flex-row items-center px-4 py-2 rounded-full border border-[#EBE7DF] ${globalShowSpoilers ? 'bg-[#212842]' : 'bg-[#FCF3E0]'}`}
+                >
+                  <Icon name={globalShowSpoilers ? 'eyeOutline' : 'eyeClosedSolid'} size={16} color={globalShowSpoilers ? '#FFF' : '#212842'} />
+                  <Text className={`text-sm ml-2 ${globalShowSpoilers ? 'text-[#FFF]' : 'text-[#212842]'}`} style={{ fontFamily: "PublicSans-Bold" }}>
+                    Spoilers
+                  </Text>
+                </TouchableOpacity>
+              )}
+
+              {/* Rating Filters */}
+              {[5, 4, 3, 2, 1].map(rating => (
+                <TouchableOpacity
+                  key={rating}
+                  onPress={() => setFilterRating(prev => prev === rating ? null : rating)}
+                  className={`flex-row items-center px-4 py-2 rounded-full border border-[#EBE7DF] ${filterRating === rating ? 'bg-[#212842]' : 'bg-transparent'}`}
+                >
+                  <Text className={`text-sm ${filterRating === rating ? 'text-[#FFF]' : 'text-[#76767E]'}`} style={{ fontFamily: "PublicSans-Bold" }}>
+                    {rating} ★
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
           )}
 
           {isLoadingReviews ? (
@@ -421,16 +537,35 @@ function BookDetails() {
                 </Text>
               </TouchableOpacity>
             </View>
+          ) : filteredAndSortedReviews.length === 0 ? (
+            <View className="w-full bg-[#F9F7F2] rounded-2xl p-6 items-center border border-[#EBE7DF]">
+              <Icon name="search" size={48} color="#D8C395" />
+              <Text className="text-xl text-[#212842] text-center mt-4 mb-2" style={{ fontFamily: "Newsreader-Bold" }}>
+                No reviews found
+              </Text>
+              <Text className="text-[#8E8B82] text-center mb-6 leading-relaxed" style={{ fontFamily: "PublicSans-Regular" }}>
+                No one has left a review matching your selected filters.
+              </Text>
+              <TouchableOpacity
+                className="px-6 py-2 rounded-full border border-[#212842]"
+                onPress={() => setFilterRating(null)}
+                activeOpacity={0.7}
+              >
+                <Text className="text-[#212842] text-sm" style={{ fontFamily: "PublicSans-Bold" }}>
+                  Clear Rating Filter
+                </Text>
+              </TouchableOpacity>
+            </View>
           ) : (
             <View className="w-full flex-col">
-              {reviews.slice(0, visibleReviewsCount).map((review: any) => (
+              {filteredAndSortedReviews.slice(0, visibleReviewsCount).map((review: any) => (
                 <ReviewItem 
                   key={review.id} 
                   review={review} 
                   currentUserId={user?.id}
                   globalShowSpoilers={globalShowSpoilers}
                   onLike={(id, isLiked) => likeMutation.mutate({ reviewId: id, isLiked })}
-                  onComment={(id) => console.log("Comment on", id)}
+                  onComment={(id) => router.push({ pathname: '/CommentsModal', params: { reviewId: id } })}
                   onEdit={(reviewData) => router.push({ pathname: "/PostReview", params: { bookId, bookName, author, cover, reviewId: reviewData.id, initialRating: reviewData.rating.toString(), initialComment: reviewData.comment, initialSpoiler: reviewData.is_spoiler ? "true" : "false" } })}
                   onDelete={(id) => deleteMutation.mutate(id)}
                 />
@@ -461,8 +596,108 @@ function BookDetails() {
           )}
         </View>
       </ScrollView>
+
+      {/* External Link Modal */}
+      {externalLink !== null && (
+        <View style={[StyleSheet.absoluteFill, { zIndex: 100 }]} pointerEvents="box-none">
+          <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: "rgba(0,0,0,0.4)", opacity }]}>
+            <TouchableOpacity style={StyleSheet.absoluteFill} onPress={closeLinkModal} activeOpacity={1} />
+          </Animated.View>
+          <Animated.View 
+            {...panResponder.panHandlers} 
+            style={[styles.modalOverlay, { transform: [{ translateY }] }]} 
+            pointerEvents="box-none"
+          >
+            <TouchableWithoutFeedback>
+              <View style={styles.modalContainer}>
+                <View style={styles.handleContainer}>
+                  <View style={styles.handle} />
+                </View>
+                <View className="flex-row items-center justify-between border-b border-[#EBE7DF] pb-4 mb-5 mt-2">
+                  <Text
+                    style={{ fontFamily: "Newsreader-Bold" }}
+                    className="text-3xl text-[#212842]"
+                  >
+                    Leaving App
+                  </Text>
+                  <TouchableOpacity
+                    onPress={closeLinkModal}
+                    className="p-2 rounded-full bg-[#EBE7DF]/50"
+                  >
+                    <Icon name="cancel" size={20} color="#212842" />
+                  </TouchableOpacity>
+                </View>
+                <Text
+                  style={{ fontFamily: "PublicSans-Regular" }}
+                  className="text-base text-[#76767E] mb-8 leading-relaxed"
+                >
+                  You are about to be redirected to an external website to acquire this book. Do you want to continue?
+                </Text>
+                <View className="flex-row gap-4">
+                  <TouchableOpacity
+                    onPress={closeLinkModal}
+                    className="flex-1 py-4 items-center justify-center rounded-full bg-[#EBE7DF]"
+                  >
+                    <Text
+                      style={{ fontFamily: "PublicSans-Bold" }}
+                      className="text-[#212842] text-base uppercase tracking-wider"
+                    >
+                      Cancel
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => {
+                      if (externalLink) {
+                        Linking.openURL(externalLink);
+                      }
+                      closeLinkModal();
+                    }}
+                    className="flex-1 py-4 items-center justify-center rounded-full bg-[#212842]"
+                  >
+                    <Text
+                      style={{ fontFamily: "PublicSans-Bold" }}
+                      className="text-[#FFF8F0] text-base uppercase tracking-wider"
+                    >
+                      Accept
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </TouchableWithoutFeedback>
+          </Animated.View>
+        </View>
+      )}
     </SafeAreaView>
   );
 }
+
+const styles = StyleSheet.create({
+  modalOverlay: {
+    flex: 1,
+    justifyContent: "flex-end",
+  },
+  modalContainer: {
+    backgroundColor: "#FFF8F0",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 24,
+    paddingBottom: 40,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 10,
+  },
+  handleContainer: {
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  handle: {
+    width: 40,
+    height: 4,
+    backgroundColor: "#EBE7DF",
+    borderRadius: 2,
+  },
+});
 
 export default BookDetails;

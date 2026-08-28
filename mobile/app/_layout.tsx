@@ -3,6 +3,7 @@ import '../global.css';
 import { Stack, useRouter, useSegments, useRootNavigationState } from 'expo-router';
 
 import { useAuthStore } from '../store/useAuthStore';
+import { useWebSocketStore } from '../store/useWebSocketStore';
 import { ActivityIndicator, View, LogBox, Text } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts } from 'expo-font';
@@ -41,7 +42,7 @@ if (__DEV__) {
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
-  const { isAuthenticated, isLoading: isAuthLoading, checkSession } = useAuthStore();
+  const { isLoading: isAuthLoading } = useAuthStore();
   const segments = useSegments();
   const router = useRouter();
   const navigationState = useRootNavigationState();
@@ -58,9 +59,22 @@ export default function RootLayout() {
     'PublicSans-Italic': require('./assets/fonts/Public_Sans/static/PublicSans-Italic.ttf'),
   });
 
+  const checkSession = useAuthStore((state) => state.checkSession);
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const connectWs = useWebSocketStore((state) => state.connect);
+  const disconnectWs = useWebSocketStore((state) => state.disconnect);
+
   useEffect(() => {
     checkSession();
   }, []);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      connectWs();
+    } else {
+      disconnectWs();
+    }
+  }, [isAuthenticated]);
 
   // Hide the native splash screen as soon as fonts are loaded so our custom React-based splash screen is revealed
   useEffect(() => {
@@ -115,9 +129,17 @@ export default function RootLayout() {
     <QueryClientProvider client={queryClient}>
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="index" />
-        <Stack.Screen name="(auth)" />
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="PostReview" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="NewShelf" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="NewEcho" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="TagBook" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="ReaderProfile" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="FriendJourneyModal" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="Notifications" />
+        <Stack.Screen name="CommentsModal" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="RateMasterpiece" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="AddActionSheet" options={{ presentation: 'transparentModal', animation: 'fade' }} />
       </Stack>
       <StatusBar style="dark" />
     </QueryClientProvider>

@@ -1,3 +1,4 @@
+import BookCover from "../components/BookCover";
 import React from 'react';
 import { View, Text, TouchableOpacity, Image } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -63,8 +64,8 @@ export default function BookCard({
       >
         <View className="rounded-xl overflow-hidden bg-[#FCF3E0]" style={{ width, height }}>
           {cover ? (
-            <Image
-              source={{ uri: cover }}
+            <BookCover
+              uri={cover }
               style={{ width: "100%", height: "100%" }}
               resizeMode="cover"
             />

@@ -1,9 +1,11 @@
+import BookCover from "../../components/BookCover";
 import React, { useRef, useState, useEffect } from "react";
 import { Text, View, TouchableOpacity, Image, ScrollView, Animated } from "react-native";
 import api from "../../store/api";
 import Icon from "../../core/Icon";
 import NoCover from "../../app/assets/NoCover.svg";
 import { useQuery } from "@tanstack/react-query";
+import { useRouter } from "expo-router";
 
 interface GlobalBook {
   id: string;
@@ -18,6 +20,7 @@ interface GlobalBookshelfProps {
 }
 
 export default function GlobalBookshelf({ refreshTrigger = 0, onLoadEnd }: GlobalBookshelfProps) {
+  const router = useRouter();
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(true);
 
@@ -232,6 +235,15 @@ export default function GlobalBookshelf({ refreshTrigger = 0, onLoadEnd }: Globa
             key={book.id}
             className="mr-6 flex-col"
             activeOpacity={0.8}
+            onPress={() => router.push({
+              pathname: "/BookDetails",
+              params: {
+                bookId: book.id,
+                bookName: book.title,
+                author: book.author,
+                cover: book.cover,
+              }
+            })}
           >
             <View
               style={{
@@ -245,8 +257,8 @@ export default function GlobalBookshelf({ refreshTrigger = 0, onLoadEnd }: Globa
             >
               <View className="rounded-xl overflow-hidden bg-[#FCF3E0]">
                 {book.cover ? (
-                  <Image
-                    source={{ uri: book.cover }}
+                  <BookCover
+                    uri={book.cover }
                     style={{ width: 120, height: 180 }}
                     resizeMode="cover"
                   />

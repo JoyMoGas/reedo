@@ -1,168 +1,97 @@
-import React, { useRef, useState } from "react";
-import {
-  Text,
-  View,
-  TouchableOpacity,
-  Image,
-  ScrollView,
-} from "react-native";
-import mockData from "../../assets/data/mockData.json";
-import Icon from "../../core/Icon";
+import React from "react";
+import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator } from "react-native";
+import { useRouter } from "expo-router";
+import { useQuery } from "@tanstack/react-query";
+import api from "../../store/api";
+import BookCover from "../BookCover";
 import { Avatar } from "../Avatar";
 
 export default function FriendsJourneys() {
-  const [canScrollLeft, setCanScrollLeft] = useState(false);
-  const [canScrollRight, setCanScrollRight] = useState(true);
+  const router = useRouter();
 
-  const scrollViewRef = useRef<ScrollView>(null);
-  const contentWidthRef = useRef(0);
-  const layoutWidthRef = useRef(0);
-  const scrollXRef = useRef(0);
-
-  const updateScrollState = () => {
-    const contentWidth = contentWidthRef.current;
-    const layoutWidth = layoutWidthRef.current;
-    const scrollX = scrollXRef.current;
-
-    const canScroll = contentWidth > layoutWidth;
-    const isAtStart = scrollX <= 5;
-    const isAtEnd = scrollX + layoutWidth >= contentWidth - 5;
-
-    setCanScrollLeft(canScroll && !isAtStart);
-    setCanScrollRight(canScroll && !isAtEnd);
-  };
-
-  const handleScroll = (event: any) => {
-    scrollXRef.current = event.nativeEvent.contentOffset.x;
-    layoutWidthRef.current = event.nativeEvent.layoutMeasurement.width;
-    contentWidthRef.current = event.nativeEvent.contentSize.width;
-    updateScrollState();
-  };
-
-  const handleContentSizeChange = (w: number, h: number) => {
-    contentWidthRef.current = w;
-    updateScrollState();
-  };
-
-  const handleLayout = (event: any) => {
-    layoutWidthRef.current = event.nativeEvent.layout.width;
-    updateScrollState();
-  };
-
-  const handlePrevPress = () => {
-    if (scrollViewRef.current) {
-      scrollViewRef.current.scrollTo({
-        x: Math.max(0, scrollXRef.current - 288),
-        animated: true,
-      });
+  const { data: journeys = [], isLoading } = useQuery({
+    queryKey: ['friends-journeys'],
+    queryFn: async () => {
+      const res = await api.get('/api/social/friends-journeys/');
+      return res.data;
     }
-  };
+  });
 
-  const handleNextPress = () => {
-    if (scrollViewRef.current) {
-      scrollViewRef.current.scrollTo({
-        x: scrollXRef.current + 288,
-        animated: true,
-      });
-    }
-  };
+  if (isLoading) {
+    return (
+      <View className="w-full mt-10 items-center justify-center py-6">
+        <ActivityIndicator size="small" color="#212842" />
+      </View>
+    );
+  }
+
+  // If no friends are reading, hide the section entirely to avoid empty space
+  if (journeys.length === 0) return null;
 
   return (
-    <View className="w-full mt-10">
-      <View className="flex-row justify-between items-center w-full mb-4">
-        <Text
-          className="text-xl font-bold text-[#76767E] tracking-widest"
-          style={{ fontFamily: "PublicSans-Bold" }}
-        >
-          FRIENDS’ JOURNEYS
-        </Text>
-        <View className="flex-row gap-4">
-          <TouchableOpacity 
-            className="p-1"
-            onPress={handlePrevPress}
-            disabled={!canScrollLeft}
-          >
-            <Icon 
-              name="chevronLeft" 
-              size={24} 
-              color={canScrollLeft ? "#76767E" : "#D2CFC7"} 
-            />
-          </TouchableOpacity>
-          <TouchableOpacity 
-            className="p-1"
-            onPress={handleNextPress}
-            disabled={!canScrollRight}
-          >
-            <Icon 
-              name="chevronRight" 
-              size={24} 
-              color={canScrollRight ? "#76767E" : "#D2CFC7"} 
-            />
-          </TouchableOpacity>
-        </View>
-      </View>
-
+    <View className="w-full mt-8">
+      <Text
+        className="text-xl font-bold text-[#212842] mb-4"
+        style={{ fontFamily: "Newsreader-Medium" }}
+      >
+        Friends' Journeys
+      </Text>
       <ScrollView
-        ref={scrollViewRef}
         horizontal
         showsHorizontalScrollIndicator={false}
-        className="w-full"
-        onScroll={handleScroll}
-        scrollEventThrottle={16}
-        onContentSizeChange={handleContentSizeChange}
-        onLayout={handleLayout}
+        className="overflow-visible"
+        contentContainerStyle={{ gap: 16 }}
       >
-        {mockData.books.map((book) => (
-          <TouchableOpacity
-            key={book.id}
-            className="mr-6 flex-col"
-            activeOpacity={0.8}
-          >
-            <View
-              style={{
-                shadowColor: "#000",
-                shadowOffset: { width: 0, height: 6 },
-                shadowOpacity: 0.15,
-                shadowRadius: 6,
-                elevation: 4,
-              }}
-              className="bg-transparent mb-3 rounded-xl"
-            >
-              <View className="rounded-xl overflow-hidden bg-[#FCF3E0]">
-                <Image
-                  source={{ uri: book.coverUrl }}
-                  style={{ width: 120, height: 180 }}
-                  resizeMode="cover"
-                />
-              </View>
-              <View
-                style={{ width: 49, height: 49 }}
-                className="bg-[#FFFFFF] rounded-full absolute -bottom-3 -right-1 justify-center items-center"
+        {journeys.map((journey: any) => {
+          const user = journey.user;
+          const book = journey.book;
+          const progress = journey.progress_percentage || 0;
+
+          return (
+            <View key={journey.id} className="items-center relative w-[100px]">
+              <TouchableOpacity 
+                activeOpacity={0.7} 
+                className="w-[100px] shadow-sm items-center"
+                onPress={() => router.push({ pathname: '/BookDetails', params: { id: book.id } })}
+              >
+                <BookCover uri={book.cover_image} style={{ width: 100, height: 150 }} />
+                
+                {/* Progress Bar inside cover layout for better integration */}
+                <View className="w-full h-1.5 bg-[#EAE2D5] rounded-full overflow-hidden mt-2">
+                  <View 
+                    className="h-full bg-[#C95F44] rounded-full" 
+                    style={{ width: `${progress}%` }} 
+                  />
+                </View>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                className="absolute -top-3 -right-3 border-2 border-[#FFF8F0] rounded-full shadow-sm bg-[#FFF8F0]"
+                onPress={() => router.push({
+                  pathname: '/FriendJourneyModal',
+                  params: {
+                    userId: user.id,
+                    username: user.username,
+                    fullName: user.full_name,
+                    avatar: user.thumbnail || user.profile_picture,
+                    bookTitle: book.title,
+                    bookCover: book.cover_image,
+                    progressPercentage: progress,
+                    startedAt: journey.started_at,
+                    lastReadAt: journey.last_read_at
+                  }
+                })}
               >
                 <Avatar
-                  uri={""}
-                  fullName={book?.author}
-                  username={book?.author}
-                  size={45}
+                  uri={user.thumbnail || user.profile_picture}
+                  fullName={user.full_name || user.username}
+                  username={user.username}
+                  size={32}
                 />
-              </View>
+              </TouchableOpacity>
             </View>
-            <Text
-              numberOfLines={1}
-              className="text-base font-bold text-[#212842] uppercase"
-              style={{ fontFamily: "PublicSans-Bold", width: 120 }}
-            >
-              {book.title}
-            </Text>
-            <Text
-              numberOfLines={1}
-              className="text-xs text-[#8E8B82] uppercase mt-1"
-              style={{ fontFamily: "PublicSans-Regular", width: 120 }}
-            >
-              {book.author}
-            </Text>
-          </TouchableOpacity>
-        ))}
+          );
+        })}
       </ScrollView>
     </View>
   );

@@ -1,7 +1,7 @@
 import React, { useRef, useEffect } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, Platform, Animated } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Tabs } from "expo-router";
+import { Tabs, useRouter } from "expo-router";
 import { Header } from "../../components/Header";
 import Icon from "../../core/Icon";
 import { useUIStore } from "../../store/useUIStore";
@@ -24,6 +24,7 @@ const getTabBarIcon = (routeName: string, isFocused: boolean): string => {
 };
 
 function CustomTabBar({ state, descriptors, navigation, animValue }: { state: any; descriptors: any; navigation: any; animValue: Animated.Value }) {
+  const router = useRouter();
   const insets = useSafeAreaInsets();
 
   const tabBarTranslateY = animValue.interpolate({
@@ -61,6 +62,11 @@ function CustomTabBar({ state, descriptors, navigation, animValue }: { state: an
           const isFocused = state.index === index;
 
           const onPress = () => {
+            if (route.name === "add") {
+              router.push("/AddActionSheet");
+              return;
+            }
+
             const event = navigation.emit({
               type: "tabPress",
               target: route.key,

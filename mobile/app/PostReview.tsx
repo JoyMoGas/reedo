@@ -1,3 +1,4 @@
+import BookCover from "../components/BookCover";
 import React, { useState, useEffect } from "react";
 import { View, Text, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView, Image, Switch } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -60,10 +61,7 @@ export default function PostReview() {
 
   return (
     <SafeAreaView className="flex-1 bg-[#F9F7F2]" edges={["top", "left", "right"]}>
-      {/* Modal Handle & Header */}
-      <View className="items-center pt-2 pb-1">
-        <View className="w-12 h-1 bg-[#D9D9D9] rounded-full" />
-      </View>
+      {/* Header */}
       <View className="w-full flex-row justify-between items-center px-6 py-4">
         <TouchableOpacity onPress={() => router.back()} activeOpacity={0.7} className="p-2 -ml-2">
           <Text className="text-base text-[#8E8B82]" style={{ fontFamily: "PublicSans-Regular" }}>
@@ -85,7 +83,7 @@ export default function PostReview() {
           {/* Book Context */}
           <View className="flex-row items-center bg-[#FFF] rounded-2xl p-4 shadow-sm mb-8 border border-[#EBE7DF]">
             {params.cover ? (
-              <Image source={{ uri: params.cover }} className="w-12 h-16 rounded-md bg-[#EBE7DF]" resizeMode="cover" />
+              <BookCover uri={params.cover } className="w-12 h-16 rounded-md bg-[#EBE7DF]" resizeMode="cover" />
             ) : (
               <View className="w-12 h-16 rounded-md bg-[#EBE7DF] items-center justify-center">
                 <Icon name="bookOpen" size={20} color="#8E8B82" />

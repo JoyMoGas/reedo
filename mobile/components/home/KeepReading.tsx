@@ -1,3 +1,4 @@
+import BookCover from "../../components/BookCover";
 import React, { useRef, useEffect, useState } from "react";
 import {
   Text,
@@ -477,8 +478,8 @@ export default function KeepReading({ refreshTrigger = 0, onLoadEnd }: KeepReadi
             }}
           >
             {book.coverUrl ? (
-              <Image
-                source={{ uri: book.coverUrl }}
+              <BookCover
+                uri={book.coverUrl }
                 style={{ width: 130, height: 195 }}
                 className="rounded-md"
                 resizeMode="cover"

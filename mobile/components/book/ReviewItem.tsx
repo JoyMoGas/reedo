@@ -145,7 +145,7 @@ export const ReviewItem: React.FC<ReviewItemProps> = ({ review, currentUserId, g
 
           <TouchableOpacity 
             className="flex-row items-center gap-2"
-            onPress={() => onComment?.(review.id)}
+            onPress={() => onComment ? onComment(review.id) : undefined}
             activeOpacity={0.7}
           >
             <Icon name="comment" size={20} color="#8E8B82" />

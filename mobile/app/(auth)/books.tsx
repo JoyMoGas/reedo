@@ -1,3 +1,4 @@
+import BookCover from "../../components/BookCover";
 import React, { useState, useRef, useEffect } from "react";
 import {
   Text,
@@ -358,8 +359,8 @@ export default function SignInStep5Screen() {
                     }`}
                   >
                     {book.cover ? (
-                      <Image
-                        source={{ uri: book.cover }}
+                      <BookCover
+                        uri={book.cover }
                         className="w-full h-full"
                         resizeMode="cover"
                       />

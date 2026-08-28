@@ -3,14 +3,16 @@ import { View, Text, TouchableOpacity, StyleSheet, Modal, Switch, ScrollView } f
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuthStore } from "../store/useAuthStore";
 import { useSettingsStore } from "../store/useSettingsStore";
+import { useNotificationsStore } from "../store/useNotificationsStore";
 import { Avatar } from "./Avatar";
 import { User, BookOpen, Settings, LogOut, X } from "lucide-react-native";
 import Icon from "../core/Icon";
-import { useRouter } from "expo-router";
+import { useRouter, useSegments } from "expo-router";
 
 export const Header = () => {
   const insets = useSafeAreaInsets();
   const { user, logout } = useAuthStore();
+  const { hasUnreadNotifications } = useNotificationsStore();
   const { 
     theme, 
     fontSize, 
@@ -37,6 +39,13 @@ export const Header = () => {
 
   const incrementGoal = () => setDailyReadingGoal(dailyReadingGoal + 5);
   const decrementGoal = () => setDailyReadingGoal(Math.max(5, dailyReadingGoal - 5));
+
+  const segments = useSegments();
+  
+  let headerTitle = "REEDO";
+  if (segments[1] === "discover") headerTitle = "DISCOVER";
+  else if (segments[1] === "library") headerTitle = "LIBRARY";
+  else if (segments[1] === "echoes") headerTitle = "ECHOES";
 
   return (
     <>
@@ -70,27 +79,32 @@ export const Header = () => {
           </View>
         </View>
 
-        {/* Center: Logo */}
+        {/* Center: Logo / Title */}
         <View className="flex-row items-center justify-center">
           <Text
             style={{ fontFamily: "Newsreader-Bold" }}
             className="text-2xl text-[#212842] tracking-wider"
           >
-            REEDO
+            {headerTitle}
           </Text>
         </View>
 
         {/* Right: Notifications & Profile Picture */}
         <View className="flex-1 flex-row items-center justify-end gap-3">
           {/* Notification Bell */}
-          <TouchableOpacity
-            onPress={() => console.log("Notifications clicked")}
-            className="p-1 active:opacity-70"
-            accessibilityLabel="Notifications"
-            accessibilityRole="button"
-          >
-            <Icon name="notification" size={26} color="#212842" />
-          </TouchableOpacity>
+          <View className="relative">
+            <TouchableOpacity
+              onPress={() => router.push("/Notifications")}
+              className="p-1 active:opacity-70"
+              accessibilityLabel="Notifications"
+              accessibilityRole="button"
+            >
+              <Icon name="notification" size={26} color="#212842" />
+            </TouchableOpacity>
+            {hasUnreadNotifications && (
+              <View className="absolute top-1 right-1 w-2.5 h-2.5 bg-[#E57A7A] rounded-full border border-[#FFF8F0]" />
+            )}
+          </View>
 
           {/* Profile Picture */}
           <TouchableOpacity
@@ -143,7 +157,18 @@ export const Header = () => {
             <TouchableOpacity
               onPress={() => {
                 setIsMenuOpen(false);
-                console.log("Profile clicked");
+                if (user) {
+                  router.push({
+                    pathname: '/ReaderProfile',
+                    params: {
+                      userId: user.id,
+                      username: user.username,
+                      fullName: user.full_name,
+                      avatar: user.thumbnail,
+                      memberSince: user.member_since_formatted
+                    }
+                  });
+                }
               }}
               className="flex-row items-center gap-2.5 px-3 py-2.5 rounded-lg active:bg-[#EBE7DF]/45"
             >
@@ -152,7 +177,7 @@ export const Header = () => {
                 className="text-sm text-[#212842]"
                 style={{ fontFamily: "PublicSans-Bold" }}
               >
-                Perfil / Profile
+                Profile
               </Text>
             </TouchableOpacity>
 
@@ -165,7 +190,7 @@ export const Header = () => {
                 className="text-sm text-[#212842]"
                 style={{ fontFamily: "PublicSans-Bold" }}
               >
-                Mi Biblioteca
+                My Library
               </Text>
             </TouchableOpacity>
 
@@ -181,7 +206,7 @@ export const Header = () => {
                 className="text-sm text-[#212842]"
                 style={{ fontFamily: "PublicSans-Bold" }}
               >
-                Ajustes / Settings
+                Settings
               </Text>
             </TouchableOpacity>
 
@@ -198,7 +223,7 @@ export const Header = () => {
                 className="text-sm text-[#E57A7A]"
                 style={{ fontFamily: "PublicSans-Bold" }}
               >
-                Logout / Salir
+                Logout
               </Text>
             </TouchableOpacity>
           </View>

@@ -1,3 +1,4 @@
+import BookCover from "../components/BookCover";
 import React, { useRef, useEffect } from "react";
 import {
   Text,
@@ -149,8 +150,8 @@ export default function HiddenGemsScreen() {
                 >
                   <View className="rounded-xl overflow-hidden bg-[#FCF3E0]">
                     {book.cover ? (
-                      <Image
-                        source={{ uri: book.cover }}
+                      <BookCover
+                        uri={book.cover }
                         style={{ width: 110, height: 165 }}
                         resizeMode="cover"
                       />
