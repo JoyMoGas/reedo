@@ -143,6 +143,8 @@ class Comment(models.Model):
     Echo,
     on_delete=models.CASCADE,
     related_name="comments",
+    null=True,
+    blank=True,
     help_text="Echo to which this comment belongs"
   )
 
@@ -150,6 +152,8 @@ class Comment(models.Model):
     Review,
     on_delete=models.CASCADE,
     related_name="comments",
+    null=True,
+    blank=True,
     help_text="Review to which this comment belongs"
   )
 
@@ -209,6 +213,8 @@ class Reaction(models.Model):
     Echo,
     on_delete=models.CASCADE,
     related_name="reactions",
+    null=True,
+    blank=True,
     help_text="Echo to which this reaction belongs"
   )
 
@@ -216,6 +222,8 @@ class Reaction(models.Model):
     Review,
     on_delete=models.CASCADE,
     related_name="reactions",
+    null=True,
+    blank=True,
     help_text="Review to which this reaction belongs"
   )
 
@@ -223,6 +231,8 @@ class Reaction(models.Model):
     Comment,
     on_delete=models.CASCADE,
     related_name="reactions",
+    null=True,
+    blank=True,
     help_text="Comment to which this reaction belongs"
   )
 
@@ -283,3 +293,149 @@ class Follow(models.Model):
 
   def __str__(self):
     return f"@{self.follower_id.username} followed {self.followed_id}"
+
+
+# ===================================================================
+
+
+class Friendship(models.Model):
+  """
+  Represents a friendship relationship (or friend request) between two users.
+  """
+  STATUS_CHOICES = (
+      ('PENDING', 'Pending'),
+      ('ACCEPTED', 'Accepted'),
+      ('REJECTED', 'Rejected'),
+  )
+
+  id = models.UUIDField(
+    primary_key=True,
+    default=uuid.uuid4,
+    editable=False
+  )
+
+  requester = models.ForeignKey(
+    settings.AUTH_USER_MODEL,
+    on_delete=models.CASCADE,
+    related_name="sent_requests",
+    help_text="User who sent the request"
+  )
+
+  receiver = models.ForeignKey(
+    settings.AUTH_USER_MODEL,
+    on_delete=models.CASCADE,
+    related_name="received_requests",
+    help_text="User who received the request"
+  )
+
+  status = models.CharField(
+    max_length=20,
+    choices=STATUS_CHOICES,
+    default='PENDING',
+    help_text="Status of the friendship request"
+  )
+
+  created_at = models.DateTimeField(
+    auto_now_add=True,
+    help_text="Date and time when the request was sent"
+  )
+
+  updated_at = models.DateTimeField(
+    auto_now=True,
+    help_text="Date and time when the status was last updated"
+  )
+
+  class Meta:
+    unique_together = ('requester', 'receiver')
+
+  def __str__(self):
+    return f"@{self.requester.username} -> {self.receiver.username} ({self.status})"
+
+
+# ===================================================================
+
+
+class Notification(models.Model):
+  """
+  Represents a notification sent to a user.
+  """
+  NOTIFICATION_TYPES = (
+      ('FRIEND_REQUEST', 'Friend Request'),
+      ('FRIEND_ACCEPT', 'Friend Request Accepted'),
+      ('FRIEND_REJECT', 'Friend Request Rejected'),
+      ('ECHO_LIKE', 'Echo Liked'),
+      ('REVIEW_LIKE', 'Review Liked'),
+  )
+
+  id = models.UUIDField(
+    primary_key=True,
+    default=uuid.uuid4,
+    editable=False
+  )
+
+  recipient = models.ForeignKey(
+    settings.AUTH_USER_MODEL,
+    on_delete=models.CASCADE,
+    related_name="notifications",
+    help_text="User receiving the notification"
+  )
+
+  sender = models.ForeignKey(
+    settings.AUTH_USER_MODEL,
+    on_delete=models.CASCADE,
+    related_name="sent_notifications",
+    null=True,
+    blank=True,
+    help_text="User who triggered the notification"
+  )
+
+  notification_type = models.CharField(
+    max_length=20,
+    choices=NOTIFICATION_TYPES,
+    help_text="Type of notification"
+  )
+
+  message = models.CharField(
+    max_length=255,
+    help_text="Notification message content"
+  )
+
+  echo = models.ForeignKey(
+    Echo,
+    on_delete=models.CASCADE,
+    null=True,
+    blank=True,
+    help_text="Linked Echo if applicable"
+  )
+
+  review = models.ForeignKey(
+    Review,
+    on_delete=models.CASCADE,
+    null=True,
+    blank=True,
+    help_text="Linked Review if applicable"
+  )
+
+  friendship = models.ForeignKey(
+    Friendship,
+    on_delete=models.CASCADE,
+    null=True,
+    blank=True,
+    help_text="Linked Friendship request if applicable"
+  )
+
+  is_read = models.BooleanField(
+    default=False,
+    help_text="Whether the notification has been read"
+  )
+
+  created_at = models.DateTimeField(
+    auto_now_add=True,
+    help_text="Date and time when the notification was created"
+  )
+
+  class Meta:
+    ordering = ['-created_at']
+
+  def __str__(self):
+    return f"{self.recipient.username} - {self.notification_type}"

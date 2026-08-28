@@ -96,7 +96,7 @@ class FetchOrCreateBookView(APIView):
             return Response({
                 "id": book.id, 
                 "title": book.title, 
-                "cover_image": book.cover_image,
+                "cover_image": book.cover_image if book.cover_image else (f"https://covers.openlibrary.org/b/isbn/{book.isbn}-L.jpg?default=false" if book.isbn else ""),
                 "average_rating": book.average_rating,
                 "source": "database"
             }, status=status.HTTP_200_OK)
@@ -120,7 +120,7 @@ class FetchOrCreateBookView(APIView):
                 return Response({
                     "id": book.id, 
                     "title": book.title, 
-                    "cover_image": book.cover_image,
+                    "cover_image": book.cover_image if book.cover_image else (f"https://covers.openlibrary.org/b/isbn/{book.isbn}-L.jpg?default=false" if book.isbn else ""),
                     "average_rating": book.average_rating,
                     "source": "database"
                 }, status=status.HTTP_200_OK)
@@ -162,7 +162,7 @@ class FetchOrCreateBookView(APIView):
         return Response({
             "id": new_book.id,
             "title": new_book.title,
-            "cover_image": new_book.cover_image,
+            "cover_image": new_book.cover_image if new_book.cover_image else (f"https://covers.openlibrary.org/b/isbn/{new_book.isbn}-L.jpg?default=false" if new_book.isbn else ""),
             "average_rating": new_book.average_rating,
             "source": "google_books_imported"
         }, status=status.HTTP_201_CREATED)
@@ -253,7 +253,7 @@ class BookSearchView(APIView):
                 "id": str(book.id),
                 "title": book.title,
                 "synopsis": book.synopsis,
-                "cover_image": book.cover_image,
+                "cover_image": book.cover_image if book.cover_image else (f"https://covers.openlibrary.org/b/isbn/{book.isbn}-L.jpg?default=false" if book.isbn else ""),
                 "isbn": book.isbn,
                 "average_rating": book.average_rating,
                 "total_pages": book.total_pages,
@@ -443,7 +443,7 @@ class BookSuggestionsView(APIView):
                 "id": str(book.id),
                 "title": book.title,
                 "synopsis": book.synopsis,
-                "cover_image": book.cover_image,
+                "cover_image": book.cover_image if book.cover_image else (f"https://covers.openlibrary.org/b/isbn/{book.isbn}-L.jpg?default=false" if book.isbn else ""),
                 "isbn": book.isbn,
                 "average_rating": book.average_rating,
                 "total_pages": book.total_pages,
@@ -486,16 +486,16 @@ class TrendingBooksView(APIView):
                     except Exception:
                         pass
 
-                if db_book and db_book not in trending_books:
+                if db_book and db_book not in trending_books and db_book.cover_image:
                     trending_books.append(db_book)
         except Exception:
             pass
 
         # Fallback local if empty/failed
         if len(trending_books) < 10:
-            fallback = Books.objects.all().order_by('-average_rating')[:10]
+            fallback = Books.objects.exclude(cover_image='').exclude(cover_image__isnull=True).order_by('-average_rating')[:10]
             for b in fallback:
-                if b not in trending_books:
+                if b not in trending_books and b.cover_image:
                     trending_books.append(b)
 
         results = []
@@ -504,7 +504,7 @@ class TrendingBooksView(APIView):
                 "id": str(book.id),
                 "title": book.title,
                 "synopsis": book.synopsis,
-                "cover_image": book.cover_image,
+                "cover_image": book.cover_image if book.cover_image else (f"https://covers.openlibrary.org/b/isbn/{book.isbn}-L.jpg?default=false" if book.isbn else ""),
                 "isbn": book.isbn,
                 "average_rating": book.average_rating,
                 "total_pages": book.total_pages,
@@ -528,7 +528,7 @@ class UserBookSaveView(APIView):
                 "book_id": book.id,
                 "title": book.title,
                 "synopsis": book.synopsis,
-                "cover_image": book.cover_image,
+                "cover_image": book.cover_image if book.cover_image else (f"https://covers.openlibrary.org/b/isbn/{book.isbn}-L.jpg?default=false" if book.isbn else ""),
                 "status": ub.status,
                 "current_page": ub.current_page or 0,
                 "total_pages": book.total_pages or 0,
@@ -736,7 +736,7 @@ class DiscoverBooksView(APIView):
                 "id": book.id,
                 "title": book.title,
                 "synopsis": book.synopsis,
-                "cover_image": book.cover_image,
+                "cover_image": book.cover_image if book.cover_image else (f"https://covers.openlibrary.org/b/isbn/{book.isbn}-L.jpg?default=false" if book.isbn else ""),
                 "isbn": book.isbn,
                 "average_rating": book.average_rating,
                 "total_pages": book.total_pages,
@@ -783,7 +783,7 @@ class GlobalBookshelfView(APIView):
                 "id": str(book.id),
                 "title": book.title,
                 "synopsis": book.synopsis,
-                "cover_image": book.cover_image,
+                "cover_image": book.cover_image if book.cover_image else (f"https://covers.openlibrary.org/b/isbn/{book.isbn}-L.jpg?default=false" if book.isbn else ""),
                 "isbn": book.isbn,
                 "average_rating": book.average_rating,
                 "total_pages": book.total_pages,
@@ -839,7 +839,7 @@ class NewlyArrivedBooksView(APIView):
                     except Exception:
                         pass
 
-                if db_book and db_book not in new_books:
+                if db_book and db_book not in new_books and db_book.cover_image:
                     new_books.append(db_book)
         except Exception:
             pass
@@ -859,7 +859,7 @@ class NewlyArrivedBooksView(APIView):
                 "id": str(book.id),
                 "title": book.title,
                 "synopsis": book.synopsis,
-                "cover_image": book.cover_image,
+                "cover_image": book.cover_image if book.cover_image else (f"https://covers.openlibrary.org/b/isbn/{book.isbn}-L.jpg?default=false" if book.isbn else ""),
                 "isbn": book.isbn,
                 "average_rating": book.average_rating,
                 "total_pages": book.total_pages,
@@ -895,7 +895,7 @@ class HiddenGemsBooksView(APIView):
                 "id": str(book.id),
                 "title": book.title,
                 "synopsis": book.synopsis,
-                "cover_image": book.cover_image,
+                "cover_image": book.cover_image if book.cover_image else (f"https://covers.openlibrary.org/b/isbn/{book.isbn}-L.jpg?default=false" if book.isbn else ""),
                 "isbn": book.isbn,
                 "average_rating": book.average_rating,
                 "total_pages": book.total_pages,
@@ -1075,7 +1075,7 @@ class BasedOnHistoryView(APIView):
                 "id": str(book.id),
                 "title": book.title,
                 "synopsis": book.synopsis,
-                "cover_image": book.cover_image,
+                "cover_image": book.cover_image if book.cover_image else (f"https://covers.openlibrary.org/b/isbn/{book.isbn}-L.jpg?default=false" if book.isbn else ""),
                 "isbn": book.isbn,
                 "average_rating": book.average_rating,
                 "total_pages": book.total_pages,
@@ -1123,4 +1123,4 @@ class BookStatsView(APIView):
             "shelved_count": count,
             "average_rating": avg_rating
         }, status=status.HTTP_200_OK)
-
+
