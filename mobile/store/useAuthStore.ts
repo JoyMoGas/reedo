@@ -11,6 +11,7 @@ export interface UserProfile {
   thumbnail: string | null;
   honor_points: number;
   streak_days: number;
+  member_since_formatted?: string;
 }
 
 interface AuthState {
