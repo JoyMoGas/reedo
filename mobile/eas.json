@@ -12,6 +12,9 @@
       "distribution": "internal",
       "android": {
         "buildType": "apk"
+      },
+      "env": {
+        "NODE_OPTIONS": "--max-old-space-size=6144"
       }
     },
     "production": {
