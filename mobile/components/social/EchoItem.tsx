@@ -52,13 +52,13 @@ export default function EchoItem({ item }: { item: any }) {
         avatar: userAvatar,
         memberSince
       } 
-    });
+    } as any);
   };
 
   // ... (useMutation code remains exactly the same) ...
 
   const likeMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (): Promise<void> => {
       if (item.is_liked) {
         await api.delete(`/api/social/echoes/${item.id}/like/`);
       } else {
@@ -94,7 +94,7 @@ export default function EchoItem({ item }: { item: any }) {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (): Promise<void> => {
       await api.delete(`/api/social/echoes/${item.id}/`);
     },
     onSuccess: () => {
@@ -231,7 +231,7 @@ export default function EchoItem({ item }: { item: any }) {
         <TouchableOpacity 
           className="flex-row items-center gap-1.5" 
           activeOpacity={0.7}
-          onPress={() => router.push({ pathname: '/CommentsModal', params: { echoId: item.id } })}
+          onPress={() => router.push({ pathname: '/CommentsModal', params: { echoId: item.id } } as any)}
         >
           <Icon name="comment" size={24} color="#76767E" />
           <Text className="text-sm text-[#76767E]" style={{ fontFamily: 'PublicSans-Bold' }}>
