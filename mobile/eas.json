@@ -14,7 +14,8 @@
         "buildType": "apk"
       },
       "env": {
-        "NODE_OPTIONS": "--max-old-space-size=6144"
+        "NODE_OPTIONS": "--max-old-space-size=8192",
+        "EXPO_DEBUG": "true"
       }
     },
     "production": {
