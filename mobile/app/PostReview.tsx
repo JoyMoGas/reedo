@@ -1,3 +1,10 @@
+/**
+ * @project Reedo
+ * @module PostReview
+ * @author José Antonio Montaño (Lead Developer)
+ * @inspired-by Alondra Gamino (Constant Inspiration)
+ * @date 2026-08-10
+ */
 import BookCover from "../components/BookCover";
 import React, { useState, useEffect } from "react";
 import { View, Text, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView, Image, Switch } from "react-native";

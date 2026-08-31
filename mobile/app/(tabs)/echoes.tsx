@@ -1,3 +1,10 @@
+/**
+ * @project Reedo
+ * @module echoes
+ * @author José Antonio Montaño (Lead Developer)
+ * @inspired-by Alondra Gamino (Constant Inspiration)
+ * @date 2026-06-27
+ */
 import React, { useEffect, useState } from "react";
 import { Text, View, TouchableOpacity, FlatList, ActivityIndicator, Image } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";

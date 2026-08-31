@@ -1,3 +1,10 @@
+/**
+ * @project Reedo
+ * @module useSettingsStore
+ * @author José Antonio Montaño (Lead Developer)
+ * @inspired-by Alondra Gamino (Constant Inspiration)
+ * @date 2026-06-30
+ */
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import { secureStorage } from "./secureStorage";

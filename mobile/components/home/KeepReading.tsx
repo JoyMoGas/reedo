@@ -1,3 +1,11 @@
+/**
+ * @project Reedo
+ * @module KeepReadingSection
+ * @author José Antonio Montaño (Lead Developer)
+ * @inspired-by Alondra Gamino (Constant Inspiration)
+ * @date 2026-08-30
+ */
+
 import BookCover from "../../components/BookCover";
 import React, { useRef, useEffect, useState } from "react";
 import {

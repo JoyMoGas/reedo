@@ -1,3 +1,10 @@
+"""
+@project Reedo
+@module services
+@author José Antonio Montaño (Lead Developer)
+@inspired-by Alondra Gamino (Constant Inspiration)
+@date 2026-06-27
+"""
 import os
 import re
 import requests

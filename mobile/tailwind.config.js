@@ -1,3 +1,10 @@
+/**
+ * @project Reedo
+ * @module tailwind.config
+ * @author José Antonio Montaño (Lead Developer)
+ * @inspired-by Alondra Gamino (Constant Inspiration)
+ * @date 2026-05-21
+ */
 const nativewind = require("nativewind/preset");
 
 /** @type {import('tailwindcss').Config} */

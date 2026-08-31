@@ -1,3 +1,10 @@
+"""
+@project Reedo
+@module filter_covers
+@author José Antonio Montaño (Lead Developer)
+@inspired-by Alondra Gamino (Constant Inspiration)
+@date 2026-08-25
+"""
 import re
 
 file_path = r"c:\VisualStudio\reedo\backend\books\views.py"

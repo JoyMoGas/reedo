@@ -1,3 +1,10 @@
+/**
+ * @project Reedo
+ * @module BookDetails
+ * @author José Antonio Montaño (Lead Developer)
+ * @inspired-by Alondra Gamino (Constant Inspiration)
+ * @date 2026-08-04
+ */
 import BookCover from "../components/BookCover";
 import React, { useState, useMemo } from "react";
 import { View, Text, ScrollView, Image, TouchableOpacity, Switch, Linking, StyleSheet, TouchableWithoutFeedback, Animated, Dimensions, PanResponder } from "react-native";

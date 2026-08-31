@@ -1,3 +1,10 @@
+/**
+ * @project Reedo
+ * @module CommunityEchoes
+ * @author José Antonio Montaño (Lead Developer)
+ * @inspired-by Alondra Gamino (Constant Inspiration)
+ * @date 2026-06-27
+ */
 import React from "react";
 import { Text, View, TouchableOpacity, ActivityIndicator } from "react-native";
 import { useRouter } from "expo-router";

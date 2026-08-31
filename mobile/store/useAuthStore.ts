@@ -1,3 +1,10 @@
+/**
+ * @project Reedo
+ * @module useAuthStore
+ * @author José Antonio Montaño (Lead Developer)
+ * @inspired-by Alondra Gamino (Constant Inspiration)
+ * @date 2026-05-30
+ */
 import { create } from "zustand";
 import * as SecureStore from "expo-secure-store";
 import { queryClient } from "./queryClient";

@@ -1,3 +1,10 @@
+/**
+ * @project Reedo
+ * @module useWebSocketStore
+ * @author José Antonio Montaño (Lead Developer)
+ * @inspired-by Alondra Gamino (Constant Inspiration)
+ * @date 2026-08-27
+ */
 import { create } from "zustand";
 import { useAuthStore } from "./useAuthStore";
 import { useNotificationsStore } from "./useNotificationsStore";

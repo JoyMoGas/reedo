@@ -1,3 +1,10 @@
+/**
+ * @project Reedo
+ * @module _layout
+ * @author José Antonio Montaño (Lead Developer)
+ * @inspired-by Alondra Gamino (Constant Inspiration)
+ * @date 2026-05-30
+ */
 import { useEffect, useState } from 'react';
 import '../global.css';
 import { Stack, useRouter, useSegments, useRootNavigationState } from 'expo-router';

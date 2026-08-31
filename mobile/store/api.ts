@@ -1,3 +1,10 @@
+/**
+ * @project Reedo
+ * @module api
+ * @author José Antonio Montaño (Lead Developer)
+ * @inspired-by Alondra Gamino (Constant Inspiration)
+ * @date 2026-05-30
+ */
 import axios from 'axios';
 import { useAuthStore } from './useAuthStore';
 
@@ -37,4 +44,4 @@ api.interceptors.response.use(
   }
 );
 
-export default api;
+export default api;

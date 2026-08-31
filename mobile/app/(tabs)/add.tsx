@@ -1,3 +1,10 @@
+/**
+ * @project Reedo
+ * @module add
+ * @author José Antonio Montaño (Lead Developer)
+ * @inspired-by Alondra Gamino (Constant Inspiration)
+ * @date 2026-06-27
+ */
 import React, { useEffect } from "react";
 import { Text, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";

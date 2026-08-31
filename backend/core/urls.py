@@ -1,4 +1,11 @@
 """
+@project Reedo
+@module urls
+@author José Antonio Montaño (Lead Developer)
+@inspired-by Alondra Gamino (Constant Inspiration)
+@date 2026-05-21
+"""
+"""
 URL configuration for core project.
 
 The `urlpatterns` list routes URLs to views. For more information please see:

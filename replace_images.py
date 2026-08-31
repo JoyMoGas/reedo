@@ -1,3 +1,10 @@
+"""
+@project Reedo
+@module replace_images
+@author José Antonio Montaño (Lead Developer)
+@inspired-by Alondra Gamino (Constant Inspiration)
+@date 2026-08-25
+"""
 import os
 import re
 

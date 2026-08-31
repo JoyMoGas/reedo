@@ -1,3 +1,10 @@
+"""
+@project Reedo
+@module seed_books
+@author José Antonio Montaño (Lead Developer)
+@inspired-by Alondra Gamino (Constant Inspiration)
+@date 2026-06-26
+"""
 import time
 from django.core.management.base import BaseCommand
 from books.models import Books, Genres, Authors

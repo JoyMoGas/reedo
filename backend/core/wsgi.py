@@ -1,4 +1,11 @@
 """
+@project Reedo
+@module wsgi
+@author José Antonio Montaño (Lead Developer)
+@inspired-by Alondra Gamino (Constant Inspiration)
+@date 2026-05-21
+"""
+"""
 WSGI config for core project.
 
 It exposes the WSGI callable as a module-level variable named ``application``.

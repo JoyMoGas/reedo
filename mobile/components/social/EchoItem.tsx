@@ -1,3 +1,10 @@
+/**
+ * @project Reedo
+ * @module EchoItem
+ * @author José Antonio Montaño (Lead Developer)
+ * @inspired-by Alondra Gamino (Constant Inspiration)
+ * @date 2026-08-27
+ */
 import React, { useState } from "react";
 import { Text, View, TouchableOpacity, Alert } from "react-native";
 import Icon from "../../core/Icon";

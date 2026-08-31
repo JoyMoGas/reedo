@@ -1,3 +1,10 @@
+/**
+ * @project Reedo
+ * @module GlobalBookshelf
+ * @author José Antonio Montaño (Lead Developer)
+ * @inspired-by Alondra Gamino (Constant Inspiration)
+ * @date 2026-08-04
+ */
 import BookCover from "../../components/BookCover";
 import React, { useRef, useState, useEffect } from "react";
 import { Text, View, TouchableOpacity, Image, ScrollView, Animated } from "react-native";

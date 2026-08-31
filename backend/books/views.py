@@ -1,3 +1,10 @@
+"""
+@project Reedo
+@module views
+@author José Antonio Montaño (Lead Developer)
+@inspired-by Alondra Gamino (Constant Inspiration)
+@date 2026-05-21
+"""
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status

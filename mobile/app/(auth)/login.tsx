@@ -1,3 +1,10 @@
+/**
+ * @project Reedo
+ * @module login
+ * @author José Antonio Montaño (Lead Developer)
+ * @inspired-by Alondra Gamino (Constant Inspiration)
+ * @date 2026-05-30
+ */
 import React, { useState, useRef } from "react";
 import {
   Text,

@@ -1,3 +1,10 @@
+"""
+@project Reedo
+@module views
+@author José Antonio Montaño (Lead Developer)
+@inspired-by Alondra Gamino (Constant Inspiration)
+@date 2026-05-21
+"""
 # ===================================================================
 # Imports
 # ===================================================================
@@ -261,4 +268,4 @@ class UserSuggestionsView(APIView):
             
         suggestions.sort(key=lambda x: x["score"], reverse=True)
         
-        return Response(suggestions[:10], status=200)
+        return Response(suggestions[:10], status=200)

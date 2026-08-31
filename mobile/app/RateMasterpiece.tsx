@@ -1,3 +1,10 @@
+/**
+ * @project Reedo
+ * @module RateMasterpiece
+ * @author José Antonio Montaño (Lead Developer)
+ * @inspired-by Alondra Gamino (Constant Inspiration)
+ * @date 2026-08-27
+ */
 import React, { useState, useMemo } from "react";
 import { View, Text, TouchableOpacity, TextInput, ScrollView, Image, Modal, ActivityIndicator } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";

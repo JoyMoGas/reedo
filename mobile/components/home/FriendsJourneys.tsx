@@ -1,3 +1,10 @@
+/**
+ * @project Reedo
+ * @module FriendsJourneys
+ * @author José Antonio Montaño (Lead Developer)
+ * @inspired-by Alondra Gamino (Constant Inspiration)
+ * @date 2026-06-27
+ */
 import React from "react";
 import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator } from "react-native";
 import { useRouter } from "expo-router";

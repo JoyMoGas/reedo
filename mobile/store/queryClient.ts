@@ -1,3 +1,10 @@
+/**
+ * @project Reedo
+ * @module queryClient
+ * @author José Antonio Montaño (Lead Developer)
+ * @inspired-by Alondra Gamino (Constant Inspiration)
+ * @date 2026-06-30
+ */
 import { QueryClient } from '@tanstack/react-query';
 
 export const queryClient = new QueryClient({

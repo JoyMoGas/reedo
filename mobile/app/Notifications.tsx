@@ -1,3 +1,10 @@
+/**
+ * @project Reedo
+ * @module Notifications
+ * @author José Antonio Montaño (Lead Developer)
+ * @inspired-by Alondra Gamino (Constant Inspiration)
+ * @date 2026-08-27
+ */
 import React, { useEffect, useState } from "react";
 import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";

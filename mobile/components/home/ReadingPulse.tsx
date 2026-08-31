@@ -1,3 +1,10 @@
+/**
+ * @project Reedo
+ * @module ReadingPulse
+ * @author José Antonio Montaño (Lead Developer)
+ * @inspired-by Alondra Gamino (Constant Inspiration)
+ * @date 2026-06-27
+ */
 import React from "react";
 import { Text, View } from "react-native";
 

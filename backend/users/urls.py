@@ -1,3 +1,10 @@
+"""
+@project Reedo
+@module urls
+@author José Antonio Montaño (Lead Developer)
+@inspired-by Alondra Gamino (Constant Inspiration)
+@date 2026-06-12
+"""
 from django.urls import path
 from .views import (
     SignInView, 

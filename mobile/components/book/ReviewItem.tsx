@@ -1,3 +1,10 @@
+/**
+ * @project Reedo
+ * @module ReviewItem
+ * @author José Antonio Montaño (Lead Developer)
+ * @inspired-by Alondra Gamino (Constant Inspiration)
+ * @date 2026-08-10
+ */
 import React, { useState } from "react";
 import { View, Text, TouchableOpacity } from "react-native";
 import { Avatar } from "../Avatar";

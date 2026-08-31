@@ -1,3 +1,10 @@
+/**
+ * @project Reedo
+ * @module _layout
+ * @author José Antonio Montaño (Lead Developer)
+ * @inspired-by Alondra Gamino (Constant Inspiration)
+ * @date 2026-05-30
+ */
 import React, { useRef, useEffect } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, Platform, Animated } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";

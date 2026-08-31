@@ -1,3 +1,10 @@
+/**
+ * @project Reedo
+ * @module Header
+ * @author José Antonio Montaño (Lead Developer)
+ * @inspired-by Alondra Gamino (Constant Inspiration)
+ * @date 2026-06-27
+ */
 import React, { useState } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, Modal, Switch, ScrollView } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";

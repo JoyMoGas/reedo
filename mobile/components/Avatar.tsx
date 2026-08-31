@@ -1,3 +1,10 @@
+/**
+ * @project Reedo
+ * @module Avatar
+ * @author José Antonio Montaño (Lead Developer)
+ * @inspired-by Alondra Gamino (Constant Inspiration)
+ * @date 2026-06-27
+ */
 import React, { useState } from "react";
 import { View, Text, Image, StyleSheet } from "react-native";
 

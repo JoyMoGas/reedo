@@ -1,3 +1,10 @@
+/**
+ * @project Reedo
+ * @module Icon
+ * @author José Antonio Montaño (Lead Developer)
+ * @inspired-by Alondra Gamino (Constant Inspiration)
+ * @date 2026-06-12
+ */
 // @@iconify-code-gen
 import React from "react";
 import { Iconify } from "react-native-iconify";

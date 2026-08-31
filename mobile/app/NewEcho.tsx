@@ -1,3 +1,10 @@
+/**
+ * @project Reedo
+ * @module NewEcho
+ * @author José Antonio Montaño (Lead Developer)
+ * @inspired-by Alondra Gamino (Constant Inspiration)
+ * @date 2026-08-27
+ */
 import React, { useEffect } from 'react';
 import { View, Text, TouchableOpacity, TextInput, KeyboardAvoidingView, Platform, Switch, ScrollView, Alert, ActivityIndicator } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';

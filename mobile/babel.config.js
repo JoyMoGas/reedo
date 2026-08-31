@@ -1,3 +1,10 @@
+/**
+ * @project Reedo
+ * @module babel.config
+ * @author José Antonio Montaño (Lead Developer)
+ * @inspired-by Alondra Gamino (Constant Inspiration)
+ * @date 2026-05-21
+ */
 module.exports = function (api) {
   api.cache(true);
   return {

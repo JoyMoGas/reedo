@@ -1,3 +1,10 @@
+/**
+ * @project Reedo
+ * @module [id]
+ * @author José Antonio Montaño (Lead Developer)
+ * @inspired-by Alondra Gamino (Constant Inspiration)
+ * @date 2026-08-27
+ */
 import React, { useMemo, useState } from 'react';
 import { View, Text, TouchableOpacity, FlatList, ActivityIndicator, Modal, Alert } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';

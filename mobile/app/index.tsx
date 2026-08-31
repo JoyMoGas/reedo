@@ -1,3 +1,10 @@
+/**
+ * @project Reedo
+ * @module index
+ * @author José Antonio Montaño (Lead Developer)
+ * @inspired-by Alondra Gamino (Constant Inspiration)
+ * @date 2026-05-30
+ */
 import React, { useEffect } from "react";
 import { Text, View, TouchableOpacity } from "react-native";
 import { useFonts } from "expo-font";

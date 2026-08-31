@@ -1,3 +1,10 @@
+/**
+ * @project Reedo
+ * @module AddActionSheet
+ * @author José Antonio Montaño (Lead Developer)
+ * @inspired-by Alondra Gamino (Constant Inspiration)
+ * @date 2026-08-27
+ */
 import React, { useRef, useEffect } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, Animated, Dimensions, Pressable, PanResponder } from "react-native";
 import { useRouter } from "expo-router";

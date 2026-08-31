@@ -1,3 +1,10 @@
+"""
+@project Reedo
+@module manage
+@author José Antonio Montaño (Lead Developer)
+@inspired-by Alondra Gamino (Constant Inspiration)
+@date 2026-05-21
+"""
 #!/usr/bin/env python
 """Django's command-line utility for administrative tasks."""
 

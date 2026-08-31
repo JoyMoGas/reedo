@@ -1,3 +1,10 @@
+"""
+@project Reedo
+@module models
+@author José Antonio Montaño (Lead Developer)
+@inspired-by Alondra Gamino (Constant Inspiration)
+@date 2026-05-21
+"""
 # ===================================================================
 # Imports
 # ===================================================================
@@ -438,4 +445,4 @@ class Notification(models.Model):
     ordering = ['-created_at']
 
   def __str__(self):
-    return f"{self.recipient.username} - {self.notification_type}"
+    return f"{self.recipient.username} - {self.notification_type}"

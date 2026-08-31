@@ -1,3 +1,10 @@
+/**
+ * @project Reedo
+ * @module BookCard
+ * @author José Antonio Montaño (Lead Developer)
+ * @inspired-by Alondra Gamino (Constant Inspiration)
+ * @date 2026-08-04
+ */
 import BookCover from "../components/BookCover";
 import React from 'react';
 import { View, Text, TouchableOpacity, Image } from 'react-native';

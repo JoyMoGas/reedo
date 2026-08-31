@@ -1,3 +1,10 @@
+"""
+@project Reedo
+@module serializers
+@author José Antonio Montaño (Lead Developer)
+@inspired-by Alondra Gamino (Constant Inspiration)
+@date 2026-08-10
+"""
 from rest_framework import serializers
 from .models import Review, Comment, Reaction, Echo, Friendship, Notification
 from users.serializers import UserSerializer

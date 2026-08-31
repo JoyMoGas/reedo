@@ -1,3 +1,10 @@
+/**
+ * @project Reedo
+ * @module secureStorage
+ * @author José Antonio Montaño (Lead Developer)
+ * @inspired-by Alondra Gamino (Constant Inspiration)
+ * @date 2026-06-30
+ */
 import * as SecureStore from 'expo-secure-store';
 import { StateStorage } from 'zustand/middleware';
 

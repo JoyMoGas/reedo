@@ -1,3 +1,10 @@
+/**
+ * @project Reedo
+ * @module DiscoverNext
+ * @author José Antonio Montaño (Lead Developer)
+ * @inspired-by Alondra Gamino (Constant Inspiration)
+ * @date 2026-06-27
+ */
 import React, { useRef, useState, useEffect } from "react";
 import { Text, View, TouchableOpacity, Image, ScrollView, Animated } from "react-native";
 import * as SecureStore from "expo-secure-store";

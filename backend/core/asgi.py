@@ -1,4 +1,11 @@
 """
+@project Reedo
+@module asgi
+@author José Antonio Montaño (Lead Developer)
+@inspired-by Alondra Gamino (Constant Inspiration)
+@date 2026-05-21
+"""
+"""
 ASGI config for core project.
 
 It exposes the ASGI callable as a module-level variable named ``application``.

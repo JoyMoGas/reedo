@@ -1,3 +1,10 @@
+/**
+ * @project Reedo
+ * @module books
+ * @author José Antonio Montaño (Lead Developer)
+ * @inspired-by Alondra Gamino (Constant Inspiration)
+ * @date 2026-05-30
+ */
 import BookCover from "../../components/BookCover";
 import React, { useState, useRef, useEffect } from "react";
 import {
