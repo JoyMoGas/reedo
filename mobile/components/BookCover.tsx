@@ -28,7 +28,7 @@ export default function BookCover({ uri, width = 115, height = 170, style, class
   return (
     <Image
       source={{ uri }}
-      style={[{ width, height }, style]}
+      style={[{ width: width as any, height: height as any }, style]}
       className={className}
       resizeMode={resizeMode}
       onError={() => setError(true)}

@@ -47,7 +47,7 @@ export const Header = () => {
   const incrementGoal = () => setDailyReadingGoal(dailyReadingGoal + 5);
   const decrementGoal = () => setDailyReadingGoal(Math.max(5, dailyReadingGoal - 5));
 
-  const segments = useSegments();
+  const segments = useSegments() as string[];
   
   let headerTitle = "REEDO";
   if (segments[1] === "discover") headerTitle = "DISCOVER";

@@ -600,7 +600,7 @@ export default function KeepReading({ refreshTrigger = 0, onLoadEnd }: KeepReadi
         </Text>
         {books.length > 1 && (
           <View className="flex-row justify-center items-center gap-2 mt-2">
-            {books.map((_, idx) => {
+            {books.map((_: any, idx: number) => {
               const isActive = idx === activeBookIndex;
               return (
                 <TouchableOpacity

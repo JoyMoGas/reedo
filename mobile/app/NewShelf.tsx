@@ -144,7 +144,7 @@ export default function NewShelfScreen() {
             {/* Privacy Toggle */}
             <View className="bg-[#F5EEDF] rounded-2xl p-4 flex-row items-center justify-between mb-8 border border-[#E8CAA4]/50">
               <View className="flex-row items-center flex-1 mr-4">
-                <Icon name="lockOpen" size={24} color="#212842" className="mr-3" />
+                <Icon name="lockOpen" size={24} color="#212842" />
                 <View className="flex-1 ml-3">
                   <Text className="text-[#212842] font-bold" style={{ fontFamily: 'PublicSans-Bold' }}>Privacy Level</Text>
                   <Text className="text-[#5C5E69] text-xs mt-1" style={{ fontFamily: 'PublicSans-Regular' }}>

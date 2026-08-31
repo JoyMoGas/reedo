@@ -26,6 +26,7 @@
   "devDependencies": {
     "@iconify/json": "^2.2.479",
     "@types/react": "~19.2.2",
+    "babel-preset-expo": "^57.0.9",
     "react-native-svg-transformer": "^1.5.3",
     "tailwindcss": "^3.4.1",
     "typescript": "~6.0.3"

@@ -40,7 +40,7 @@ function BookDetails() {
     averageRating,
     addedCount,
     description,
-  } = useLocalSearchParams<BookDetailProps>();
+  } = useLocalSearchParams() as unknown as BookDetailProps;
   const router = useRouter();
   const width = 180;
   const height = 270;

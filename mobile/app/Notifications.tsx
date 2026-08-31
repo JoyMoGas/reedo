@@ -156,6 +156,8 @@ export default function Notifications() {
                 </View>
               );
             })}
+          </View>
+        )}
         <Text className="text-sm text-[#8E8B82] uppercase tracking-widest mt-8 mb-4" style={{ fontFamily: "PublicSans-Bold" }}>
           Recent Activity
         </Text>
