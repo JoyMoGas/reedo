@@ -3,17 +3,18 @@ services:
     name: reedo-backend
     runtime: python
     rootDir: backend
-    buildCommand: "./build.sh"
-    startCommand: "daphne -b 0.0.0.0 -p $PORT core.asgi:application"
+    buildCommand: "chmod +x build.sh && ./build.sh"
+    # migrate corre aquí: tiene acceso garantizado a la DB en runtime
+    startCommand: "python manage.py migrate --noinput && daphne -b 0.0.0.0 -p $PORT core.asgi:application"
     envVars:
       - key: PYTHON_VERSION
         value: 3.12.0
       - key: SECRET_KEY
-        sync: false          # Lo ingresas manualmente en el dashboard de Render
+        sync: false          # Ingresar manualmente en el dashboard de Render
       - key: DEBUG
         value: "False"
       - key: DATABASE_URL
-        sync: false          # Lo ingresas manualmente en el dashboard de Render
+        sync: false          # Ingresar manualmente en el dashboard de Render (con ?sslmode=require)
       - key: GOOGLE_BOOKS_API_KEY
         sync: false
       - key: HARDCOVER_API_TOKEN
