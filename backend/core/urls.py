@@ -23,9 +23,17 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import include, path
+from django.http import JsonResponse
+
+def health_check(request):
+    """Lightweight endpoint for UptimeRobot / uptime monitoring.
+    No DB queries, no heavy processing — just returns a 200 OK.
+    """
+    return JsonResponse({'status': 'ok'})
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    path('api/health/', health_check, name='health-check'),
     path('api/users/', include('users.urls')),
     path('api/books/', include('books.urls')),
     path('api/social/', include('social.urls')),
