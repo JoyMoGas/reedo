@@ -9,10 +9,10 @@ import axios from 'axios';
 import { useAuthStore } from './useAuthStore';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://10.0.2.2';
-const API_PORT = process.env.EXPO_PUBLIC_API_PORT || '8000';
+const API_PORT = process.env.EXPO_PUBLIC_API_PORT || '';
 
 const api = axios.create({
-  baseURL: `${API_URL}:${API_PORT}/`,
+  baseURL: API_PORT ? `${API_URL}:${API_PORT}/` : `${API_URL}/`,
   headers: {
     'Content-Type': 'application/json',
   },

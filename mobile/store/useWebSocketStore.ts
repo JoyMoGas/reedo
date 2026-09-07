@@ -11,7 +11,7 @@ import { useNotificationsStore } from "./useNotificationsStore";
 import { queryClient } from "./queryClient";
 
 const WS_URL = process.env.EXPO_PUBLIC_API_URL?.replace('http', 'ws') || 'ws://10.0.2.2';
-const WS_PORT = process.env.EXPO_PUBLIC_API_PORT || '8000';
+const WS_PORT = process.env.EXPO_PUBLIC_API_PORT || '';
 
 interface WebSocketState {
   ws: WebSocket | null;
@@ -31,7 +31,9 @@ export const useWebSocketStore = create<WebSocketState>((set, get) => ({
     // Avoid multiple connections
     if (get().ws) return;
 
-    const wsUrl = `${WS_URL}:${WS_PORT}/ws/notifications/?token=${token}`;
+    const wsUrl = WS_PORT
+      ? `${WS_URL}:${WS_PORT}/ws/notifications/?token=${token}`
+      : `${WS_URL}/ws/notifications/?token=${token}`;
     const ws = new WebSocket(wsUrl);
 
     ws.onopen = () => {
