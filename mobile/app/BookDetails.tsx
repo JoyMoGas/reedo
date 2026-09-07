@@ -6,16 +6,17 @@
  * @date 2026-08-04
  */
 import BookCover from "../components/BookCover";
-import React, { useState, useMemo } from "react";
-import { View, Text, ScrollView, Image, TouchableOpacity, Switch, Linking, StyleSheet, TouchableWithoutFeedback, Animated, Dimensions, PanResponder } from "react-native";
+import React, { useState, useMemo, useRef } from "react";
+import { View, Text, ScrollView, TouchableOpacity, Linking, StyleSheet, TouchableWithoutFeedback, Animated, Dimensions, PanResponder, ActivityIndicator } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import NoCover from "./assets/NoCover.svg";
 import Icon from "../core/Icon";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "../store/api";
 import { ReviewItem } from "../components/book/ReviewItem";
 import { useAuthStore } from "../store/useAuthStore";
+import { useLibraryStore } from "../store/useLibraryStore";
 
 interface BookDetailProps {
   bookId?: string;
@@ -42,6 +43,7 @@ function BookDetails() {
     description,
   } = useLocalSearchParams() as unknown as BookDetailProps;
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const width = 180;
   const height = 270;
   const [isSummaryExpanded, setIsSummaryExpanded] = useState(false);
@@ -50,10 +52,18 @@ function BookDetails() {
   const [sortBy, setSortBy] = useState<'newest' | 'highest' | 'lowest'>('newest');
   const [filterRating, setFilterRating] = useState<number | null>(null);
   const [externalLink, setExternalLink] = useState<string | null>(null);
-  
+  const [archiveSheetOpen, setArchiveSheetOpen] = useState(false);
+  const [addingToShelf, setAddingToShelf] = useState<string | null>(null);
+
+  // Shelves from store
+  const shelves = useLibraryStore((state) => state.shelves);
+
   const { height: screenHeight } = Dimensions.get("window");
-  const translateY = React.useRef(new Animated.Value(screenHeight)).current;
-  const opacity = React.useRef(new Animated.Value(0)).current;
+  const translateY = useRef(new Animated.Value(screenHeight)).current;
+  const opacity = useRef(new Animated.Value(0)).current;
+  // Separate animated values for the archive sheet
+  const archiveTranslateY = useRef(new Animated.Value(screenHeight)).current;
+  const archiveOpacity = useRef(new Animated.Value(0)).current;
 
   const openLinkModal = (link: string) => {
     setExternalLink(link);
@@ -100,6 +110,65 @@ function BookDetails() {
 
   const queryClient = useQueryClient();
   const { user } = useAuthStore();
+
+  // Fetch user's current library to detect if book is already added
+  const { data: userBooksData = [] } = useQuery({
+    queryKey: ["userBooks"],
+    queryFn: async () => {
+      const response = await api.get("api/books/userbook/");
+      return response.data;
+    },
+  });
+
+  const existingUserBook = useMemo(() => {
+    return userBooksData.find((ub: any) => ub.book_id === bookId) || null;
+  }, [userBooksData, bookId]);
+
+  const openArchiveSheet = () => {
+    setArchiveSheetOpen(true);
+    Animated.parallel([
+      Animated.timing(archiveTranslateY, { toValue: 0, duration: 320, useNativeDriver: true }),
+      Animated.timing(archiveOpacity, { toValue: 1, duration: 320, useNativeDriver: true }),
+    ]).start();
+  };
+
+  const closeArchiveSheet = () => {
+    Animated.parallel([
+      Animated.timing(archiveTranslateY, { toValue: screenHeight, duration: 260, useNativeDriver: true }),
+      Animated.timing(archiveOpacity, { toValue: 0, duration: 260, useNativeDriver: true }),
+    ]).start(() => setArchiveSheetOpen(false));
+  };
+
+  const archivePanResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, gs) => gs.dy > 0 && Math.abs(gs.dy) > Math.abs(gs.dx),
+      onPanResponderMove: (_, gs) => { if (gs.dy > 0) archiveTranslateY.setValue(gs.dy); },
+      onPanResponderRelease: (_, gs) => {
+        if (gs.dy > 120 || gs.vy > 0.5) {
+          closeArchiveSheet();
+        } else {
+          Animated.spring(archiveTranslateY, { toValue: 0, friction: 6, tension: 50, useNativeDriver: true }).start();
+        }
+      },
+    })
+  ).current;
+
+  const handleAddToShelf = async (status: string, shelfLabel: string) => {
+    if (!bookId) return;
+    setAddingToShelf(status);
+    try {
+      await api.post("api/books/userbook/", { book_id: bookId, status });
+      queryClient.invalidateQueries({ queryKey: ["userBooks"] });
+      closeArchiveSheet();
+    } catch (error) {
+      // If already exists, it might just update — invalidate anyway
+      queryClient.invalidateQueries({ queryKey: ["userBooks"] });
+      closeArchiveSheet();
+    } finally {
+      setAddingToShelf(null);
+    }
+  };
 
   const getFormattedShelvedCount = () => {
     let rawCount = bookStats?.shelved_count;
@@ -339,18 +408,44 @@ function BookDetails() {
           </View>
 
           {/* Inscribe to Archive Section */}
-          <View className="w-full flex-row items-center justify-between mt-8">
-            <TouchableOpacity
-              className={`w-full rounded-2xl py-4 mt-2 flex-row justify-center items-center bg-[#212842]`}
-            >
-              <Icon name="plus" size={24} color="#FFFFFF" />
-              <Text
-                className="text-[#FFFFFF] text-center text-xl ml-5 py-2"
-                style={{ fontFamily: "PublicSans-Bold" }}
+          <View className="w-full mt-8">
+            {existingUserBook ? (
+              // Book already in library → show current shelf + update option
+              <View className="w-full">
+                <View className="w-full rounded-2xl py-4 px-6 flex-row items-center bg-[#EBE7DF]">
+                  <Icon name="checkCircle" size={22} color="#4A7C59" />
+                  <View className="flex-1 ml-4">
+                    <Text style={{ fontFamily: "PublicSans-Bold" }} className="text-[#212842] text-base">
+                      Already in your archive
+                    </Text>
+                    <Text style={{ fontFamily: "PublicSans-Regular" }} className="text-[#76767E] text-sm capitalize">
+                      {existingUserBook.status?.replace(/_/g, ' ').toLowerCase()}
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    onPress={openArchiveSheet}
+                    className="bg-[#212842] rounded-full px-4 py-2"
+                    activeOpacity={0.8}
+                  >
+                    <Text style={{ fontFamily: "PublicSans-Bold" }} className="text-white text-sm">Move</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ) : (
+              <TouchableOpacity
+                onPress={openArchiveSheet}
+                className="w-full rounded-2xl py-5 mt-2 flex-row justify-center items-center bg-[#212842]"
+                activeOpacity={0.85}
               >
-                INSCRIBE TO MY ARCHIVE
-              </Text>
-            </TouchableOpacity>
+                <Icon name="plus" size={24} color="#FFFFFF" />
+                <Text
+                  className="text-[#FFFFFF] text-center text-xl ml-5 py-1"
+                  style={{ fontFamily: "PublicSans-Bold" }}
+                >
+                  INSCRIBE TO MY ARCHIVE
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
         <View className="w-full mt-10">
@@ -674,6 +769,128 @@ function BookDetails() {
           </Animated.View>
         </View>
       )}
+
+      {/* Inscribe to Archive Sheet */}
+      {archiveSheetOpen && (
+        <View style={[StyleSheet.absoluteFill, { zIndex: 200 }]} pointerEvents="box-none">
+          {/* Backdrop */}
+          <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: "rgba(0,0,0,0.45)", opacity: archiveOpacity }]}>
+            <TouchableOpacity style={StyleSheet.absoluteFill} onPress={closeArchiveSheet} activeOpacity={1} />
+          </Animated.View>
+
+          {/* Sheet */}
+          <Animated.View
+            {...archivePanResponder.panHandlers}
+            style={[styles.modalOverlay, { transform: [{ translateY: archiveTranslateY }] }]}
+            pointerEvents="box-none"
+          >
+            <TouchableWithoutFeedback>
+              <View style={[styles.archiveSheet, { paddingBottom: Math.max(insets.bottom, 24) }]}>
+                {/* Handle */}
+                <View style={styles.handleContainer}>
+                  <View style={styles.handle} />
+                </View>
+
+                {/* Header */}
+                <View className="flex-row items-center justify-between mb-2 mt-1">
+                  <Text style={{ fontFamily: "Newsreader-Bold" }} className="text-3xl text-[#212842]">
+                    Add to Archive
+                  </Text>
+                  <TouchableOpacity onPress={closeArchiveSheet} className="p-2 rounded-full bg-[#EBE7DF]/60">
+                    <Icon name="cancel" size={20} color="#212842" />
+                  </TouchableOpacity>
+                </View>
+                <Text style={{ fontFamily: "PublicSans-Italic" }} className="text-sm text-[#9E9B92] mb-6">
+                  {bookName}
+                </Text>
+
+                {/* ── Primary CTA: Currently Reading ── */}
+                <TouchableOpacity
+                  onPress={() => handleAddToShelf('CURRENTLY_READING', 'Currently Reading')}
+                  activeOpacity={0.85}
+                  disabled={addingToShelf !== null}
+                  style={styles.primaryShelfBtn}
+                >
+                  {addingToShelf === 'CURRENTLY_READING' ? (
+                    <ActivityIndicator size="small" color="#FFF8F0" />
+                  ) : (
+                    <>
+                      <View style={styles.primaryShelfIcon}>
+                        <Icon name="bookOpen" size={22} color="#212842" />
+                      </View>
+                      <View style={{ flex: 1, marginLeft: 14 }}>
+                        <Text style={{ fontFamily: "PublicSans-Bold", fontSize: 16, color: "#FFF8F0" }}>
+                          Currently Reading
+                        </Text>
+                        <Text style={{ fontFamily: "PublicSans-Regular", fontSize: 12, color: "rgba(255,248,240,0.65)", marginTop: 2 }}>
+                          Start tracking your progress now
+                        </Text>
+                      </View>
+                      <Icon name="arrowRight" size={18} color="rgba(255,248,240,0.6)" />
+                    </>
+                  )}
+                </TouchableOpacity>
+
+                {/* ── Other shelves divider ── */}
+                <View style={styles.dividerRow}>
+                  <View style={styles.dividerLine} />
+                  <Text style={styles.dividerText}>OTHER SHELVES</Text>
+                  <View style={styles.dividerLine} />
+                </View>
+
+                {/* ── Shelf list ── */}
+                <View style={{ gap: 8 }}>
+                  {shelves
+                    .filter((s) => s.id !== 'default-currently-reading')
+                    .map((shelf) => {
+                      const statusMap: Record<string, string> = {
+                        'default-read-later': 'READ_LATER',
+                        'default-already-read': 'COMPLETED',
+                        'default-favorites': 'READ_LATER', // fallback; favorites are managed locally
+                      };
+                      const status = statusMap[shelf.id] || 'READ_LATER';
+                      const isLoading = addingToShelf === status && shelf.id !== 'default-favorites';
+                      const isFavorites = shelf.id === 'default-favorites';
+
+                      return (
+                        <TouchableOpacity
+                          key={shelf.id}
+                          onPress={() => !isFavorites && handleAddToShelf(status, shelf.name)}
+                          activeOpacity={isFavorites ? 1 : 0.75}
+                          disabled={addingToShelf !== null || isFavorites}
+                          style={[styles.secondaryShelfBtn, isFavorites && { opacity: 0.45 }]}
+                        >
+                          {isLoading ? (
+                            <ActivityIndicator size="small" color="#212842" />
+                          ) : (
+                            <>
+                              <View
+                                style={[
+                                  styles.secondaryShelfIcon,
+                                  { backgroundColor: (shelf.color || '#EBE7DF') + '22' },
+                                ]}
+                              >
+                                <Icon name={shelf.icon || 'library'} size={20} color={shelf.color || '#5C5E69'} />
+                              </View>
+                              <Text style={{ fontFamily: "PublicSans-Bold", fontSize: 15, color: "#212842", flex: 1, marginLeft: 12 }}>
+                                {shelf.name}
+                              </Text>
+                              {isFavorites ? (
+                                <Text style={{ fontFamily: "PublicSans-Regular", fontSize: 11, color: "#9E9B92" }}>Managed locally</Text>
+                              ) : (
+                                <Icon name="arrowRight" size={16} color="#C0BDB4" />
+                              )}
+                            </>
+                          )}
+                        </TouchableOpacity>
+                      );
+                    })}
+                </View>
+              </View>
+            </TouchableWithoutFeedback>
+          </Animated.View>
+        </View>
+      )}
     </SafeAreaView>
   );
 }
@@ -704,6 +921,71 @@ const styles = StyleSheet.create({
     height: 4,
     backgroundColor: "#EBE7DF",
     borderRadius: 2,
+  },
+  archiveSheet: {
+    backgroundColor: "#FFF8F0",
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    padding: 24,
+    paddingTop: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -6 },
+    shadowOpacity: 0.12,
+    shadowRadius: 20,
+    elevation: 20,
+  },
+  primaryShelfBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#212842",
+    borderRadius: 20,
+    padding: 18,
+    marginBottom: 20,
+    shadowColor: "#212842",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.28,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  primaryShelfIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: "#F5DEB3",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  secondaryShelfBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F5EEDF",
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  secondaryShelfIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  dividerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 14,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: "#EBE7DF",
+  },
+  dividerText: {
+    fontFamily: "PublicSans-Bold",
+    fontSize: 10,
+    color: "#B0ADA4",
+    letterSpacing: 1.2,
+    marginHorizontal: 12,
   },
 });
 

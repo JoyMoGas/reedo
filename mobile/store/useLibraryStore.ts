@@ -57,6 +57,16 @@ export const defaultShelves: Shelf[] = [
     bookCount: 0,
     icon: 'bookmarkOutline',
     isDefault: true,
+  },
+  {
+    id: 'default-already-read',
+    name: 'Already Read',
+    description: 'Books you have fully conquered.',
+    color: '#4A7C59',
+    isPrivate: false,
+    bookCount: 0,
+    icon: 'checkCircle',
+    isDefault: true,
   }
 ];
 

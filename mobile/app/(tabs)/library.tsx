@@ -37,6 +37,9 @@ export default function LibraryScreen() {
     if (shelfId === 'default-read-later') {
       return userBooksData.filter((ub: any) => ub.status === 'READ_LATER').length;
     }
+    if (shelfId === 'default-already-read') {
+      return userBooksData.filter((ub: any) => ub.status === 'COMPLETED').length;
+    }
     return localCount;
   };
 

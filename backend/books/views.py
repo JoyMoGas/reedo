@@ -601,11 +601,65 @@ class UserBookSaveView(APIView):
             defaults={"status": status_choice}
         )
 
+        # Update current_page if provided
+        current_page = request.data.get("current_page")
+        if current_page is not None:
+            user_book.current_page = int(current_page)
+            total = book.total_pages or 0
+            if total > 0:
+                user_book.progress_percentage = round((int(current_page) / total) * 100, 2)
+            user_book.save(update_fields=["current_page", "progress_percentage"])
+
         return Response({
             "id": user_book.id,
             "book_title": book.title,
             "status": user_book.status,
             "created": created
+        }, status=status.HTTP_200_OK)
+
+    def patch(self, request):
+        """Update reading progress (current_page) for a book already in the user's library."""
+        book_id = request.data.get("book_id")
+        current_page = request.data.get("current_page")
+        new_status = request.data.get("status")
+
+        if not book_id:
+            return Response({"error": "book_id is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        if current_page is None and new_status is None:
+            return Response({"error": "current_page or status is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            user_book = UserBook.objects.get(user_id=request.user, book_id=book_id)
+        except UserBook.DoesNotExist:
+            return Response({"error": "Book not found in your library"}, status=status.HTTP_404_NOT_FOUND)
+
+        update_fields = []
+
+        if current_page is not None:
+            user_book.current_page = int(current_page)
+            update_fields.append("current_page")
+            total = user_book.book_id.total_pages or 0
+            if total > 0:
+                user_book.progress_percentage = round((int(current_page) / total) * 100, 2)
+            else:
+                user_book.progress_percentage = 0.0
+            update_fields.append("progress_percentage")
+
+        if new_status is not None:
+            valid_statuses = [choice[0] for choice in UserBook.STATUS_CHOICES]
+            if new_status not in valid_statuses:
+                return Response({"error": f"Invalid status. Must be one of {valid_statuses}"}, status=status.HTTP_400_BAD_REQUEST)
+            user_book.status = new_status
+            update_fields.append("status")
+
+        user_book.save(update_fields=update_fields)
+
+        return Response({
+            "id": str(user_book.id),
+            "current_page": user_book.current_page,
+            "progress_percentage": user_book.progress_percentage,
+            "status": user_book.status,
         }, status=status.HTTP_200_OK)
 
     def delete(self, request):
@@ -619,6 +673,7 @@ class UserBookSaveView(APIView):
             return Response({"message": "Book removed from library successfully"}, status=status.HTTP_200_OK)
         except UserBook.DoesNotExist:
             return Response({"error": "Book not found in library"}, status=status.HTTP_404_NOT_FOUND)
+
 
 
 class DiscoverBooksView(APIView):

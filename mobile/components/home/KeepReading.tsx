@@ -508,6 +508,21 @@ export default function KeepReading({ refreshTrigger = 0, onLoadEnd }: KeepReadi
           >
             <TouchableOpacity
               disabled={!isFront}
+              onPress={() => {
+                if (!isFront) return;
+                router.push({
+                  pathname: "/UpdateProgress",
+                  params: {
+                    userbookId: book.id,
+                    bookId: book.bookId,
+                    title: book.title,
+                    author: book.author,
+                    cover: book.coverUrl,
+                    pagesRead: book.pagesRead.toString(),
+                    pagesTotal: book.pagesTotal.toString(),
+                  },
+                });
+              }}
               className="flex-row items-center justify-center gap-2 rounded-full bg-[#212842] py-4 px-5"
             >
               <Icon name="bookOpenPageVariant" size={24} color="white" />

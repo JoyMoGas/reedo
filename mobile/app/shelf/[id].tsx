@@ -63,6 +63,8 @@ export default function ShelfViewScreen() {
       filtered = userBooksData.filter((ub: any) => ub.status === 'CURRENTLY_READING');
     } else if (shelf.id === 'default-read-later') {
       filtered = userBooksData.filter((ub: any) => ub.status === 'READ_LATER');
+    } else if (shelf.id === 'default-already-read') {
+      filtered = userBooksData.filter((ub: any) => ub.status === 'COMPLETED');
     } else {
       return [];
     }
