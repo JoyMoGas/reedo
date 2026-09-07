@@ -542,7 +542,8 @@ class UserBookSaveView(APIView):
                 "progress_percentage": ub.progress_percentage or 0.0,
                 "average_rating": book.average_rating,
                 "authors": [author.name for author in book.authors.all()],
-                "genres": [genre.genre for genre in book.genres.all()]
+                "genres": [genre.genre for genre in book.genres.all()],
+                "reading_time_seconds": ub.reading_time_seconds or 0
             })
         return Response(results, status=status.HTTP_200_OK)
 
@@ -618,16 +619,17 @@ class UserBookSaveView(APIView):
         }, status=status.HTTP_200_OK)
 
     def patch(self, request):
-        """Update reading progress (current_page) for a book already in the user's library."""
+        """Update reading progress (current_page) or reading time for a book already in the user's library."""
         book_id = request.data.get("book_id")
         current_page = request.data.get("current_page")
         new_status = request.data.get("status")
+        session_seconds = request.data.get("session_seconds")
 
         if not book_id:
             return Response({"error": "book_id is required"}, status=status.HTTP_400_BAD_REQUEST)
 
-        if current_page is None and new_status is None:
-            return Response({"error": "current_page or status is required"}, status=status.HTTP_400_BAD_REQUEST)
+        if current_page is None and new_status is None and session_seconds is None:
+            return Response({"error": "current_page, status, or session_seconds is required"}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             user_book = UserBook.objects.get(user_id=request.user, book_id=book_id)
@@ -653,13 +655,29 @@ class UserBookSaveView(APIView):
             user_book.status = new_status
             update_fields.append("status")
 
-        user_book.save(update_fields=update_fields)
+        if session_seconds is not None:
+            try:
+                sec = int(session_seconds)
+                user_book.reading_time_seconds += sec
+                update_fields.append("reading_time_seconds")
+                
+                # Update global user reading time
+                user = request.user
+                user.total_reading_time_seconds += sec
+                user.save(update_fields=["total_reading_time_seconds"])
+            except ValueError:
+                return Response({"error": "session_seconds must be an integer"}, status=status.HTTP_400_BAD_REQUEST)
+
+        if update_fields:
+            user_book.save(update_fields=update_fields)
 
         return Response({
             "id": str(user_book.id),
             "current_page": user_book.current_page,
             "progress_percentage": user_book.progress_percentage,
             "status": user_book.status,
+            "reading_time_seconds": user_book.reading_time_seconds,
+            "total_user_reading_time_seconds": request.user.total_reading_time_seconds
         }, status=status.HTTP_200_OK)
 
     def delete(self, request):

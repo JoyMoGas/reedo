@@ -35,5 +35,5 @@ class UserBookSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = UserBook
-        fields = ['id', 'user', 'book', 'status', 'current_page', 'progress_percentage', 'started_at', 'last_read_at']
+        fields = ['id', 'user', 'book', 'status', 'current_page', 'progress_percentage', 'started_at', 'last_read_at', 'reading_time_seconds']
 

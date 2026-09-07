@@ -172,7 +172,8 @@ export const Header = () => {
                       username: user.username,
                       fullName: user.full_name,
                       avatar: user.thumbnail,
-                      memberSince: user.member_since_formatted
+                      memberSince: user.member_since_formatted,
+                      totalReadingTime: user.total_reading_time_seconds
                     }
                   });
                 }

@@ -39,6 +39,7 @@ interface KeepReadingBook {
   genres?: string;
   description?: string;
   averageRating?: string | number;
+  readingTimeSeconds?: number;
 }
 
 interface KeepReadingProps {
@@ -77,6 +78,7 @@ export default function KeepReading({ refreshTrigger = 0, onLoadEnd }: KeepReadi
       genres: ub.genres ? ub.genres.join(",") : "",
       description: ub.synopsis || "",
       averageRating: ub.rating || ub.average_rating || "",
+      readingTimeSeconds: ub.reading_time_seconds || 0,
     }));
 
     let filtered = userBooksData
@@ -535,6 +537,21 @@ export default function KeepReading({ refreshTrigger = 0, onLoadEnd }: KeepReadi
             </TouchableOpacity>
             <TouchableOpacity
               disabled={!isFront}
+              onPress={() => {
+                if (!isFront) return;
+                router.push({
+                  pathname: "/ImmersionSetup",
+                  params: {
+                    userbookId: book.id,
+                    bookId: book.bookId,
+                    title: book.title,
+                    author: book.author,
+                    cover: book.coverUrl,
+                    pagesRead: book.pagesRead.toString(),
+                    pagesTotal: book.pagesTotal.toString(),
+                  },
+                });
+              }}
               className="flex-row items-center justify-center gap-2 rounded-full bg-transparent border-2 border-[#F0E7D5] py-4 px-5"
             >
               <Icon name="eyeOutline" size={24} color="#212842" />
@@ -556,13 +573,29 @@ export default function KeepReading({ refreshTrigger = 0, onLoadEnd }: KeepReadi
           >
             {book.title}
           </Text>
-          <Text
-            className="text-lg text-[#625E52] mt-0.5"
-            style={{ fontFamily: "PublicSans-Italic" }}
-            numberOfLines={1}
-          >
-            by {book.author}
-          </Text>
+          <View className="flex-row items-center mt-1">
+            <Text
+              className="text-lg text-[#625E52]"
+              style={{ fontFamily: "PublicSans-Italic" }}
+              numberOfLines={1}
+            >
+              by {book.author}
+            </Text>
+            {book.readingTimeSeconds ? (
+              <>
+                <Text className="text-[#625E52] mx-2">•</Text>
+                <Icon name="clock" size={14} color="#625E52" />
+                <Text
+                  className="text-sm text-[#625E52] ml-1"
+                  style={{ fontFamily: "PublicSans-Bold" }}
+                >
+                  {Math.floor(book.readingTimeSeconds / 3600) > 0
+                    ? `${Math.floor(book.readingTimeSeconds / 3600)}h ${Math.floor((book.readingTimeSeconds % 3600) / 60)}m`
+                    : `${Math.floor(book.readingTimeSeconds / 60)}m`}
+                </Text>
+              </>
+            ) : null}
+          </View>
         </Animated.View>
 
         <Animated.View style={{ opacity: contentOpacityAnim }} className="w-full mt-4 mb-6">

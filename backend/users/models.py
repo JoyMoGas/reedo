@@ -83,6 +83,11 @@ class User(AbstractUser):
     help_text="Total points for LeaderBoard ranking"
   )
 
+  total_reading_time_seconds = models.IntegerField(
+    default=0,
+    help_text="Total reading time in seconds"
+  )
+
   streak_days = models.IntegerField(
     default=0,
     help_text="Current consecutive days of activity"

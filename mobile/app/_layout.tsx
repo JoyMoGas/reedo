@@ -148,6 +148,8 @@ export default function RootLayout() {
         <Stack.Screen name="RateMasterpiece" options={{ presentation: 'modal' }} />
         <Stack.Screen name="AddActionSheet" options={{ presentation: 'transparentModal', animation: 'fade' }} />
         <Stack.Screen name="UpdateProgress" options={{ presentation: 'transparentModal', animation: 'slide_from_bottom', headerShown: false }} />
+        <Stack.Screen name="ImmersionSetup" options={{ presentation: 'transparentModal', animation: 'slide_from_bottom', headerShown: false }} />
+        <Stack.Screen name="ImmersionSession" options={{ presentation: 'fullScreenModal', animation: 'fade', headerShown: false }} />
       </Stack>
       <StatusBar style="dark" />
     </QueryClientProvider>

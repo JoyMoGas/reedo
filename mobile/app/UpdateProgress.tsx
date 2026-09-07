@@ -167,7 +167,7 @@ export default function UpdateProgressScreen() {
       });
       await queryClient.invalidateQueries({ queryKey: ["userBooks"] });
       await queryClient.refetchQueries({ queryKey: ["userBooks"] });
-      router.back();
+      router.navigate("/(tabs)/home");
     } catch (error: any) {
       Alert.alert("Error", "Could not update your progress. Please try again.");
     } finally {
@@ -185,7 +185,7 @@ export default function UpdateProgressScreen() {
       });
       await queryClient.invalidateQueries({ queryKey: ["userBooks"] });
       await queryClient.refetchQueries({ queryKey: ["userBooks"] });
-      router.back();
+      router.navigate("/(tabs)/home");
     } catch (error) {
       Alert.alert("Error", "Could not mark as completed. Please try again.");
     } finally {

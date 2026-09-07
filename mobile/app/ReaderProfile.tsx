@@ -193,11 +193,24 @@ export default function ReaderProfileScreen() {
             @{username}
           </Text>
 
-          <View className="flex-row items-center mt-3 bg-[#F5EEDF] px-4 py-1.5 rounded-full">
-            <Icon name="calendar" size={14} color="#C95F44" />
-            <Text className="text-sm text-[#C95F44] ml-2 tracking-wide" style={{ fontFamily: 'PublicSans-Bold' }}>
-              Joined {memberSince}
-            </Text>
+          <View className="flex-row items-center justify-center flex-wrap mt-3 gap-2">
+            <View className="flex-row items-center bg-[#F5EEDF] px-4 py-1.5 rounded-full">
+              <Icon name="calendar" size={14} color="#C95F44" />
+              <Text className="text-sm text-[#C95F44] ml-2 tracking-wide" style={{ fontFamily: 'PublicSans-Bold' }}>
+                Joined {memberSince}
+              </Text>
+            </View>
+            
+            {params.totalReadingTime && parseInt(params.totalReadingTime as string, 10) > 0 ? (
+              <View className="flex-row items-center bg-[#F5EEDF] px-4 py-1.5 rounded-full">
+                <Icon name="clock" size={14} color="#C95F44" />
+                <Text className="text-sm text-[#C95F44] ml-2 tracking-wide" style={{ fontFamily: 'PublicSans-Bold' }}>
+                  {Math.floor(parseInt(params.totalReadingTime as string, 10) / 3600) > 0 
+                    ? `${Math.floor(parseInt(params.totalReadingTime as string, 10) / 3600)}h ${Math.floor((parseInt(params.totalReadingTime as string, 10) % 3600) / 60)}m read`
+                    : `${Math.floor(parseInt(params.totalReadingTime as string, 10) / 60)}m read`}
+                </Text>
+              </View>
+            ) : null}
           </View>
         </View>
 

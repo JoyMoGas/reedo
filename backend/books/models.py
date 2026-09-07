@@ -177,6 +177,11 @@ class UserBook(models.Model):
     help_text="Honor points earned for this book"
   )
 
+  reading_time_seconds = models.IntegerField(
+    default=0,
+    help_text="Total reading time for this book in seconds"
+  )
+
   last_read_at = models.DateField(
     auto_now=True,
     help_text="Date when book was last read"
