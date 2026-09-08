@@ -584,7 +584,7 @@ export default function KeepReading({ refreshTrigger = 0, onLoadEnd }: KeepReadi
             {book.readingTimeSeconds ? (
               <>
                 <Text className="text-[#625E52] mx-2">•</Text>
-                <Icon name="clock" size={14} color="#625E52" />
+                <Icon name="bookClockOutline" size={14} color="#625E52" />
                 <Text
                   className="text-sm text-[#625E52] ml-1"
                   style={{ fontFamily: "PublicSans-Bold" }}

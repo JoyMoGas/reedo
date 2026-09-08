@@ -96,7 +96,7 @@ export default function EchoesScreen() {
           className="absolute right-6 w-16 h-16 rounded-full bg-[#212842] items-center justify-center shadow-lg"
           style={{ shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 5, elevation: 6, bottom: insets.bottom + 90 }}
         >
-          <Icon name="plus" size={32} color="#FFFFFF" />
+          <Icon name="akarPlus" size={32} color="#FFFFFF" />
         </TouchableOpacity>
       )}
     </SafeAreaView>

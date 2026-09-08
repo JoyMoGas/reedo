@@ -76,5 +76,9 @@
   "heartFilled": "tabler:heart-filled",
   "snowflake": "uil:snowflake",
   "google": "mdi:google",
-  "bookshop": "hugeicons:books-01"
+  "bookshop": "hugeicons:books-01",
+  "clipboardTextEdit": "fluent:clipboard-text-edit-20-regular",
+  "bookClockOutline": "mdi:book-clock-outline",
+  "userClockSolid": "basil:user-clock-solid",
+  "akarPlus": "akar-icons:plus"
 }

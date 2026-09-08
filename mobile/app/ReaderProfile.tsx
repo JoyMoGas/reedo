@@ -172,7 +172,7 @@ export default function ReaderProfileScreen() {
             onPress={() => router.back()} 
             className="w-10 h-10 items-center justify-center bg-[#F5EEDF] rounded-full"
           >
-            <Icon name="x" size={24} color="#212842" />
+            <Icon name="cancel" size={24} color="#212842" />
           </TouchableOpacity>
         </View>
 
@@ -195,7 +195,7 @@ export default function ReaderProfileScreen() {
 
           <View className="flex-row items-center justify-center flex-wrap mt-3 gap-2">
             <View className="flex-row items-center bg-[#F5EEDF] px-4 py-1.5 rounded-full">
-              <Icon name="calendar" size={14} color="#C95F44" />
+              <Icon name="userClockSolid" size={14} color="#C95F44" />
               <Text className="text-sm text-[#C95F44] ml-2 tracking-wide" style={{ fontFamily: 'PublicSans-Bold' }}>
                 Joined {memberSince}
               </Text>
@@ -203,7 +203,7 @@ export default function ReaderProfileScreen() {
             
             {params.totalReadingTime && parseInt(params.totalReadingTime as string, 10) > 0 ? (
               <View className="flex-row items-center bg-[#F5EEDF] px-4 py-1.5 rounded-full">
-                <Icon name="clock" size={14} color="#C95F44" />
+                <Icon name="bookClockOutline" size={14} color="#C95F44" />
                 <Text className="text-sm text-[#C95F44] ml-2 tracking-wide" style={{ fontFamily: 'PublicSans-Bold' }}>
                   {Math.floor(parseInt(params.totalReadingTime as string, 10) / 3600) > 0 
                     ? `${Math.floor(parseInt(params.totalReadingTime as string, 10) / 3600)}h ${Math.floor((parseInt(params.totalReadingTime as string, 10) % 3600) / 60)}m read`
