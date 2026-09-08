@@ -16,15 +16,13 @@
       "env": {
         "NODE_OPTIONS": "--max-old-space-size=4096",
         "EXPO_DEBUG": "true",
-        "EXPO_PUBLIC_API_URL": "https://reedo-backend.onrender.com",
-        "EXPO_PUBLIC_API_PORT": ""
+        "EXPO_PUBLIC_API_URL": "https://reedo-backend.onrender.com"
       }
     },
     "production": {
       "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://reedo-backend.onrender.com",
-        "EXPO_PUBLIC_API_PORT": ""
+        "EXPO_PUBLIC_API_URL": "https://reedo-backend.onrender.com"
       }
     }
   },
