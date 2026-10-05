@@ -6,6 +6,9 @@ on:
   push:
     branches:
       - main
+    # Solo ejecuta este workflow si hay cambios en la carpeta 'mobile'
+    paths:
+      - 'mobile/**'
 
 # Como tu proyecto Expo está dentro de la carpeta 'mobile', 
 # le decimos a todos los pasos que se ejecuten allí por defecto.
