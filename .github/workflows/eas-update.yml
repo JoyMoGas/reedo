@@ -38,7 +38,5 @@ jobs:
           token: ${{ secrets.EXPO_TOKEN }} # Toma el token de los secretos
 
       - name: 📢 Publicar Update en Expo
-        # Usamos una variable de entorno para evitar errores de sintaxis si el mensaje del commit tiene comillas
-        env:
-          COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
-        run: eas update --auto --channel production --message "Actualización auto: $COMMIT_MESSAGE"
+        # Mensaje estático para evitar errores de sintaxis con los saltos de línea de los commits
+        run: eas update --auto --channel production --message "Actualización auto desde CI"
