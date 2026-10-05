@@ -21,15 +21,20 @@ jobs:
       - name: 🏗 Descargar el código
         uses: actions/checkout@v4
 
+      - name: ⚙️ Configurar pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
       - name: ⚙️ Configurar Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22.15.1
-          cache: 'npm'
-          cache-dependency-path: ./mobile/package-lock.json
+          cache: 'pnpm'
+          cache-dependency-path: ./mobile/pnpm-lock.yaml
 
       - name: 📦 Instalar dependencias
-        run: npm ci
+        run: pnpm install
 
       - name: 🚀 Configurar Expo y EAS
         uses: expo/expo-github-action@v8
