@@ -44,4 +44,4 @@ jobs:
 
       - name: 📢 Publicar Update en Expo
         # Mensaje estático para evitar errores de sintaxis con los saltos de línea de los commits
-        run: eas update --auto --channel production --message "Actualización auto desde CI"
+        run: eas update --auto --channel preview --message "Actualización auto desde CI"
