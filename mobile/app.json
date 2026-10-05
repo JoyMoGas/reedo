@@ -7,7 +7,10 @@
     "icon": "./assets/LOGO.png",
     "userInterfaceStyle": "light",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "runtimeVersion": {
+        "policy": "appVersion"
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -17,7 +20,8 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.joymogas.mobile"
+      "package": "com.joymogas.mobile",
+      "runtimeVersion": "1.0.0"
     },
     "androidStatusBar": {
       "barStyle": "dark-content",
@@ -36,6 +40,10 @@
       "expo-font",
       "expo-router",
       "expo-splash-screen"
-    ]
+    ],
+    "owner": "joymogas",
+    "updates": {
+      "url": "https://u.expo.dev/efce7e1f-2a49-466d-94f8-613df5b90cd4"
+    }
   }
 }
