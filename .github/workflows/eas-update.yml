@@ -38,5 +38,7 @@ jobs:
           token: ${{ secrets.EXPO_TOKEN }} # Toma el token de los secretos
 
       - name: 📢 Publicar Update en Expo
-        # Publicamos un update en el canal de production (o cambia 'production' por 'preview')
-        run: eas update --auto --channel production --message "Actualización auto: ${{ github.event.head_commit.message }}"
+        # Usamos una variable de entorno para evitar errores de sintaxis si el mensaje del commit tiene comillas
+        env:
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+        run: eas update --auto --channel production --message "Actualización auto: $COMMIT_MESSAGE"
