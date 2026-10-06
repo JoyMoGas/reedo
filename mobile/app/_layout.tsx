@@ -16,8 +16,9 @@ import { StatusBar } from 'expo-status-bar';
 import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
 import Logo from './assets/LOGO.svg';
-import { QueryClientProvider } from '@tanstack/react-query';
-import { queryClient } from '../store/queryClient';
+import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
+import { queryClient, asyncStoragePersister } from '../store/queryClient';
+import api from '../store/api';
 
 // Suppress all React Native and Expo development warnings on-screen
 LogBox.ignoreAllLogs();
@@ -73,6 +74,10 @@ export default function RootLayout() {
 
   useEffect(() => {
     checkSession();
+    // Ping the backend to wake up the Render server
+    api.get('/').catch(() => {
+      // ignore errors, we just want to wake it up
+    });
   }, []);
 
   useEffect(() => {
@@ -133,7 +138,7 @@ export default function RootLayout() {
   }
 
   return (
-    <QueryClientProvider client={queryClient}>
+    <PersistQueryClientProvider client={queryClient} persistOptions={{ persister: asyncStoragePersister }}>
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="index" />
         <Stack.Screen name="(tabs)" />
@@ -152,6 +157,6 @@ export default function RootLayout() {
         <Stack.Screen name="ImmersionSession" options={{ presentation: 'fullScreenModal', animation: 'fade', headerShown: false }} />
       </Stack>
       <StatusBar style="dark" />
-    </QueryClientProvider>
+    </PersistQueryClientProvider>
   );
 }

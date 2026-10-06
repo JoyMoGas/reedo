@@ -73,6 +73,9 @@ const NotificationItem = ({ notif, markNotificationReadMutation }: any) => {
   if (notif.notification_type === 'ECHO_LIKE' || notif.notification_type === 'REVIEW_LIKE') {
     iconName = "heart";
     iconColor = "#C95F44";
+  } else if (notif.notification_type === 'ECHO_MENTION') {
+    iconName = "people";
+    iconColor = "#212842";
   } else if (notif.notification_type === 'FRIEND_ACCEPT') {
     iconName = "checkCircle";
     iconColor = "#4CAF50";
@@ -87,7 +90,15 @@ const NotificationItem = ({ notif, markNotificationReadMutation }: any) => {
         if (!notif.is_read) {
           markNotificationReadMutation.mutate(notif.id);
         }
-        if (notif.sender) {
+        if (notif.notification_type === 'ECHO_MENTION' || notif.notification_type === 'ECHO_LIKE') {
+          if (notif.echo_id) {
+            router.push({ pathname: '/CommentsModal', params: { echoId: notif.echo_id } } as any);
+          }
+        } else if (notif.notification_type === 'REVIEW_LIKE') {
+          if (notif.review_id) {
+            router.push({ pathname: '/CommentsModal', params: { reviewId: notif.review_id } } as any);
+          }
+        } else if (notif.sender) {
           router.push({
             pathname: "/ReaderProfile",
             params: { userId: notif.sender.id, username: notif.sender.username, fullName: notif.sender.full_name, avatar: notif.sender.avatar }

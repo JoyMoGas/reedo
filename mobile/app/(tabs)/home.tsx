@@ -14,6 +14,7 @@ import {
   ScrollView,
   StyleSheet,
   RefreshControl,
+  Alert,
 } from "react-native";
 import {
   SafeAreaView,
@@ -22,6 +23,10 @@ import {
 import { useAuthStore } from "../../store/useAuthStore";
 import { Avatar } from "../../components/Avatar";
 import { useUIStore } from "../../store/useUIStore";
+import { useImmersionStore } from "../../store/useImmersionStore";
+import api from "../../store/api";
+import { useRouter } from "expo-router";
+import { queryClient } from "../../store/queryClient";
 import KeepReading from "../../components/home/KeepReading";
 import DiscoverNext from "../../components/home/DiscoverNext";
 import GlobalBookshelf from "../../components/home/GlobalBookshelf";
@@ -34,6 +39,7 @@ export default function HomeScreen() {
   const { user, logout } = useAuthStore();
   const insets = useSafeAreaInsets();
   const setNavbarVisible = useUIStore((state) => state.setNavbarVisible);
+  const router = useRouter();
 
   const [refreshing, setRefreshing] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
@@ -44,6 +50,76 @@ export default function HomeScreen() {
 
   useEffect(() => {
     setNavbarVisible(true);
+    
+    // Check for unfinished immersion session
+    const timeout = setTimeout(() => {
+      const session = useImmersionStore.getState().activeSession;
+      if (session) {
+        let currentElapsed = session.elapsed;
+        if (!session.isPaused && session.expectedTime) {
+          currentElapsed += Math.floor((Date.now() - session.expectedTime) / 1000);
+          if (session.mode === "timed" && currentElapsed > session.totalSeconds) {
+            currentElapsed = session.totalSeconds;
+          }
+        }
+        
+        const m = Math.floor(currentElapsed / 60);
+        const s = currentElapsed % 60;
+        
+        Alert.alert(
+          "Unfinished Session",
+          `You have an unfinished reading session for '${session.title}'. (${m}m ${s}s)\n\nWhat would you like to do?`,
+          [
+            { 
+              text: "Discard", 
+              style: "destructive", 
+              onPress: () => useImmersionStore.getState().clearSession() 
+            },
+            { 
+              text: "Save & Update", 
+              onPress: async () => {
+                useImmersionStore.getState().clearSession();
+                try {
+                  await api.patch("api/books/userbook/", {
+                    book_id: session.bookId,
+                    session_seconds: currentElapsed,
+                  });
+                  queryClient.invalidateQueries({ queryKey: ["userBooks"] });
+                } catch(e) {}
+                router.push({
+                  pathname: "/UpdateProgress",
+                  params: {
+                    userbookId: session.userbookId,
+                    bookId: session.bookId,
+                    title: session.title,
+                    author: session.author,
+                    cover: session.cover,
+                    pagesRead: session.pagesRead,
+                    pagesTotal: session.pagesTotal,
+                  },
+                });
+              }
+            },
+            { 
+              text: "Resume", 
+              style: "default", 
+              onPress: () => {
+                router.push({
+                  pathname: "/ImmersionSession",
+                  params: { 
+                    ...session,
+                    elapsed: currentElapsed.toString(),
+                    isResume: "true" 
+                  }
+                });
+              }
+            }
+          ]
+        );
+      }
+    }, 1000);
+    
+    return () => clearTimeout(timeout);
   }, []);
 
   const handleScroll = (event: any) => {

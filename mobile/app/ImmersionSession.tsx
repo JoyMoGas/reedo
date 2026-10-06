@@ -27,6 +27,8 @@ import Icon from "../core/Icon";
 import BookCover from "../components/BookCover";
 import NoCover from "./assets/NoCover.svg";
 import api from "../store/api";
+import { useImmersionStore } from "../store/useImmersionStore";
+import { queryClient } from "../store/queryClient";
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
@@ -157,21 +159,42 @@ export default function ImmersionSessionScreen() {
     cover: string;
     pagesRead: string;
     pagesTotal: string;
+    // Resume params
+    isResume?: string;
+    totalSeconds?: string;
+    elapsed?: string;
+    expectedTime?: string;
+    isPaused?: string;
   }>();
 
   const mode = params.mode ?? "timed";
-  const [totalSeconds, setTotalSeconds] = useState((parseInt(params.minutes || "25", 10) || 25) * 60);
+  const [totalSeconds, setTotalSeconds] = useState(() => 
+    params.isResume === "true" && params.totalSeconds ? parseInt(params.totalSeconds, 10) : (parseInt(params.minutes || "25", 10) || 25) * 60
+  );
 
-  const [elapsed, setElapsed] = useState(0);
-  const [isPaused, setIsPaused] = useState(false);
+  const [elapsed, setElapsed] = useState(() => 
+    params.isResume === "true" && params.elapsed ? parseInt(params.elapsed, 10) : 0
+  );
+  const [isPaused, setIsPaused] = useState(() => 
+    params.isResume === "true" && params.isPaused === "true"
+  );
   const [noteVisible, setNoteVisible] = useState(false);
   const [noteText, setNoteText] = useState("");
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const expectedTimeRef = useRef<number | null>(
+    params.isResume === "true" && params.expectedTime && params.expectedTime !== "null"
+      ? parseInt(params.expectedTime, 10)
+      : null
+  );
+
+  const saveSession = useImmersionStore(state => state.saveSession);
+  const clearSession = useImmersionStore(state => state.clearSession);
 
   const remaining = totalSeconds - elapsed;
   const isCompleted = mode === "timed" && remaining <= 0;
 
   const goToUpdateProgress = async () => {
+    clearSession();
     // Log reading time to backend
     if (elapsed > 0) {
       try {
@@ -179,6 +202,7 @@ export default function ImmersionSessionScreen() {
           book_id: params.bookId,
           session_seconds: elapsed,
         });
+        queryClient.invalidateQueries({ queryKey: ["userBooks"] });
       } catch (error) {
         console.warn("Could not save reading time", error);
       }
@@ -206,23 +230,59 @@ export default function ImmersionSessionScreen() {
   // ── Timer logic ──────────────────────────────────────────────────────────
   const startInterval = useCallback(() => {
     if (intervalRef.current) clearInterval(intervalRef.current);
+    
+    if (expectedTimeRef.current === null) {
+      expectedTimeRef.current = Date.now();
+    }
+    
     intervalRef.current = setInterval(() => {
-      setElapsed((prev) => {
-        if (mode === "timed" && prev + 1 >= totalSeconds) {
-          clearInterval(intervalRef.current!);
-          return totalSeconds;
-        }
-        return prev + 1;
-      });
+      const now = Date.now();
+      const deltaMs = now - expectedTimeRef.current!;
+      const secondsPassed = Math.floor(deltaMs / 1000);
+      
+      if (secondsPassed > 0) {
+        expectedTimeRef.current! += secondsPassed * 1000;
+        
+        setElapsed((prev) => {
+          const nextElapsed = prev + secondsPassed;
+          if (mode === "timed" && nextElapsed >= totalSeconds) {
+            clearInterval(intervalRef.current!);
+            return totalSeconds;
+          }
+          return nextElapsed;
+        });
+      }
     }, 1000);
   }, [mode, totalSeconds]);
 
   useEffect(() => {
-    startInterval();
+    if (!isPaused) {
+      startInterval();
+    }
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
   }, []);
+
+  useEffect(() => {
+    if (elapsed > 0 || isPaused) {
+      saveSession({
+        mode,
+        minutes: params.minutes || "25",
+        userbookId: params.userbookId,
+        bookId: params.bookId,
+        title: params.title,
+        author: params.author,
+        cover: params.cover,
+        pagesRead: params.pagesRead,
+        pagesTotal: params.pagesTotal,
+        totalSeconds,
+        elapsed,
+        expectedTime: expectedTimeRef.current,
+        isPaused,
+      });
+    }
+  }, [elapsed, isPaused, totalSeconds, mode, saveSession]);
 
   useEffect(() => {
     if (isCompleted) {
@@ -241,9 +301,11 @@ export default function ImmersionSessionScreen() {
   const togglePause = () => {
     if (isPaused) {
       setIsPaused(false);
+      expectedTimeRef.current = Date.now();
       startInterval();
     } else {
       setIsPaused(true);
+      expectedTimeRef.current = null;
       if (intervalRef.current) clearInterval(intervalRef.current);
     }
   };
@@ -265,7 +327,10 @@ export default function ImmersionSessionScreen() {
         {
           text: "Exit without Saving",
           style: "destructive",
-          onPress: () => router.back(),
+          onPress: () => {
+            clearSession();
+            router.back();
+          },
         },
         {
           text: "Save & Update Progress",

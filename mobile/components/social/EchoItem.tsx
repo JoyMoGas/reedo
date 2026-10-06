@@ -132,6 +132,21 @@ export default function EchoItem({ item }: { item: any }) {
     }
   };
 
+  const renderContentWithMentions = (text: string) => {
+    if (!text) return null;
+    const parts = text.split(/(@[a-zA-Z0-9_]+)/g);
+    return parts.map((part, index) => {
+      if (part.startsWith('@')) {
+        return (
+          <Text key={index} style={{ fontFamily: 'PublicSans-Bold', color: '#C95F44' }}>
+            {part}
+          </Text>
+        );
+      }
+      return <Text key={index}>{part}</Text>;
+    });
+  };
+
   return (
     <View className="py-5 border-b border-[#EAE2D5] flex-col">
       {/* User Info */}
@@ -190,7 +205,7 @@ export default function EchoItem({ item }: { item: any }) {
           </TouchableOpacity>
         ) : (
           <Text className="text-base text-[#212842] leading-relaxed mb-4" style={{ fontFamily: 'PublicSans-Regular' }}>
-            {item.content}
+            {renderContentWithMentions(item.content)}
           </Text>
         )}
       </View>

@@ -13,7 +13,9 @@ import Icon from '../core/Icon';
 import { useEchoDraftStore } from '../store/useEchoDraftStore';
 import BookCover from '../components/BookCover';
 import NoCover from './assets/NoCover.svg';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { useAuthStore } from '../store/useAuthStore';
+import { Avatar } from '../components/Avatar';
 import api from '../store/api';
 import { queryClient } from '../store/queryClient';
 
@@ -21,17 +23,47 @@ export default function NewEchoScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   
+  const { user } = useAuthStore();
   const content = useEchoDraftStore(state => state.content);
   const setContent = useEchoDraftStore(state => state.setContent);
+  const [mentionQuery, setMentionQuery] = React.useState<string | null>(null);
   const taggedBook = useEchoDraftStore(state => state.taggedBook);
   const containsSpoilers = useEchoDraftStore(state => state.containsSpoilers);
   const setContainsSpoilers = useEchoDraftStore(state => state.setContainsSpoilers);
   const resetDraft = useEchoDraftStore(state => state.resetDraft);
 
-  useEffect(() => {
-    return () => {
-    };
-  }, []);
+  const { data: friendsData } = useQuery({
+    queryKey: ['friends', user?.id],
+    queryFn: async () => {
+      const response = await api.get(`/api/social/friends/${user?.id}/`);
+      return response.data;
+    },
+    enabled: !!user?.id,
+  });
+
+  const friends = friendsData?.map((f: any) => 
+    f.requester.id === user?.id ? f.receiver : f.requester
+  ) || [];
+
+  const handleContentChange = (text: string) => {
+    setContent(text);
+    const match = text.match(/(^|\s)@([a-zA-Z0-9_]*)$/);
+    if (match) {
+      setMentionQuery(match[2].toLowerCase());
+    } else {
+      setMentionQuery(null);
+    }
+  };
+
+  const handleSelectMention = (username: string) => {
+    const newContent = content.replace(/(^|\s)@([a-zA-Z0-9_]*)$/, `$1@${username} `);
+    setContent(newContent);
+    setMentionQuery(null);
+  };
+
+  const filteredFriends = mentionQuery !== null 
+    ? friends.filter((f: any) => f.username.toLowerCase().includes(mentionQuery) || (f.full_name && f.full_name.toLowerCase().includes(mentionQuery)))
+    : [];
 
   const createEchoMutation = useMutation({
     mutationFn: async () => {
@@ -142,14 +174,33 @@ export default function NewEchoScreen() {
             <TextInput
               className="flex-1 text-xl text-[#212842] min-h-[150px]"
               style={{ fontFamily: 'PublicSans-Regular', textAlignVertical: 'top' }}
-              placeholder="What resonates with you today?"
+              placeholder="What resonates with you today? Type @ to tag a friend"
               placeholderTextColor="#A8AAB2"
               multiline
               value={content}
-              onChangeText={setContent}
+              onChangeText={handleContentChange}
               autoFocus
             />
           </View>
+          
+          {/* Mentions Dropdown */}
+          {mentionQuery !== null && filteredFriends.length > 0 && (
+            <View className="bg-white rounded-xl shadow-sm border border-[#EBE7DF] max-h-48 mt-2 overflow-hidden">
+              {filteredFriends.map((f: any) => (
+                <TouchableOpacity 
+                  key={f.id} 
+                  className="flex-row items-center p-3 border-b border-[#EBE7DF]"
+                  onPress={() => handleSelectMention(f.username)}
+                >
+                  <Avatar url={f.thumbnail} size={32} />
+                  <View className="ml-3">
+                    <Text className="text-[#212842] font-semibold">{f.full_name || f.username}</Text>
+                    <Text className="text-[#8A8A8E] text-xs">@{f.username}</Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
           
           <View className="h-6" />
 
@@ -175,24 +226,6 @@ export default function NewEchoScreen() {
                 </View>
                 <Icon name="chevronRight" size={20} color="#C3BEAF" />
               </TouchableOpacity>
-            )}
-
-            <TouchableOpacity className="bg-[#F5EEDF] rounded-xl p-4 flex-row items-center justify-between opacity-70">
-              <View className="flex-row items-center">
-                <View className="w-10 h-10 bg-[#EBE7DF] rounded-lg items-center justify-center mr-4">
-                  <Icon name="users" size={20} color="#5C5E69" />
-                </View>
-                <View>
-                  <Text className="text-[10px] text-[#8A8A8E] tracking-widest uppercase mb-0.5" style={{ fontFamily: 'PublicSans-Bold' }}>
-                    COMMUNITY
-                  </Text>
-                  <Text className="text-base text-[#212842]" style={{ fontFamily: 'PublicSans-Bold' }}>
-                    MENTION A READER
-                  </Text>
-                </View>
-              </View>
-              <Icon name="chevronRight" size={20} color="#C3BEAF" />
-            </TouchableOpacity>
           </View>
 
           {/* Spoilers Toggle */}

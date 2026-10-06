@@ -5,8 +5,8 @@
  * @inspired-by Alondra Gamino (Constant Inspiration)
  * @date 2026-06-27
  */
-import React, { useEffect, useState } from "react";
-import { Text, View, TouchableOpacity, FlatList, ActivityIndicator, Image } from "react-native";
+import React, { useEffect, useState, useCallback } from "react";
+import { Text, View, TouchableOpacity, FlatList, ActivityIndicator, Image, RefreshControl } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useUIStore } from "../../store/useUIStore";
 import { useRouter } from "expo-router";
@@ -24,13 +24,20 @@ export default function EchoesScreen() {
     setNavbarVisible(true);
   }, []);
 
-  const { data: echoes = [], isLoading } = useQuery({
+  const { data: echoes = [], isLoading, refetch } = useQuery({
     queryKey: ['echoes'],
     queryFn: async () => {
       const res = await api.get('/api/social/echoes/');
       return res.data;
     }
   });
+
+  const [refreshing, setRefreshing] = useState(false);
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    refetch().finally(() => setRefreshing(false));
+  }, [refetch]);
 
   const EmptyState = () => (
     <View className="flex-1 px-6 justify-center items-center mt-[-40px]">
@@ -85,9 +92,15 @@ export default function EchoesScreen() {
           renderItem={({ item }) => <EchoItem item={item} />}
           contentContainerStyle={{ padding: 24, paddingBottom: insets.bottom + 120 }}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor="#212842"
+            />
+          }
         />
       )}
-
       {/* Floating Action Button */}
       {echoes.length > 0 && (
         <TouchableOpacity
