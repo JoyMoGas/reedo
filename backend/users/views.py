@@ -269,3 +269,15 @@ class UserSuggestionsView(APIView):
         suggestions.sort(key=lambda x: x["score"], reverse=True)
         
         return Response(suggestions[:10], status=200)
+
+class ClaimQuestView(APIView):
+    def post(self, request):
+        points = request.data.get('points', 50)
+        try:
+            points = int(points)
+        except ValueError:
+            points = 50
+        
+        request.user.honor_points += points
+        request.user.save(update_fields=['honor_points'])
+        return Response({"honor_points": request.user.honor_points}, status=status.HTTP_200_OK)

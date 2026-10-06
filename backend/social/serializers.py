@@ -17,11 +17,22 @@ class EchoSerializer(serializers.ModelSerializer):
     likes_count = serializers.IntegerField(read_only=True, default=0)
     comments_count = serializers.IntegerField(read_only=True, default=0)
     is_liked = serializers.SerializerMethodField()
+    mentions = serializers.SerializerMethodField()
 
     class Meta:
         model = Echo
-        fields = ['id', 'user', 'content', 'shared_book', 'shared_book_id', 'is_spoiler', 'created_at', 'updated_at', 'likes_count', 'comments_count', 'is_liked']
+        fields = ['id', 'user', 'content', 'shared_book', 'shared_book_id', 'is_spoiler', 'created_at', 'updated_at', 'likes_count', 'comments_count', 'is_liked', 'mentions']
         read_only_fields = ['id', 'created_at', 'updated_at']
+
+    def get_mentions(self, obj):
+        import re
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+        usernames = re.findall(r'@([a-zA-Z0-9_]+)', obj.content)
+        if not usernames:
+            return []
+        users = User.objects.filter(username__in=usernames).values('id', 'username', 'full_name', 'thumbnail')
+        return list(users)
 
     def get_is_liked(self, obj):
         request = self.context.get('request')

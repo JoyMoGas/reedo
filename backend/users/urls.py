@@ -14,7 +14,8 @@ from .views import (
     UpdateFavoriteGenresView,
     UpdateFavoriteAuthorsView,
     GenerateUsernameView,
-    UserSuggestionsView
+    UserSuggestionsView,
+    ClaimQuestView
 )
 
 urlpatterns = [
@@ -26,4 +27,5 @@ urlpatterns = [
     path('profile/genres/', UpdateFavoriteGenresView.as_view(), name='update-genres'),
     path('profile/authors/', UpdateFavoriteAuthorsView.as_view(), name='update-authors'),
     path('suggestions/', UserSuggestionsView.as_view(), name='user-suggestions'),
+    path('claim-quest/', ClaimQuestView.as_view(), name='claim-quest'),
 ]
