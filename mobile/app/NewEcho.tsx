@@ -192,7 +192,7 @@ export default function NewEchoScreen() {
                   className="flex-row items-center p-3 border-b border-[#EBE7DF]"
                   onPress={() => handleSelectMention(f.username)}
                 >
-                  <Avatar url={f.thumbnail} size={32} />
+                  <Avatar uri={f.thumbnail} size={32} />
                   <View className="ml-3">
                     <Text className="text-[#212842] font-semibold">{f.full_name || f.username}</Text>
                     <Text className="text-[#8A8A8E] text-xs">@{f.username}</Text>
