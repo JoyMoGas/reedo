@@ -137,8 +137,25 @@ export default function EchoItem({ item }: { item: any }) {
     const parts = text.split(/(@[a-zA-Z0-9_]+)/g);
     return parts.map((part, index) => {
       if (part.startsWith('@')) {
+        const usernameWithoutAt = part.substring(1);
+        const mentionedUser = item.mentions?.find((m: any) => m.username === usernameWithoutAt);
+        
         return (
-          <Text key={index} style={{ fontFamily: 'PublicSans-Bold', color: '#C95F44' }}>
+          <Text 
+            key={index} 
+            style={{ fontFamily: 'PublicSans-Bold', color: '#C95F44' }}
+            onPress={mentionedUser ? () => {
+              router.push({ 
+                pathname: '/ReaderProfile', 
+                params: { 
+                  userId: mentionedUser.id,
+                  username: mentionedUser.username,
+                  fullName: mentionedUser.full_name || mentionedUser.username,
+                  avatar: mentionedUser.thumbnail
+                } 
+              } as any);
+            } : undefined}
+          >
             {part}
           </Text>
         );
@@ -212,7 +229,11 @@ export default function EchoItem({ item }: { item: any }) {
 
       {/* Shared Book */}
       {item.shared_book && (
-        <View className="bg-[#F5EEDF] rounded-xl p-3 flex-row items-center mb-4 opacity-90">
+        <TouchableOpacity 
+          activeOpacity={0.8}
+          onPress={() => router.push({ pathname: '/BookDetails', params: { id: item.shared_book.id } } as any)}
+          className="bg-[#F5EEDF] rounded-xl p-3 flex-row items-center mb-4 opacity-90"
+        >
           <View className="shadow-sm">
             {item.shared_book.cover_image ? (
               <BookCover uri={item.shared_book.cover_image} style={{ width: 40, height: 60, borderRadius: 4 }} />
@@ -231,7 +252,7 @@ export default function EchoItem({ item }: { item: any }) {
               {item.shared_book.authors?.map((a: any) => a.name || a).join(', ') || 'Unknown Author'}
             </Text>
           </View>
-        </View>
+        </TouchableOpacity>
       )}
 
       {/* Interaction Bar */}

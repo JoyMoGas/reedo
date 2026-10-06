@@ -23,6 +23,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
+import { useProgressStore } from "../store/useProgressStore";
 import Icon from "../core/Icon";
 import BookCover from "../components/BookCover";
 import NoCover from "./assets/NoCover.svg";
@@ -165,6 +166,13 @@ export default function UpdateProgressScreen() {
         book_id: params.bookId,
         current_page: pageToSave,
       });
+      
+      const originalPages = parseInt(params.pagesRead as string || "0", 10);
+      const diff = pageToSave - originalPages;
+      if (diff > 0) {
+        useProgressStore.getState().addPagesRead(diff);
+      }
+
       await queryClient.invalidateQueries({ queryKey: ["userBooks"] });
       await queryClient.refetchQueries({ queryKey: ["userBooks"] });
       router.navigate("/(tabs)/home");
@@ -183,6 +191,13 @@ export default function UpdateProgressScreen() {
         status: "COMPLETED",
         current_page: totalPages,
       });
+
+      const originalPages = parseInt(params.pagesRead as string || "0", 10);
+      const diff = totalPages - originalPages;
+      if (diff > 0) {
+        useProgressStore.getState().addPagesRead(diff);
+      }
+
       await queryClient.invalidateQueries({ queryKey: ["userBooks"] });
       await queryClient.refetchQueries({ queryKey: ["userBooks"] });
       router.navigate("/(tabs)/home");
