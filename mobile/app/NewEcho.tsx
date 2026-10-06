@@ -226,6 +226,7 @@ export default function NewEchoScreen() {
                 </View>
                 <Icon name="chevronRight" size={20} color="#C3BEAF" />
               </TouchableOpacity>
+            )}
           </View>
 
           {/* Spoilers Toggle */}
