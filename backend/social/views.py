@@ -45,7 +45,39 @@ class EchoListCreateView(generics.ListCreateAPIView):
         book = None
         if shared_book_id:
             book = get_object_or_404(Books, id=shared_book_id)
-        serializer.save(user_id=self.request.user, shared_book=book)
+        echo = serializer.save(user_id=self.request.user, shared_book=book)
+        
+        # Parse mentions (@username)
+        import re
+        from django.contrib.auth import get_user_model
+        from channels.layers import get_channel_layer
+        from asgiref.sync import async_to_sync
+        
+        User = get_user_model()
+        content = echo.content
+        usernames = re.findall(r'@([a-zA-Z0-9_]+)', content)
+        
+        if usernames:
+            mentioned_users = User.objects.filter(username__in=usernames).exclude(id=self.request.user.id)
+            for m_user in mentioned_users:
+                # Create notification
+                notif = Notification.objects.create(
+                    recipient=m_user,
+                    sender=self.request.user,
+                    notification_type='ECHO_MENTION',
+                    message=f"{self.request.user.full_name or self.request.user.username} mentioned you in an echo.",
+                    echo=echo
+                )
+                channel_layer = get_channel_layer()
+                if channel_layer:
+                    async_to_sync(channel_layer.group_send)(
+                        f"user_{m_user.id}",
+                        {
+                            "type": "notification.message",
+                            "notification_type": "ECHO_MENTION",
+                            "message": notif.message
+                        }
+                    )
 
 
 class EchoRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
