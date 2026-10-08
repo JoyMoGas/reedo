@@ -48,6 +48,8 @@ export default function ReadingPulse() {
     return data;
   }, [history]);
 
+  const hasReadAnyDay = daysData.some(item => item.pages > 0);
+
   return (
     <View className="w-full bg-[#FCF3E0] rounded-2xl p-5 mt-6">
       <View className="flex-row justify-between items-center mb-6">
@@ -65,26 +67,43 @@ export default function ReadingPulse() {
         </Text>
       </View>
 
-      <View className="flex-row justify-between items-end px-1 h-24">
-        {daysData.map((item, index) => (
-          <View
-            key={index}
-            className="items-center flex-col gap-2"
-            style={{ flex: 1 }}
+      {!hasReadAnyDay ? (
+        <View className="items-center justify-center py-4">
+          <Text 
+            className="text-lg text-[#212842] text-center mb-2"
+            style={{ fontFamily: "Newsreader-Bold" }}
           >
+            Time to dive in!
+          </Text>
+          <Text 
+            className="text-sm text-[#76767E] text-center"
+            style={{ fontFamily: "PublicSans-Regular" }}
+          >
+            You haven't read anything this week. Grab a book and let the journey begin.
+          </Text>
+        </View>
+      ) : (
+        <View className="flex-row justify-between items-end px-1 h-24">
+          {daysData.map((item, index) => (
             <View
-              style={{ height: item.height }}
-              className={`w-8 rounded-t-md ${item.active ? "bg-[#212842]" : "bg-[#EAE2D5]"}`}
-            />
-            <Text
-              className="text-xs text-[#8E8B82]"
-              style={{ fontFamily: "PublicSans-Bold" }}
+              key={index}
+              className="items-center flex-col gap-2"
+              style={{ flex: 1 }}
             >
-              {item.day}
-            </Text>
-          </View>
-        ))}
-      </View>
+              <View
+                style={{ height: item.height }}
+                className={`w-8 rounded-t-md ${item.active ? "bg-[#212842]" : "bg-[#EAE2D5]"}`}
+              />
+              <Text
+                className="text-xs text-[#8E8B82]"
+                style={{ fontFamily: "PublicSans-Bold" }}
+              >
+                {item.day}
+              </Text>
+            </View>
+          ))}
+        </View>
+      )}
     </View>
   );
 }

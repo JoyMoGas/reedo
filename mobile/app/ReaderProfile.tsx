@@ -15,6 +15,7 @@ import { useAuthStore } from '../store/useAuthStore';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../store/api';
 import { useNotificationsStore } from '../store/useNotificationsStore';
+import { useSettingsStore } from '../store/useSettingsStore';
 
 export default function ReaderProfileScreen() {
   const router = useRouter();
@@ -23,6 +24,7 @@ export default function ReaderProfileScreen() {
   const currentUser = useAuthStore(state => state.user);
   const queryClient = useQueryClient();
   const { setHasUnreadNotifications } = useNotificationsStore();
+  const { honorPointsVisible, setHonorPointsVisible } = useSettingsStore();
 
   const userId = params.userId as string;
   const username = params.username as string || 'unknown';
@@ -194,6 +196,26 @@ export default function ReaderProfileScreen() {
           </Text>
 
           <View className="flex-row items-center justify-center flex-wrap mt-3 gap-2">
+            {(isSelf || (!isSelf && params.honorPoints && params.honorPointsVisible !== 'false')) && (
+              <View className="flex-row items-center bg-[#F5EEDF] px-4 py-1.5 rounded-full">
+                <Icon name="medalStarFilled" size={14} color="#E4A834" />
+                <Text className="text-sm text-[#212842] ml-2 tracking-wide" style={{ fontFamily: 'PublicSans-Bold' }}>
+                  {isSelf ? currentUser?.honor_points || 0 : params.honorPoints} Honor Points
+                </Text>
+                {isSelf && (
+                  <TouchableOpacity 
+                    className="ml-2 border-l border-[#DFDACB] pl-2 flex-row items-center"
+                    onPress={() => {
+                      setHonorPointsVisible(!honorPointsVisible);
+                      // In a real scenario, you would also trigger an API call here to persist the visibility preference
+                    }}
+                  >
+                    <Icon name={honorPointsVisible ? "eyeOutline" : "eyeClosedSolid"} size={16} color="#8E8B82" />
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
+
             <View className="flex-row items-center bg-[#F5EEDF] px-4 py-1.5 rounded-full">
               <Icon name="userClockSolid" size={14} color="#C95F44" />
               <Text className="text-sm text-[#C95F44] ml-2 tracking-wide" style={{ fontFamily: 'PublicSans-Bold' }}>

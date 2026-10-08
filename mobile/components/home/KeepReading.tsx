@@ -404,21 +404,33 @@ export default function KeepReading({ refreshTrigger = 0, onLoadEnd }: KeepReadi
             Your Reading Journey
           </Text>
         </View>
-        <View className="w-full bg-[#FCF3E0] rounded-xl p-6 items-center justify-center border border-dashed border-[#8E8B82] mt-4">
-          <Text className="text-3xl mb-2">📚</Text>
+        <TouchableOpacity
+          activeOpacity={0.9}
+          onPress={() => router.push("/discover")}
+          className="w-full bg-[#FCF3E0] rounded-2xl p-8 items-center justify-center mt-4 border border-[#EAE2D5]"
+        >
+          <View className="w-16 h-16 bg-[#F5EEDF] rounded-full items-center justify-center mb-5">
+            <Icon name="bookOpen" size={32} color="#212842" />
+          </View>
           <Text
-            className="text-[#212842] text-center text-lg font-bold mb-1"
+            className="text-[#212842] text-center text-2xl mb-2"
             style={{ fontFamily: "Newsreader-Bold" }}
           >
-            Start your journey
+            Your shelf is empty
           </Text>
           <Text
-            className="text-sm text-[#76767E] text-center"
-            style={{ fontFamily: "PublicSans-Regular" }}
+            className="text-base text-[#76767E] text-center mb-6"
+            style={{ fontFamily: "PublicSans-Regular", lineHeight: 22 }}
           >
-            You don't have any books on your shelf yet. Go to Discover or use the search bar to find and add your first book!
+            Discover new worlds and add your first book to begin tracking your reading journey.
           </Text>
-        </View>
+          <View className="bg-[#212842] px-6 py-3.5 rounded-full flex-row items-center justify-center gap-2 w-full shadow-sm">
+            <Icon name="compass" size={20} color="#FFF" />
+            <Text className="text-white text-base" style={{ fontFamily: "PublicSans-Bold" }}>
+              Explore Books
+            </Text>
+          </View>
+        </TouchableOpacity>
       </View>
     );
   }
