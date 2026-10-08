@@ -14,10 +14,12 @@ export interface SettingsState {
   fontSize: "small" | "medium" | "large" | "extra-large";
   dailyReadingGoal: number; // in minutes
   immersionModeEnabled: boolean;
+  honorPointsVisible: boolean;
   setTheme: (theme: "light" | "dark" | "sepia") => void;
   setFontSize: (fontSize: "small" | "medium" | "large" | "extra-large") => void;
   setDailyReadingGoal: (goal: number) => void;
   setImmersionModeEnabled: (enabled: boolean) => void;
+  setHonorPointsVisible: (visible: boolean) => void;
 }
 
 export const useSettingsStore = create<SettingsState>()(
@@ -27,11 +29,13 @@ export const useSettingsStore = create<SettingsState>()(
       fontSize: "medium",
       dailyReadingGoal: 20,
       immersionModeEnabled: false,
+      honorPointsVisible: true,
 
       setTheme: (theme) => set({ theme }),
       setFontSize: (fontSize) => set({ fontSize }),
       setDailyReadingGoal: (dailyReadingGoal) => set({ dailyReadingGoal }),
       setImmersionModeEnabled: (immersionModeEnabled) => set({ immersionModeEnabled }),
+      setHonorPointsVisible: (honorPointsVisible) => set({ honorPointsVisible }),
     }),
     {
       name: "user-settings",
