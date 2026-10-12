@@ -394,9 +394,11 @@ export default function KeepReading({ refreshTrigger = 0, onLoadEnd }: KeepReadi
 
   // State: Empty shelf
   if (books.length === 0) {
+    const hasBooksInLibrary = userBooksData && userBooksData.length > 0;
+
     return (
       <View className="w-full">
-        <View className="w-full items-center mb-3">
+        <View className="w-full items-center mb-1">
           <Text
             className="text-3xl text-[#212842] text-center"
             style={{ fontFamily: "Newsreader-Bold" }}
@@ -404,33 +406,85 @@ export default function KeepReading({ refreshTrigger = 0, onLoadEnd }: KeepReadi
             Your Reading Journey
           </Text>
         </View>
-        <TouchableOpacity
-          activeOpacity={0.9}
-          onPress={() => router.push("/discover")}
-          className="w-full bg-[#FCF3E0] rounded-2xl p-8 items-center justify-center mt-4 border border-[#EAE2D5]"
+
+        <View
+          className="w-full bg-[#FCF3E0] rounded-3xl p-6 sm:p-7 items-center mt-3 border border-[#EAE2D5]"
+          style={{
+            shadowColor: "#212842",
+            shadowOffset: { width: 0, height: 6 },
+            shadowOpacity: 0.06,
+            shadowRadius: 12,
+            elevation: 2,
+          }}
         >
-          <View className="w-16 h-16 bg-[#F5EEDF] rounded-full items-center justify-center mb-5">
-            <Icon name="bookOpen" size={32} color="#212842" />
+          {/* Badge Icon */}
+          <View className="relative mb-4 items-center justify-center">
+            <View
+              className="w-16 h-16 rounded-2xl bg-[#F5EDDD] items-center justify-center border border-[#E5DAC6]"
+              style={{
+                shadowColor: "#000",
+                shadowOffset: { width: 0, height: 3 },
+                shadowOpacity: 0.05,
+                shadowRadius: 6,
+                elevation: 1,
+              }}
+            >
+              <Icon name="bookOpenPageVariantOutline" size={32} color="#212842" />
+            </View>
+            <View className="absolute -top-1.5 -right-1.5 bg-[#212842] rounded-full w-6 h-6 items-center justify-center border-2 border-[#FCF3E0]">
+              <Icon name="stars" size={12} color="#FCF3E0" />
+            </View>
           </View>
+
+          {/* Title & Description */}
           <Text
-            className="text-[#212842] text-center text-2xl mb-2"
+            className="text-[#212842] text-center text-2xl mb-1.5"
             style={{ fontFamily: "Newsreader-Bold" }}
           >
-            Your shelf is empty
+            {hasBooksInLibrary ? "No active reads" : "Start your journey"}
           </Text>
           <Text
-            className="text-base text-[#76767E] text-center mb-6"
+            className="text-sm text-[#76767E] text-center mb-6 px-1"
             style={{ fontFamily: "PublicSans-Regular", lineHeight: 22 }}
           >
-            Discover new worlds and add your first book to begin tracking your reading journey.
+            {hasBooksInLibrary
+              ? "You don't have any books currently in progress. Choose one from your library or find a new story to dive into."
+              : "Discover new worlds and add your first book to begin tracking your reading journey."}
           </Text>
-          <View className="bg-[#212842] px-6 py-3.5 rounded-full flex-row items-center justify-center gap-2 w-full shadow-sm">
-            <Icon name="compass" size={20} color="#FFF" />
-            <Text className="text-white text-base" style={{ fontFamily: "PublicSans-Bold" }}>
-              Explore Books
-            </Text>
+
+          {/* Quick Action Buttons */}
+          <View className="flex-row items-center gap-3 w-full">
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={() => router.push("/(tabs)/discover")}
+              className="flex-1 bg-[#212842] py-3.5 px-3 rounded-xl flex-row items-center justify-center gap-2 shadow-sm"
+            >
+              <Icon name="compass" size={18} color="#FFF" />
+              <Text
+                className="text-white text-sm"
+                style={{ fontFamily: "PublicSans-Bold" }}
+                numberOfLines={1}
+              >
+                Explore Books
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={() => router.push("/(tabs)/library")}
+              className="flex-1 bg-[#F5EDDD] border border-[#DDD4C3] py-3.5 px-3 rounded-xl flex-row items-center justify-center gap-2"
+            >
+              <Icon name="libraryOutline" size={18} color="#212842" />
+              <Text
+                className="text-[#212842] text-sm"
+                style={{ fontFamily: "PublicSans-Bold" }}
+                numberOfLines={1}
+              >
+                My Library
+              </Text>
+            </TouchableOpacity>
           </View>
-        </TouchableOpacity>
+        </View>
       </View>
     );
   }
