@@ -18,6 +18,7 @@ export interface UserProfile {
   thumbnail: string | null;
   honor_points: number;
   streak_days: number;
+  total_reading_time_seconds?: number;
   member_since_formatted?: string;
 }
 
@@ -29,9 +30,11 @@ interface AuthState {
   login: (token: string, user: UserProfile) => Promise<void>;
   logout: () => Promise<void>;
   checkSession: () => Promise<void>;
+  fetchUser: () => Promise<void>;
+  updateStreakDays: (days: number) => void;
 }
 
-export const useAuthStore = create<AuthState>((set) => ({
+export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   token: null,
   isAuthenticated: false,
@@ -108,6 +111,29 @@ export const useAuthStore = create<AuthState>((set) => ({
         isLoading: false,
       });
     }
+  },
+
+  fetchUser: async () => {
+    try {
+      const { default: api } = await import("./api");
+      const response = await api.get("api/users/me/");
+      if (response.data) {
+        const currentUser = get().user;
+        const updated = { ...currentUser, ...response.data };
+        await SecureStore.setItemAsync("user", JSON.stringify(updated));
+        set({ user: updated });
+      }
+    } catch (error) {
+      console.warn("Failed to fetch current user profile:", error);
+    }
+  },
+
+  updateStreakDays: (days: number) => {
+    const currentUser = get().user;
+    if (!currentUser) return;
+    const updated = { ...currentUser, streak_days: days };
+    set({ user: updated });
+    SecureStore.setItemAsync("user", JSON.stringify(updated)).catch(() => {});
   },
 }));
 
