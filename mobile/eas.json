@@ -7,13 +7,17 @@
     "development": {
       "developmentClient": true,
       "distribution": "internal",
-      "channel": "development"
+      "channel": "development",
+      "node": "22.15.1",
+      "pnpm": "10.15.0"
     },
     "preview": {
       "distribution": "internal",
       "android": {
         "buildType": "apk"
       },
+      "node": "22.15.1",
+      "pnpm": "10.15.0",
       "env": {
         "NODE_OPTIONS": "--max-old-space-size=4096",
         "EXPO_DEBUG": "true",
@@ -23,6 +27,8 @@
     },
     "production": {
       "autoIncrement": true,
+      "node": "22.15.1",
+      "pnpm": "10.15.0",
       "env": {
         "EXPO_PUBLIC_API_URL": "https://reedo-backend.onrender.com"
       },
