@@ -3,7 +3,10 @@
   "compilerOptions": {
     "strict": false,
     "jsx": "react-jsx",
-    "module": "esnext"
+    "module": "preserve",
+    "moduleResolution": "bundler",
+    "customConditions": ["react-native"],
+    "skipLibCheck": true
   },
   "include": [
     "**/*.ts",
