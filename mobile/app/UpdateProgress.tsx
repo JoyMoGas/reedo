@@ -24,6 +24,7 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useProgressStore } from "../store/useProgressStore";
+import { useStreakStore } from "../store/useStreakStore";
 import Icon from "../core/Icon";
 import BookCover from "../components/BookCover";
 import NoCover from "./assets/NoCover.svg";
@@ -161,16 +162,24 @@ export default function UpdateProgressScreen() {
 
     setIsSaving(true);
     try {
+      const localDate = new Date().toLocaleDateString("en-CA");
       // PATCH api/books/userbook/ with book_id + current_page in body
-      await api.patch("api/books/userbook/", {
+      const res = await api.patch("api/books/userbook/", {
         book_id: params.bookId,
         current_page: pageToSave,
+        client_date: localDate,
       });
       
       const originalPages = parseInt(params.pagesRead as string || "0", 10);
       const diff = pageToSave - originalPages;
       if (diff > 0) {
         useProgressStore.getState().addPagesRead(diff);
+      }
+
+      if (res.data?.streak) {
+        useStreakStore.getState().syncFromLocalAction(res.data.streak);
+      } else {
+        useStreakStore.getState().fetchStreak();
       }
 
       await queryClient.invalidateQueries({ queryKey: ["userBooks"] });
@@ -186,16 +195,24 @@ export default function UpdateProgressScreen() {
   const handleMarkCompleted = async () => {
     setIsCompleting(true);
     try {
-      await api.patch("api/books/userbook/", {
+      const localDate = new Date().toLocaleDateString("en-CA");
+      const res = await api.patch("api/books/userbook/", {
         book_id: params.bookId,
         status: "COMPLETED",
         current_page: totalPages,
+        client_date: localDate,
       });
 
       const originalPages = parseInt(params.pagesRead as string || "0", 10);
       const diff = totalPages - originalPages;
       if (diff > 0) {
         useProgressStore.getState().addPagesRead(diff);
+      }
+
+      if (res.data?.streak) {
+        useStreakStore.getState().syncFromLocalAction(res.data.streak);
+      } else {
+        useStreakStore.getState().fetchStreak();
       }
 
       await queryClient.invalidateQueries({ queryKey: ["userBooks"] });
@@ -377,8 +394,10 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
   },
   topBackdrop: {
-    ...StyleSheet.absoluteFillObject,
-    bottom: undefined,
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
     height: "35%",
   },
   sheet: {

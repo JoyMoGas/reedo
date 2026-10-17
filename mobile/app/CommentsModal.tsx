@@ -4,12 +4,24 @@
  * @author José Antonio Montaño (Lead Developer)
  * @inspired-by Alondra Gamino (Constant Inspiration)
  * @date 2026-08-27
+ * @description Comments modal with rock-solid keyboard avoidance, auto-scroll to latest comments, and safe-area adaptation.
  */
-import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, TextInput, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import React, { useState, useRef, useEffect } from 'react';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  ScrollView,
+  TextInput,
+  KeyboardAvoidingView,
+  Platform,
+  ActivityIndicator,
+  Keyboard,
+} from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { X, ArrowUp } from 'lucide-react-native';
 import api from '../store/api';
 import Icon from '../core/Icon';
 import { Avatar } from '../components/Avatar';
@@ -19,7 +31,7 @@ function formatTimeAgo(dateString: string) {
   const date = new Date(dateString);
   const now = new Date();
   const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
-  
+
   if (diffInSeconds < 60) return 'Just now';
   const diffInMinutes = Math.floor(diffInSeconds / 60);
   if (diffInMinutes < 60) return `${diffInMinutes}m`;
@@ -31,8 +43,11 @@ function formatTimeAgo(dateString: string) {
 
 export default function CommentsModal() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { echoId, reviewId } = useLocalSearchParams<{ echoId?: string; reviewId?: string }>();
   const [commentText, setCommentText] = useState('');
+  const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
+  const scrollViewRef = useRef<any>(null);
   const queryClient = useQueryClient();
   const { user } = useAuthStore();
 
@@ -40,7 +55,29 @@ export default function CommentsModal() {
   const endpoint = isEcho ? `/api/social/echoes/${echoId}/comments/` : `/api/social/reviews/${reviewId}/comments/`;
   const queryKey = isEcho ? ['comments', 'echo', echoId] : ['comments', 'review', reviewId];
 
-  const { data: comments = [], isLoading } = useQuery({
+  // Listen for keyboard events to adjust spacing and scroll smoothly to latest content
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
+    const showSub = Keyboard.addListener(showEvent, () => {
+      setIsKeyboardOpen(true);
+      setTimeout(() => {
+        scrollViewRef.current?.scrollToEnd({ animated: true });
+      }, 120);
+    });
+
+    const hideSub = Keyboard.addListener(hideEvent, () => {
+      setIsKeyboardOpen(false);
+    });
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+
+  const { data: rawComments = [], isLoading } = useQuery({
     queryKey,
     queryFn: async () => {
       const res = await api.get(endpoint);
@@ -48,6 +85,8 @@ export default function CommentsModal() {
     },
     enabled: !!(echoId || reviewId),
   });
+
+  const comments = Array.isArray(rawComments) ? rawComments : (rawComments?.results || []);
 
   const postMutation = useMutation({
     mutationFn: async (text: string) => {
@@ -61,7 +100,10 @@ export default function CommentsModal() {
       // Invalidate the parent queries to update comment counts
       if (isEcho) queryClient.invalidateQueries({ queryKey: ['echoes'] });
       if (!isEcho) queryClient.invalidateQueries({ queryKey: ['reviews'] });
-    }
+      setTimeout(() => {
+        scrollViewRef.current?.scrollToEnd({ animated: true });
+      }, 150);
+    },
   });
 
   const handlePost = () => {
@@ -75,7 +117,8 @@ export default function CommentsModal() {
       className="flex-1 bg-[#FFF8F0]"
     >
       <KeyboardAvoidingView 
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 12 : 0}
         className="flex-1"
       >
         {/* Header Actions */}
@@ -83,8 +126,10 @@ export default function CommentsModal() {
           <TouchableOpacity 
             onPress={() => router.back()} 
             className="w-10 h-10 items-center justify-center bg-[#F5EEDF] rounded-full"
+            activeOpacity={0.7}
+            accessibilityLabel="Close comments"
           >
-            <Icon name="x" size={24} color="#212842" />
+            <X size={20} color="#212842" />
           </TouchableOpacity>
           <Text className="text-lg text-[#212842]" style={{ fontFamily: 'Newsreader-Medium' }}>
             Comments
@@ -93,7 +138,14 @@ export default function CommentsModal() {
         </View>
 
         {/* Comments List */}
-        <ScrollView className="flex-1 px-6 pt-4" contentContainerStyle={{ paddingBottom: 24 }}>
+        <ScrollView
+          ref={scrollViewRef}
+          className="flex-1 px-6 pt-4"
+          contentContainerStyle={{ paddingBottom: 24 }}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+          showsVerticalScrollIndicator={false}
+        >
           {isLoading ? (
             <ActivityIndicator size="small" color="#212842" className="mt-8" />
           ) : comments.length === 0 ? (
@@ -139,8 +191,11 @@ export default function CommentsModal() {
           )}
         </ScrollView>
 
-        {/* Input Area */}
-        <View className="px-6 py-4 border-t border-[#EBE7DF] bg-[#FFF8F0] flex-row items-end">
+        {/* Input Area (Guaranteed to float above keyboard on Android & iOS) */}
+        <View 
+          className="px-6 pt-3 border-t border-[#EBE7DF] bg-[#FFF8F0] flex-row items-end"
+          style={{ paddingBottom: isKeyboardOpen ? 12 : Math.max(insets.bottom, 14) }}
+        >
           <View className="flex-1 bg-white rounded-3xl min-h-[48px] max-h-[120px] border border-[#EAE2D5] px-4 py-3 justify-center">
             <TextInput
               placeholder="Write a comment..."
@@ -150,17 +205,26 @@ export default function CommentsModal() {
               multiline
               className="text-base text-[#212842] p-0 m-0"
               style={{ fontFamily: 'PublicSans-Regular', textAlignVertical: 'center' }}
+              onFocus={() => {
+                setTimeout(() => {
+                  scrollViewRef.current?.scrollToEnd({ animated: true });
+                }, 150);
+              }}
             />
           </View>
           <TouchableOpacity 
-            className={`w-12 h-12 rounded-full items-center justify-center ml-3 ${commentText.trim() ? 'bg-[#212842]' : 'bg-[#EBE7DF]'}`}
+            className={`w-12 h-12 rounded-full items-center justify-center ml-3 ${
+              commentText.trim() ? 'bg-[#212842]' : 'bg-[#EBE7DF]'
+            }`}
             onPress={handlePost}
             disabled={!commentText.trim() || postMutation.isPending}
+            activeOpacity={0.8}
+            accessibilityLabel="Send comment"
           >
             {postMutation.isPending ? (
               <ActivityIndicator size="small" color="#FFF" />
             ) : (
-              <Icon name="arrowUp" size={24} color={commentText.trim() ? "#FFF" : "#A1A1A5"} />
+              <ArrowUp size={20} color={commentText.trim() ? "#FFF" : "#A1A1A5"} />
             )}
           </TouchableOpacity>
         </View>

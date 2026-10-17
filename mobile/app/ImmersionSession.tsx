@@ -28,6 +28,7 @@ import BookCover from "../components/BookCover";
 import NoCover from "./assets/NoCover.svg";
 import api from "../store/api";
 import { useImmersionStore } from "../store/useImmersionStore";
+import { useStreakStore } from "../store/useStreakStore";
 import { queryClient } from "../store/queryClient";
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
@@ -198,10 +199,26 @@ export default function ImmersionSessionScreen() {
     // Log reading time to backend
     if (elapsed > 0) {
       try {
-        await api.patch("api/books/userbook/", {
+        const localDate = new Date().toLocaleDateString("en-CA");
+        const patchRes = await api.patch("api/books/userbook/", {
           book_id: params.bookId,
           session_seconds: elapsed,
+          client_date: localDate,
         });
+
+        const streakStore = useStreakStore.getState();
+        // Check if streak was broken and eligible for recovery with 10+ min reading
+        if (streakStore.data?.can_recover && elapsed >= 600) {
+          await streakStore.recoverStreak("IMMERSION", {
+            seconds: elapsed,
+            bookId: params.bookId,
+          });
+        } else if (patchRes.data?.streak) {
+          streakStore.syncFromLocalAction(patchRes.data.streak);
+        } else {
+          streakStore.fetchStreak();
+        }
+
         queryClient.invalidateQueries({ queryKey: ["userBooks"] });
       } catch (error) {
         console.warn("Could not save reading time", error);

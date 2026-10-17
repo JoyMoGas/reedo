@@ -13,6 +13,8 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import Icon from "../core/Icon";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "../store/api";
+import { useStreakStore } from "../store/useStreakStore";
+import { useAuthStore } from "../store/useAuthStore";
 
 const STAR_LABELS: Record<number, string> = {
   0: "Select a rating",
@@ -46,10 +48,12 @@ export default function PostReview() {
 
   const saveMutation = useMutation({
     mutationFn: async () => {
+      const localDate = new Date().toLocaleDateString("en-CA");
       const payload = {
         rating,
         comment,
         is_spoiler: isSpoiler,
+        client_date: localDate,
       };
 
       if (isEditing) {
@@ -62,6 +66,8 @@ export default function PostReview() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["reviews", params.bookId] });
+      useStreakStore.getState().fetchStreak();
+      useAuthStore.getState().fetchUser();
       router.back();
     },
   });
@@ -82,7 +88,7 @@ export default function PostReview() {
       </View>
 
       <KeyboardAvoidingView 
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
         className="flex-1"
       >
         <ScrollView contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 100 }}>

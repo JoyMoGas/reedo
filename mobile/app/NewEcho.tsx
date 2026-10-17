@@ -15,6 +15,7 @@ import BookCover from '../components/BookCover';
 import NoCover from './assets/NoCover.svg';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '../store/useAuthStore';
+import { useStreakStore } from '../store/useStreakStore';
 import { Avatar } from '../components/Avatar';
 import api from '../store/api';
 import { queryClient } from '../store/queryClient';
@@ -67,16 +68,20 @@ export default function NewEchoScreen() {
 
   const createEchoMutation = useMutation({
     mutationFn: async () => {
+      const localDate = new Date().toLocaleDateString("en-CA");
       const payload = {
         content: content.trim(),
         shared_book_id: taggedBook ? taggedBook.bookId : null,
-        is_spoiler: containsSpoilers
+        is_spoiler: containsSpoilers,
+        client_date: localDate,
       };
       const response = await api.post('/api/social/echoes/', payload);
       return response.data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['echoes'] });
+      useStreakStore.getState().fetchStreak();
+      useAuthStore.getState().fetchUser();
       resetDraft();
       router.back();
     },
@@ -114,7 +119,7 @@ export default function NewEchoScreen() {
   return (
     <SafeAreaView className="flex-1 bg-[#FFF8F0]" style={{ paddingTop: insets.top }}>
       <KeyboardAvoidingView 
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined} 
         className="flex-1"
       >
         {/* Header */}

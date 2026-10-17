@@ -105,7 +105,7 @@ export default function NewlyArrivedScreen() {
         refreshControl={
           <RefreshControl
             refreshing={isLoading}
-            onRefresh={refetch}
+            onRefresh={() => { refetch(); }}
             tintColor="#212842"
           />
         }

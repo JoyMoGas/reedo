@@ -19,6 +19,7 @@ import Logo from './assets/LOGO.svg';
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import { queryClient, asyncStoragePersister } from '../store/queryClient';
 import api from '../store/api';
+import StreakCelebrationModal from '../components/streak/StreakCelebrationModal';
 
 // Suppress all React Native and Expo development warnings on-screen
 LogBox.ignoreAllLogs();
@@ -142,6 +143,7 @@ export default function RootLayout() {
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="index" />
         <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="streak" options={{ headerShown: false }} />
         <Stack.Screen name="PostReview" options={{ presentation: 'modal' }} />
         <Stack.Screen name="NewShelf" options={{ presentation: 'modal' }} />
         <Stack.Screen name="NewEcho" options={{ presentation: 'modal' }} />
@@ -156,6 +158,7 @@ export default function RootLayout() {
         <Stack.Screen name="ImmersionSetup" options={{ presentation: 'transparentModal', animation: 'slide_from_bottom', headerShown: false }} />
         <Stack.Screen name="ImmersionSession" options={{ presentation: 'fullScreenModal', animation: 'fade', headerShown: false }} />
       </Stack>
+      <StreakCelebrationModal />
       <StatusBar style="dark" />
     </PersistQueryClientProvider>
   );

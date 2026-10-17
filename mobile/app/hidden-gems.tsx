@@ -93,7 +93,7 @@ export default function HiddenGemsScreen() {
         refreshControl={
           <RefreshControl
             refreshing={isLoading}
-            onRefresh={refetch}
+            onRefresh={() => { refetch(); }}
             tintColor="#212842"
           />
         }
