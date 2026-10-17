@@ -6,9 +6,13 @@ on:
   push:
     branches:
       - main
-    # Solo ejecuta este workflow si hay cambios en la carpeta 'mobile'
+    # Se ejecuta si hay cambios en 'mobile' o en este workflow
     paths:
       - 'mobile/**'
+      - '.github/workflows/eas-update.yml'
+  # Permite ejecutar el workflow manualmente desde la pestaña Actions en GitHub
+  workflow_dispatch:
+
 
 # Como tu proyecto Expo está dentro de la carpeta 'mobile', 
 # le decimos a todos los pasos que se ejecuten allí por defecto.
