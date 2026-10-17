@@ -47,6 +47,8 @@ yarn-error.*
 .DS_Store
 *.pem
 
+*.apk
+
 # local env files
 .env*.local
 
