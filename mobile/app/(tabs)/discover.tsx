@@ -74,7 +74,7 @@ export default function DiscoverScreen() {
 
   const [isAdvancedSearch, setIsAdvancedSearch] = useState(false);
 
-  const carouselRef = useRef<ScrollView>(null);
+  const carouselRef = useRef<any>(null);
   const contentWidthRef = useRef(0);
   const layoutWidthRef = useRef(0);
   const scrollXRef = useRef(0);

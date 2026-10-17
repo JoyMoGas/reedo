@@ -30,7 +30,8 @@ const getTabBarIcon = (routeName: string, isFocused: boolean): string => {
   }
 };
 
-function CustomTabBar({ state, descriptors, navigation, animValue }: { state: any; descriptors: any; navigation: any; animValue: Animated.Value }) {
+function CustomTabBar(props: any) {
+  const { state, descriptors, navigation, emitter, navigateToTab, animValue } = props;
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
@@ -74,22 +75,59 @@ function CustomTabBar({ state, descriptors, navigation, animValue }: { state: an
               return;
             }
 
-            const event = navigation.emit({
-              type: "tabPress",
-              target: route.key,
-              canPreventDefault: true,
-            });
+            let defaultPrevented = false;
+            try {
+              if (navigation?.emit) {
+                const event = navigation.emit({
+                  type: "tabPress",
+                  target: route.key,
+                  canPreventDefault: true,
+                });
+                defaultPrevented = !!event?.defaultPrevented;
+              } else if (emitter?.emit) {
+                const event = emitter.emit({
+                  type: "tabPress",
+                  target: route.key,
+                  canPreventDefault: true,
+                });
+                defaultPrevented = !!event?.defaultPrevented;
+              }
+            } catch (e) {
+              console.warn("tabPress emit error:", e);
+            }
 
-            if (!isFocused && !event.defaultPrevented) {
-              navigation.navigate(route.name, route.params);
+            if (!isFocused && !defaultPrevented) {
+              try {
+                if (navigation?.navigate) {
+                  navigation.navigate(route.name, route.params);
+                } else if (typeof navigateToTab === "function") {
+                  navigateToTab(route.key);
+                } else {
+                  router.navigate(`/(tabs)/${route.name}` as any);
+                }
+              } catch (navErr) {
+                console.warn("Tab navigation error, falling back to router.navigate:", navErr);
+                router.navigate(`/(tabs)/${route.name}` as any);
+              }
             }
           };
 
           const onLongPress = () => {
-            navigation.emit({
-              type: "tabLongPress",
-              target: route.key,
-            });
+            try {
+              if (emitter?.emit) {
+                emitter.emit({
+                  type: "tabLongPress",
+                  target: route.key,
+                });
+              } else if (navigation?.emit) {
+                navigation.emit({
+                  type: "tabLongPress",
+                  target: route.key,
+                });
+              }
+            } catch (e) {
+              // Ignore
+            }
           };
 
           const displayLabel = typeof label === "string" ? label : route.name;

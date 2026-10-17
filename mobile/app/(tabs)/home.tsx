@@ -110,7 +110,7 @@ export default function HomeScreen() {
                     ...session,
                     elapsed: currentElapsed.toString(),
                     isResume: "true" 
-                  }
+                  } as any
                 });
               }
             }
