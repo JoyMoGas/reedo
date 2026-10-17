@@ -10,7 +10,7 @@
 # ===================================================================
 
 from django.contrib import admin
-from .models import User, Streak, Badge, UserBadge
+from .models import User, Streak, StreakActivity, Badge, UserBadge
 
 # ===================================================================
 # Register models to admin site
@@ -18,5 +18,6 @@ from .models import User, Streak, Badge, UserBadge
 
 admin.site.register(User)
 admin.site.register(Streak)
+admin.site.register(StreakActivity)
 admin.site.register(Badge)
 admin.site.register(UserBadge)

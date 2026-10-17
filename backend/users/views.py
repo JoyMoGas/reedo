@@ -271,6 +271,8 @@ class UserSuggestionsView(APIView):
         return Response(suggestions[:10], status=200)
 
 class ClaimQuestView(APIView):
+    permission_classes = [IsAuthenticated]
+
     def post(self, request):
         points = request.data.get('points', 50)
         try:
@@ -280,4 +282,83 @@ class ClaimQuestView(APIView):
         
         request.user.honor_points += points
         request.user.save(update_fields=['honor_points'])
-        return Response({"honor_points": request.user.honor_points}, status=status.HTTP_200_OK)
+
+        from .streak_service import record_streak_activity
+        client_date = request.data.get('client_date')
+        streak_info = record_streak_activity(
+            request.user,
+            'QUEST_CLAIM',
+            metadata={'points': points},
+            client_date=client_date
+        )
+
+        return Response({
+            "honor_points": request.user.honor_points,
+            "streak": streak_info
+        }, status=200)
+
+
+class CurrentUserView(APIView):
+    """
+    Returns the authenticated user's current profile, including honors and live streak_days.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        serializer = UserSerializer(request.user, context={'request': request})
+        return Response(serializer.data, status=200)
+
+
+class UserStreakView(APIView):
+    """
+    Fetches full streak diagnostics, recovery options, and calendar day history.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from .streak_service import get_user_streak_summary
+        client_date = request.query_params.get('date') or request.headers.get('X-Client-Date')
+        summary = get_user_streak_summary(request.user, client_date=client_date)
+        return Response(summary, status=200)
+
+
+class UserStreakRecoverView(APIView):
+    """
+    Allows a reader to restore a broken streak via Streak Freeze or Immersion Mode Challenge.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        from .streak_service import recover_streak
+        method = request.data.get('method', 'IMMERSION').upper()
+        client_date = request.data.get('client_date')
+        metadata = request.data.get('metadata', {})
+
+        result = recover_streak(
+            request.user,
+            method=method,
+            metadata=metadata,
+            client_date=client_date
+        )
+
+        if not result.get('success'):
+            return Response(result, status=400)
+
+        return Response(result, status=200)
+
+
+class UserStreakClaimFreezeView(APIView):
+    """
+    Awards or claims a streak freeze for the user (e.g. from quest or store).
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        from .streak_service import add_freeze_to_user
+        reason = request.data.get('reason', 'Earned Freeze')
+        total_freezes = add_freeze_to_user(request.user, amount=1, reason=reason)
+        return Response({
+            "success": True,
+            "freezes_available": total_freezes,
+            "message": "Streak freeze added successfully"
+        }, status=200)

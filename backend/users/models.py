@@ -127,7 +127,7 @@ class User(AbstractUser):
 class Streak(models.Model):
   """
   Tracks a user's daily reading activity, recording current consecutive days of activity,
-  best streak, and activation dates.
+  best streak, freezes, and recovery states.
   """
   id = models.UUIDField(
     primary_key=True, 
@@ -144,30 +144,113 @@ class Streak(models.Model):
 
   current_streak = models.IntegerField(
     default=0,
-    editable=False,
     help_text="Current consecutive days of activity"
   )
 
   best_streak = models.IntegerField(
     default=0,
-    editable=False,
     help_text="Best streak achieved so far"
   )
 
   last_activity = models.DateField(
-    auto_now_add=True,
-    editable=False,
+    null=True,
+    blank=True,
     help_text="Last day of activity"
   )
 
   activate_at = models.DateField(
     null=True,
-    editable=False,
-    help_text="Is activated formally on the 3rd consecutive day of activity"
+    blank=True,
+    help_text="Date when streak was first activated"
+  )
+
+  freezes_available = models.IntegerField(
+    default=1,
+    help_text="Number of streak freezes / shields available"
+  )
+
+  previous_streak = models.IntegerField(
+    default=0,
+    help_text="Streak count before last break (eligible for recovery)"
+  )
+
+  broken_date = models.DateField(
+    null=True,
+    blank=True,
+    help_text="Date when streak broke and became eligible for recovery"
+  )
+
+  streak_repaired_at = models.DateField(
+    null=True,
+    blank=True,
+    help_text="Last date when a streak was recovered or repaired"
   )
 
   def __str__(self):
     return f"{self.user_id.username} - Streak: {self.current_streak}"
+
+
+# ===================================================================
+
+
+class StreakActivity(models.Model):
+  """
+  Logs individual activities that count toward a user's streak,
+  powering calendar tracking, statistics, and audit trail.
+  """
+  ACTIVITY_CHOICES = [
+    ('READING_PROGRESS', 'Reading Progress Updated'),
+    ('IMMERSION_SESSION', 'Immersion Reading Session'),
+    ('ECHO_POST', 'Echo / Post Created'),
+    ('BOOK_REVIEW', 'Book Review Written'),
+    ('READING_NOTE', 'Reading Note Created'),
+    ('QUEST_CLAIM', 'Daily Quest Claimed'),
+    ('FREEZE_USED', 'Streak Freeze Used'),
+    ('RECOVERY_CHALLENGE', 'Streak Recovered via Challenge'),
+  ]
+
+  id = models.UUIDField(
+    primary_key=True,
+    default=uuid.uuid4,
+    editable=False
+  )
+
+  user = models.ForeignKey(
+    User,
+    on_delete=models.CASCADE,
+    related_name="streak_activities",
+    help_text="User who performed this activity"
+  )
+
+  activity_type = models.CharField(
+    max_length=50,
+    choices=ACTIVITY_CHOICES,
+    help_text="Type of activity that contributed to the streak"
+  )
+
+  activity_date = models.DateField(
+    help_text="Calendar date (YYYY-MM-DD) of the activity"
+  )
+
+  metadata = models.JSONField(
+    default=dict,
+    blank=True,
+    help_text="Additional metadata (e.g., pages read, seconds, book ID)"
+  )
+
+  created_at = models.DateTimeField(
+    auto_now_add=True,
+    editable=False,
+    help_text="Timestamp when activity was logged"
+  )
+
+  class Meta:
+    ordering = ['-activity_date', '-created_at']
+    verbose_name = "Streak Activity"
+    verbose_name_plural = "Streak Activities"
+
+  def __str__(self):
+    return f"{self.user.username} - {self.activity_type} on {self.activity_date}"
 
 
 # ===================================================================

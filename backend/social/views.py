@@ -47,6 +47,19 @@ class EchoListCreateView(generics.ListCreateAPIView):
             book = get_object_or_404(Books, id=shared_book_id)
         echo = serializer.save(user_id=self.request.user, shared_book=book)
         
+        # Trigger streak activity
+        try:
+            from users.streak_service import record_streak_activity
+            client_date = self.request.data.get('client_date')
+            record_streak_activity(
+                self.request.user,
+                'ECHO_POST',
+                metadata={'echo_id': str(echo.id)},
+                client_date=client_date
+            )
+        except Exception as e:
+            pass
+        
         # Parse mentions (@username)
         import re
         from django.contrib.auth import get_user_model
@@ -141,7 +154,20 @@ class ReviewListCreateView(generics.ListCreateAPIView):
     def perform_create(self, serializer):
         book_id = self.kwargs['book_id']
         book = get_object_or_404(Books, id=book_id)
-        serializer.save(user_id=self.request.user, book_id=book)
+        review = serializer.save(user_id=self.request.user, book_id=book)
+
+        # Trigger streak activity
+        try:
+            from users.streak_service import record_streak_activity
+            client_date = self.request.data.get('client_date')
+            record_streak_activity(
+                self.request.user,
+                'BOOK_REVIEW',
+                metadata={'book_id': str(book.id), 'rating': review.rating},
+                client_date=client_date
+            )
+        except Exception as e:
+            pass
 
 class ReviewRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Review.objects.all()

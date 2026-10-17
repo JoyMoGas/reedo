@@ -15,7 +15,11 @@ from .views import (
     UpdateFavoriteAuthorsView,
     GenerateUsernameView,
     UserSuggestionsView,
-    ClaimQuestView
+    ClaimQuestView,
+    CurrentUserView,
+    UserStreakView,
+    UserStreakRecoverView,
+    UserStreakClaimFreezeView
 )
 
 urlpatterns = [
@@ -28,4 +32,8 @@ urlpatterns = [
     path('profile/authors/', UpdateFavoriteAuthorsView.as_view(), name='update-authors'),
     path('suggestions/', UserSuggestionsView.as_view(), name='user-suggestions'),
     path('claim-quest/', ClaimQuestView.as_view(), name='claim-quest'),
+    path('me/', CurrentUserView.as_view(), name='current-user'),
+    path('streak/', UserStreakView.as_view(), name='user-streak'),
+    path('streak/recover/', UserStreakRecoverView.as_view(), name='user-streak-recover'),
+    path('streak/claim-freeze/', UserStreakClaimFreezeView.as_view(), name='user-streak-claim-freeze'),
 ]

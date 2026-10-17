@@ -671,13 +671,35 @@ class UserBookSaveView(APIView):
         if update_fields:
             user_book.save(update_fields=update_fields)
 
+        # Trigger streak activity
+        streak_data = None
+        client_date = request.data.get("client_date")
+        from users.streak_service import record_streak_activity
+
+        if session_seconds is not None and int(session_seconds) > 0:
+            streak_data = record_streak_activity(
+                request.user,
+                'IMMERSION_SESSION',
+                metadata={'book_id': str(book_id), 'session_seconds': int(session_seconds)},
+                client_date=client_date
+            )
+        elif current_page is not None or new_status == 'COMPLETED':
+            streak_data = record_streak_activity(
+                request.user,
+                'READING_PROGRESS',
+                metadata={'book_id': str(book_id), 'current_page': user_book.current_page},
+                client_date=client_date
+            )
+
         return Response({
             "id": str(user_book.id),
             "current_page": user_book.current_page,
             "progress_percentage": user_book.progress_percentage,
             "status": user_book.status,
             "reading_time_seconds": user_book.reading_time_seconds,
-            "total_user_reading_time_seconds": request.user.total_reading_time_seconds
+            "total_user_reading_time_seconds": request.user.total_reading_time_seconds,
+            "streak": streak_data,
+            "user_streak_days": request.user.streak_days
         }, status=status.HTTP_200_OK)
 
     def delete(self, request):
