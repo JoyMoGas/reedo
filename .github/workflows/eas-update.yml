@@ -20,9 +20,18 @@ jobs:
   update:
     name: Publicar Update
     runs-on: ubuntu-latest
+    env:
+      EXPO_PUBLIC_API_URL: ${{ secrets.EXPO_PUBLIC_API_URL || vars.EXPO_PUBLIC_API_URL || 'https://reedo-backend.onrender.com' }}
+      EXPO_PUBLIC_API_PORT: ${{ secrets.EXPO_PUBLIC_API_PORT || vars.EXPO_PUBLIC_API_PORT || '' }}
     steps:
       - name: 🏗 Descargar el código
         uses: actions/checkout@v4
+
+      - name: 📝 Crear variables de entorno para producción
+        run: |
+          echo "EXPO_PUBLIC_API_URL=$EXPO_PUBLIC_API_URL" > .env
+          echo "EXPO_PUBLIC_API_PORT=$EXPO_PUBLIC_API_PORT" >> .env
+
 
       - name: ⚙️ Configurar pnpm
         uses: pnpm/action-setup@v4
