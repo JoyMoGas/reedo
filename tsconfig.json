@@ -1,21 +1,3 @@
 {
-  "compilerOptions": {
-    "module": "preserve",
-    "moduleResolution": "bundler",
-    "jsx": "react-jsx",
-    "customConditions": ["react-native"],
-    "baseUrl": "./mobile",
-    "paths": {
-      "*": ["node_modules/*", "*"]
-    },
-    "skipLibCheck": true
-  },
-  "references": [
-    { "path": "./mobile" }
-  ],
-  "include": [
-    "mobile/**/*.ts",
-    "mobile/**/*.tsx",
-    "mobile/**/*.d.ts"
-  ]
+  "extends": "./mobile/tsconfig.json"
 }
