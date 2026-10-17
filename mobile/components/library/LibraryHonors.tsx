@@ -7,21 +7,29 @@ import { useQuery } from "@tanstack/react-query";
 import api from "../../store/api";
 import { useAuthStore } from "../../store/useAuthStore";
 import { useRouter } from "expo-router";
+import { CHRONICLE_ITEMS } from "../../constants/chronicles";
 
 export default function LibraryHonors() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const currentUser = useAuthStore(state => state.user);
 
-  const { data: friendsList = [] } = useQuery({
+  const { data: rawFriends = [] } = useQuery({
     queryKey: ['friends', currentUser?.id],
     queryFn: async () => {
       if (!currentUser?.id) return [];
-      const response = await api.get(`api/social/friends/${currentUser.id}/`);
-      return response.data;
+      try {
+        const response = await api.get(`api/social/friends/${currentUser.id}/`);
+        const raw = response.data;
+        return Array.isArray(raw) ? raw : (raw?.results && Array.isArray(raw.results) ? raw.results : []);
+      } catch (err) {
+        console.warn("Failed to fetch friends in LibraryHonors:", err);
+        return [];
+      }
     },
     enabled: !!currentUser?.id,
   });
+  const friendsList = Array.isArray(rawFriends) ? rawFriends : [];
 
   // Calculate Leaderboard
   const leaderboard = [
@@ -31,19 +39,27 @@ export default function LibraryHonors() {
       points: currentUser?.honor_points || 0,
       avatar: currentUser?.thumbnail,
       isSelf: true,
+      username: currentUser?.username || "",
     },
-    ...friendsList.map((friend: any) => {
-      const friendUser = friend.requester.id === currentUser?.id ? friend.receiver : friend.requester;
-      return {
-        id: friendUser.id,
-        name: friendUser.full_name || friendUser.username,
-        points: friendUser.honor_points || 0,
-        avatar: friendUser.thumbnail,
-        isSelf: false,
-        username: friendUser.username,
-      };
-    })
-  ].sort((a, b) => b.points - a.points);
+    ...friendsList
+      .map((friend: any) => {
+        if (!friend) return null;
+        const friendUser =
+          friend.requester && friend.requester.id === currentUser?.id
+            ? friend.receiver
+            : friend.requester;
+        if (!friendUser) return null;
+        return {
+          id: friendUser.id,
+          name: friendUser.full_name || friendUser.username || "Reader",
+          points: friendUser.honor_points || 0,
+          avatar: friendUser.thumbnail,
+          isSelf: false,
+          username: friendUser.username,
+        };
+      })
+      .filter(Boolean),
+  ].sort((a: any, b: any) => (b?.points || 0) - (a?.points || 0));
 
   const streakActive = (currentUser?.streak_days || 0) >= 30;
 
@@ -52,6 +68,7 @@ export default function LibraryHonors() {
       className="flex-1 px-6" 
       contentContainerStyle={{ paddingBottom: insets.bottom + 100, paddingTop: 10 }}
       showsVerticalScrollIndicator={false}
+      nestedScrollEnabled={true}
     >
       {/* Hall of Honors Card */}
       <View className="w-full bg-[#212842] rounded-[32px] p-6 mb-10 overflow-hidden relative shadow-md">
@@ -94,20 +111,48 @@ export default function LibraryHonors() {
         </View>
 
         <View className="flex-row flex-wrap justify-between gap-y-4">
-          {[
-            { title: "First Folio", desc: "Finish your first curated volume", icon: "bookOpen", active: true },
-            { title: "Marginaliaist", desc: "Write 50 insightful book annotations.", icon: "editNote", active: true },
-            { title: "Bibliophile", desc: "Maintain a library of over 100 titles.", icon: "lockOpen", active: false },
-            { title: "Night Owl", desc: "Read past midnight for 5 consecutive nights.", icon: "moonFilled", active: false },
-          ].map((item, idx) => (
-            <View key={idx} className="w-[48%] bg-[#FDF8F0] p-4 rounded-2xl border border-[#F5EEDF] shadow-sm items-center">
-              <View className={`w-12 h-12 rounded-full items-center justify-center mb-3 ${item.active ? 'bg-[#F5DEB3]' : 'border border-dashed border-[#D9D9D9]'}`}>
-                <Icon name={item.icon} size={20} color={item.active ? "#212842" : "#D9D9D9"} />
+          {CHRONICLE_ITEMS.filter(
+            (c) => c.category === "reading" || c.id === "night-owl" || c.id === "scribes-persistence"
+          ).map((item) => {
+            const isUnlocked = item.computeUnlocked({
+              currentStreak: currentUser?.streak_days || 0,
+              bestStreak: currentUser?.streak_days || 0,
+              completedBooks: 1, // sample user completed book
+              booksCount: 10,
+              annotationsCount: 15,
+            });
+
+            return (
+              <View
+                key={item.id}
+                className="w-[48%] bg-[#FDF8F0] p-4 rounded-2xl border border-[#F5EEDF] shadow-sm items-center"
+              >
+                <View
+                  className={`w-12 h-12 rounded-full items-center justify-center mb-3 ${
+                    isUnlocked ? "bg-[#F5DEB3]" : "border border-dashed border-[#D9D9D9]"
+                  }`}
+                >
+                  <Icon
+                    name={item.icon}
+                    size={20}
+                    color={isUnlocked ? "#212842" : "#D9D9D9"}
+                  />
+                </View>
+                <Text
+                  className="text-[#212842] text-sm mb-1 text-center"
+                  style={{ fontFamily: "Newsreader-Bold" }}
+                >
+                  {item.title}
+                </Text>
+                <Text
+                  className="text-[#8E8B82] text-[10px] text-center"
+                  style={{ fontFamily: "PublicSans-Regular" }}
+                >
+                  {item.description}
+                </Text>
               </View>
-              <Text className="text-[#212842] text-sm mb-1 text-center" style={{ fontFamily: "Newsreader-Bold" }}>{item.title}</Text>
-              <Text className="text-[#8E8B82] text-[10px] text-center" style={{ fontFamily: "PublicSans-Regular" }}>{item.desc}</Text>
-            </View>
-          ))}
+            );
+          })}
         </View>
       </View>
 
@@ -125,7 +170,7 @@ export default function LibraryHonors() {
                   <Avatar uri={user.avatar} username={user.name} size={40} className="mr-3 border border-white/20" />
                   <View className="flex-1">
                     <Text className="text-white text-base leading-tight" style={{ fontFamily: "Newsreader-Bold" }}>You</Text>
-                    <Text className="text-[#A8AAB2] text-[8px] tracking-widest uppercase" style={{ fontFamily: "PublicSans-Bold" }}>{user.points.toLocaleString()} HONOR POINTS</Text>
+                    <Text className="text-[#A8AAB2] text-[8px] tracking-widest uppercase" style={{ fontFamily: "PublicSans-Bold" }}>{(user?.points || 0).toLocaleString()} HONOR POINTS</Text>
                   </View>
                   <View className="bg-[#F5DEB3] px-3 py-1 rounded-full">
                      <Text className="text-[#212842] text-[8px] tracking-widest uppercase" style={{ fontFamily: "PublicSans-Bold" }}>MASTER</Text>
@@ -144,7 +189,7 @@ export default function LibraryHonors() {
                 <Avatar uri={user.avatar} username={user.name} size={40} className="mr-3 border border-[#F5EEDF]" />
                 <View className="flex-1">
                   <Text className="text-[#212842] text-base leading-tight" style={{ fontFamily: "Newsreader-Bold" }}>{user.name}</Text>
-                  <Text className="text-[#8E8B82] text-[8px] tracking-widest uppercase" style={{ fontFamily: "PublicSans-Bold" }}>{user.points.toLocaleString()} HONOR POINTS</Text>
+                  <Text className="text-[#8E8B82] text-[8px] tracking-widest uppercase" style={{ fontFamily: "PublicSans-Bold" }}>{(user?.points || 0).toLocaleString()} HONOR POINTS</Text>
                 </View>
                 {isTop && <Icon name="medalStarAlt" size={24} color="#F5DEB3" />}
               </TouchableOpacity>

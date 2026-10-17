@@ -13,6 +13,8 @@ interface AvatarProps {
   fullName?: string;
   username?: string;
   size?: number;
+  className?: string;
+  style?: any;
 }
 
 const colors = [

@@ -16,23 +16,37 @@ export default function LibraryShelves() {
   const currentUser = useAuthStore(state => state.user);
   const shelves = useLibraryStore((state) => state.shelves);
 
-  const { data: userBooksData = [] } = useQuery({
+  const { data: rawUserBooks = [] } = useQuery({
     queryKey: ["userBooks"],
     queryFn: async () => {
-      const response = await api.get("api/books/userbook/");
-      return response.data;
+      try {
+        const response = await api.get("api/books/userbook/");
+        const raw = response.data;
+        return Array.isArray(raw) ? raw : (raw?.results && Array.isArray(raw.results) ? raw.results : []);
+      } catch (err) {
+        console.warn("Failed to fetch user books:", err);
+        return [];
+      }
     }
   });
+  const userBooksData = Array.isArray(rawUserBooks) ? rawUserBooks : [];
 
-  const { data: friendsList = [] } = useQuery({
+  const { data: rawFriends = [] } = useQuery({
     queryKey: ['friends', currentUser?.id],
     queryFn: async () => {
       if (!currentUser?.id) return [];
-      const response = await api.get(`api/social/friends/${currentUser.id}/`);
-      return response.data;
+      try {
+        const response = await api.get(`api/social/friends/${currentUser.id}/`);
+        const raw = response.data;
+        return Array.isArray(raw) ? raw : (raw?.results && Array.isArray(raw.results) ? raw.results : []);
+      } catch (err) {
+        console.warn("Failed to fetch friends:", err);
+        return [];
+      }
     },
     enabled: !!currentUser?.id,
   });
+  const friendsList = Array.isArray(rawFriends) ? rawFriends : [];
 
   const currentlyReading = userBooksData.filter((ub: any) => ub.status === 'CURRENTLY_READING');
   const readLater = userBooksData.filter((ub: any) => ub.status === 'READ_LATER');
@@ -54,6 +68,7 @@ export default function LibraryShelves() {
       className="flex-1 px-6" 
       contentContainerStyle={{ paddingBottom: insets.bottom + 100, paddingTop: 10 }}
       showsVerticalScrollIndicator={false}
+      nestedScrollEnabled={true}
     >
       {/* Currently Reading */}
       {currentlyReading.length > 0 && (

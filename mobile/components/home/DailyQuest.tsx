@@ -12,6 +12,7 @@ import Icon from "../../core/Icon";
 import { useSettingsStore } from "../../store/useSettingsStore";
 import { useProgressStore } from "../../store/useProgressStore";
 import { useAuthStore } from "../../store/useAuthStore";
+import { useStreakStore } from "../../store/useStreakStore";
 import api from "../../store/api";
 
 export default function DailyQuest() {
@@ -46,9 +47,18 @@ export default function DailyQuest() {
     if (questClaimed || !isGoalMet || isClaiming) return;
     setIsClaiming(true);
     try {
-      await api.post('api/users/claim-quest/', { points: honorPointsReward });
+      const localDate = new Date().toLocaleDateString("en-CA");
+      const res = await api.post('api/users/claim-quest/', {
+        points: honorPointsReward,
+        client_date: localDate,
+      });
       claimQuest();
       if (fetchUser) fetchUser(); // Update honor points in UI
+      if (res.data?.streak) {
+        useStreakStore.getState().syncFromLocalAction(res.data.streak);
+      } else {
+        useStreakStore.getState().fetchStreak();
+      }
     } catch (error) {
       Alert.alert("Error", "Could not claim your reward.");
     } finally {

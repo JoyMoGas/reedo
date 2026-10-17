@@ -31,7 +31,7 @@ export default function GlobalBookshelf({ refreshTrigger = 0, onLoadEnd }: Globa
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(true);
 
-  const scrollViewRef = useRef<ScrollView>(null);
+  const scrollViewRef = useRef<any>(null);
   const contentWidthRef = useRef(0);
   const layoutWidthRef = useRef(0);
   const scrollXRef = useRef(0);

@@ -11,16 +11,23 @@ export default function LibraryProgress() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
-  const { data: userBooksData = [] } = useQuery({
+  const { data: rawUserBooks = [] } = useQuery({
     queryKey: ["userBooks"],
     queryFn: async () => {
-      const response = await api.get("api/books/userbook/");
-      return response.data;
+      try {
+        const response = await api.get("api/books/userbook/");
+        const raw = response.data;
+        return Array.isArray(raw) ? raw : (raw?.results && Array.isArray(raw.results) ? raw.results : []);
+      } catch (err) {
+        console.warn("Failed to fetch user books in LibraryProgress:", err);
+        return [];
+      }
     }
   });
+  const userBooksData = Array.isArray(rawUserBooks) ? rawUserBooks : [];
 
-  const completedBooks = userBooksData.filter((ub: any) => ub.status === 'COMPLETED');
-  const readLater = userBooksData.filter((ub: any) => ub.status === 'READ_LATER');
+  const completedBooks = userBooksData.filter((ub: any) => ub?.status === 'COMPLETED');
+  const readLater = userBooksData.filter((ub: any) => ub?.status === 'READ_LATER');
   
   // Stats calculations
   const totalVolumes = userBooksData.length;
@@ -36,6 +43,7 @@ export default function LibraryProgress() {
       className="flex-1 px-6" 
       contentContainerStyle={{ paddingBottom: insets.bottom + 100, paddingTop: 10 }}
       showsVerticalScrollIndicator={false}
+      nestedScrollEnabled={true}
     >
       {/* Top Stats */}
       <View className="bg-[#FDF8F0] p-6 rounded-[24px] mb-4 border border-[#F5EEDF] shadow-sm">

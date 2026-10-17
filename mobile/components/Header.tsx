@@ -5,21 +5,33 @@
  * @inspired-by Alondra Gamino (Constant Inspiration)
  * @date 2026-06-27
  */
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, Modal, Switch, ScrollView } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuthStore } from "../store/useAuthStore";
+import { useStreakStore } from "../store/useStreakStore";
 import { useSettingsStore } from "../store/useSettingsStore";
 import { useNotificationsStore } from "../store/useNotificationsStore";
 import { Avatar } from "./Avatar";
 import { User, BookOpen, Settings, LogOut, X } from "lucide-react-native";
 import Icon from "../core/Icon";
 import { useRouter, useSegments } from "expo-router";
+import StreakModal from "./streak/StreakModal";
 
 export const Header = () => {
   const insets = useSafeAreaInsets();
   const { user, logout } = useAuthStore();
+  const {
+    data: streakData,
+    fetchStreak,
+    isModalOpen: isStreakModalOpen,
+    setModalOpen: setStreakModalOpen
+  } = useStreakStore();
   const { hasUnreadNotifications } = useNotificationsStore();
+
+  useEffect(() => {
+    fetchStreak();
+  }, [fetchStreak]);
   const { 
     theme, 
     fontSize, 
@@ -75,15 +87,25 @@ export const Header = () => {
       >
         {/* Left: Streak Counter */}
         <View className="flex-1 flex-row items-center justify-start">
-          <View className="flex-row items-center gap-1.5 py-2">
-            <Icon name="fireSolid" size={26} color="#E57A7A" />
+          <TouchableOpacity
+            onPress={() => router.push("/streak")}
+            activeOpacity={0.7}
+            className="flex-row items-center gap-1.5 py-1.5 px-2 rounded-full active:bg-[#FAF3E8]"
+            accessibilityLabel="Streak Counter"
+            accessibilityRole="button"
+          >
+            <Icon
+              name="fireSolid"
+              size={26}
+              color={streakData?.is_active_today ? "#FF5A36" : "#A8A29E"}
+            />
             <Text
               className="text-base text-[#212842]"
               style={{ fontFamily: "PublicSans-Bold" }}
             >
-              {user?.streak_days ?? 0}
+              {user?.streak_days ?? streakData?.current_streak ?? 0}
             </Text>
-          </View>
+          </TouchableOpacity>
         </View>
 
         {/* Center: Logo / Title */}
@@ -433,6 +455,12 @@ export const Header = () => {
           </View>
         </View>
       </Modal>
+
+      {/* Streak Information & Calendar Modal */}
+      <StreakModal
+        visible={isStreakModalOpen}
+        onClose={() => setStreakModalOpen(false)}
+      />
     </>
   );
 };
