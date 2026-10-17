@@ -41,11 +41,14 @@
       "expo-router",
       "expo-splash-screen",
       "expo-secure-store",
-      "expo-status-bar"
+      "expo-status-bar",
+      "expo-updates"
     ],
     "owner": "joymogas",
     "updates": {
-      "url": "https://u.expo.dev/efce7e1f-2a49-466d-94f8-613df5b90cd4"
+      "url": "https://u.expo.dev/efce7e1f-2a49-466d-94f8-613df5b90cd4",
+      "fallbackToCacheTimeout": 5000
     }
+
   }
 }

@@ -59,6 +59,7 @@ jobs:
           token: ${{ secrets.EXPO_TOKEN }} # Toma el token de los secretos
 
       - name: 📢 Publicar Update en Expo
-        # Mensaje estático para evitar errores de sintaxis con los saltos de línea de los commits
-        run: eas update --auto --channel preview --platform android --message "Actualización auto desde CI"
+        # Publica directo al canal preview sin desviar la rama por --auto
+        run: eas update --channel preview --platform android --message "Actualización auto desde CI"
+
 
