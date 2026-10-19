@@ -58,3 +58,15 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# Build & Gradle artifacts
+build/
+**/build/
+.gradle/
+**/.gradle/
+.cxx/
+**/.cxx/
+*.apk
+*.aab
+dist-test/
+android-bundle.js

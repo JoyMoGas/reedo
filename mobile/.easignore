@@ -1,0 +1,21 @@
+# Dependencies
+node_modules/
+
+# Local build artifacts
+android/build/
+android/.gradle/
+android/app/build/
+android/.cxx/
+ios/build/
+ios/Pods/
+
+# Temporary / test files
+dist/
+dist-test/
+android-bundle.js
+*.apk
+*.aab
+
+# OS files
+.DS_Store
+Thumbs.db
