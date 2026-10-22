@@ -40,7 +40,9 @@ class EchoListCreateView(generics.ListCreateAPIView):
             qs = qs.annotate(user_has_liked=Exists(has_liked))
         return qs.order_by('-created_at')
 
-    def perform_create(self, serializer):
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
         shared_book_id = serializer.validated_data.pop('shared_book_id', None)
         book = None
         if shared_book_id:
@@ -48,10 +50,11 @@ class EchoListCreateView(generics.ListCreateAPIView):
         echo = serializer.save(user_id=self.request.user, shared_book=book)
         
         # Trigger streak activity
+        streak_data = None
         try:
             from users.streak_service import record_streak_activity
             client_date = self.request.data.get('client_date')
-            record_streak_activity(
+            streak_data = record_streak_activity(
                 self.request.user,
                 'ECHO_POST',
                 metadata={'echo_id': str(echo.id)},
@@ -91,6 +94,11 @@ class EchoListCreateView(generics.ListCreateAPIView):
                             "message": notif.message
                         }
                     )
+
+        headers = self.get_success_headers(serializer.data)
+        response_data = dict(serializer.data)
+        response_data['streak'] = streak_data
+        return Response(response_data, status=status.HTTP_201_CREATED, headers=headers)
 
 
 class EchoRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
@@ -151,23 +159,31 @@ class ReviewListCreateView(generics.ListCreateAPIView):
             qs = qs.annotate(user_has_liked=Exists(has_liked))
         return qs.order_by('-created_at')
 
-    def perform_create(self, serializer):
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
         book_id = self.kwargs['book_id']
         book = get_object_or_404(Books, id=book_id)
-        review = serializer.save(user_id=self.request.user, book_id=book)
+        review = serializer.save(user_id=request.user, book_id=book)
 
         # Trigger streak activity
+        streak_data = None
         try:
             from users.streak_service import record_streak_activity
-            client_date = self.request.data.get('client_date')
-            record_streak_activity(
-                self.request.user,
+            client_date = request.data.get('client_date')
+            streak_data = record_streak_activity(
+                request.user,
                 'BOOK_REVIEW',
                 metadata={'book_id': str(book.id), 'rating': review.rating},
                 client_date=client_date
             )
         except Exception as e:
             pass
+
+        headers = self.get_success_headers(serializer.data)
+        response_data = dict(serializer.data)
+        response_data['streak'] = streak_data
+        return Response(response_data, status=status.HTTP_201_CREATED, headers=headers)
 
 class ReviewRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Review.objects.all()

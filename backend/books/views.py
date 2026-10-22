@@ -1226,3 +1226,16 @@ class BookStatsView(APIView):
             "average_rating": avg_rating
         }, status=status.HTTP_200_OK)
 
+
+class BookDetailView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request, book_id):
+        try:
+            from .serializers import BookSerializer
+            book = Books.objects.prefetch_related('authors', 'genres').get(id=book_id)
+            serializer = BookSerializer(book)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        except Books.DoesNotExist:
+            return Response({"error": "Book not found"}, status=status.HTTP_404_NOT_FOUND)
+
