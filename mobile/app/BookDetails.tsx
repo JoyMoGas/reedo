@@ -19,29 +19,45 @@ import { useAuthStore } from "../store/useAuthStore";
 import { useLibraryStore } from "../store/useLibraryStore";
 
 interface BookDetailProps {
+  id?: string;
   bookId?: string;
   bookName?: string;
+  title?: string;
   author?: string;
   cover?: string;
+  cover_image?: string;
   genres?: string;
   totalPages?: string;
+  total_pages?: string;
   averageRating?: string;
+  average_rating?: string;
   addedCount?: string;
   description?: string;
+  synopsis?: string;
 }
 
 function BookDetails() {
-  const {
-    bookId,
-    bookName,
-    author,
-    cover,
-    genres,
-    totalPages,
-    averageRating,
-    addedCount,
-    description,
-  } = useLocalSearchParams() as unknown as BookDetailProps;
+  const params = useLocalSearchParams() as unknown as BookDetailProps;
+  const bookId = params.bookId || params.id;
+
+  const { data: fetchedBook } = useQuery({
+    queryKey: ["bookDetail", bookId],
+    queryFn: async () => {
+      if (!bookId) return null;
+      const { data } = await api.get(`api/books/${bookId}/`);
+      return data;
+    },
+    enabled: !!bookId && (!params.bookName || !params.cover),
+  });
+
+  const bookName = params.bookName || params.title || fetchedBook?.title || "";
+  const author = params.author || (Array.isArray(fetchedBook?.authors) ? fetchedBook.authors.join(", ") : fetchedBook?.authors) || "";
+  const cover = params.cover || params.cover_image || fetchedBook?.cover_image || "";
+  const genres = params.genres || (Array.isArray(fetchedBook?.genres) ? fetchedBook.genres.join(", ") : fetchedBook?.genres) || "";
+  const totalPages = params.totalPages || params.total_pages || (fetchedBook?.total_pages ? String(fetchedBook.total_pages) : "");
+  const averageRating = params.averageRating || params.average_rating || (fetchedBook?.average_rating ? String(fetchedBook.average_rating) : "");
+  const addedCount = params.addedCount;
+  const description = params.description || params.synopsis || fetchedBook?.synopsis || "";
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const width = 180;

@@ -55,6 +55,32 @@ export default function EchoItem({ item }: { item: any }) {
     } as any);
   };
 
+  const handleTaggedBookPress = () => {
+    if (!item.shared_book) return;
+    const book = item.shared_book;
+    const authorStr = Array.isArray(book.authors)
+      ? book.authors.map((a: any) => (typeof a === 'string' ? a : a.name || '')).filter(Boolean).join(', ')
+      : (typeof book.authors === 'string' ? book.authors : 'Unknown Author');
+    const genreStr = Array.isArray(book.genres)
+      ? book.genres.map((g: any) => (typeof g === 'string' ? g : g.genre || '')).filter(Boolean).join(', ')
+      : (typeof book.genres === 'string' ? book.genres : '');
+
+    router.push({
+      pathname: '/BookDetails',
+      params: {
+        bookId: book.id,
+        id: book.id,
+        bookName: book.title,
+        author: authorStr,
+        cover: book.cover_image || book.cover,
+        genres: genreStr,
+        totalPages: book.total_pages ? String(book.total_pages) : '',
+        averageRating: book.average_rating ? String(book.average_rating) : '',
+        description: book.synopsis || book.description || '',
+      }
+    } as any);
+  };
+
   // ... (useMutation code remains exactly the same) ...
 
   const likeMutation = useMutation({
@@ -230,27 +256,32 @@ export default function EchoItem({ item }: { item: any }) {
       {/* Shared Book */}
       {item.shared_book && (
         <TouchableOpacity 
-          activeOpacity={0.8}
-          onPress={() => router.push({ pathname: '/BookDetails', params: { id: item.shared_book.id } } as any)}
-          className="bg-[#F5EEDF] rounded-xl p-3 flex-row items-center mb-4 opacity-90"
+          activeOpacity={0.75}
+          onPress={handleTaggedBookPress}
+          className="bg-[#F5EEDF] border border-[#EBE7DF] rounded-xl p-3 flex-row items-center mb-4 active:bg-[#EFE7D7]"
         >
           <View className="shadow-sm">
             {item.shared_book.cover_image ? (
-              <BookCover uri={item.shared_book.cover_image} style={{ width: 40, height: 60, borderRadius: 4 }} />
+              <BookCover uri={item.shared_book.cover_image} style={{ width: 42, height: 64, borderRadius: 4 }} />
             ) : (
-              <NoCover width={40} height={60} style={{ borderRadius: 4 }} />
+              <NoCover width={42} height={64} style={{ borderRadius: 4 }} />
             )}
           </View>
-          <View className="flex-1 ml-3 justify-center">
-            <Text className="text-[10px] text-[#8A8A8E] tracking-widest uppercase mb-0.5" style={{ fontFamily: 'PublicSans-Bold' }}>
-              TAGGED BOOK
-            </Text>
+          <View className="flex-1 ml-3.5 justify-center pr-2">
+            <View className="flex-row items-center gap-1 mb-0.5">
+              <Text className="text-[10px] text-[#C95F44] tracking-widest uppercase" style={{ fontFamily: 'PublicSans-Bold' }}>
+                TAGGED BOOK
+              </Text>
+            </View>
             <Text className="text-base text-[#212842] mb-0.5" style={{ fontFamily: 'Newsreader-Bold' }} numberOfLines={1}>
               {item.shared_book.title}
             </Text>
             <Text className="text-xs text-[#76767E]" style={{ fontFamily: 'PublicSans-Italic' }} numberOfLines={1}>
               {item.shared_book.authors?.map((a: any) => a.name || a).join(', ') || 'Unknown Author'}
             </Text>
+          </View>
+          <View className="pr-1">
+            <Icon name="chevronRight" size={18} color="#8A8A8E" />
           </View>
         </TouchableOpacity>
       )}

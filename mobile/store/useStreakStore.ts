@@ -116,45 +116,69 @@ export const useStreakStore = create<StreakState>((set, get) => ({
   syncFromLocalAction: (streakPayload) => {
     if (!streakPayload) return;
     const current = get().data;
-    if (current && streakPayload.current_streak !== undefined) {
-      const todayStr = new Date().toLocaleDateString("en-CA");
-      const updatedHistory = { ...current.calendar_history };
-      
-      const existingToday = updatedHistory[todayStr] || {
-        date: todayStr,
-        status: "ACTIVE" as const,
-        activities: [],
-      };
+    const todayStr = new Date().toLocaleDateString("en-CA");
 
-      const updatedTodayActivities = Array.from(
-        new Set([...current.today_activities, streakPayload.activity_type].filter(Boolean))
-      );
+    const wasActive = current?.is_active_today ?? false;
+    const isNowActive = streakPayload.is_active_today ?? true;
+    const streakIncreased = typeof streakPayload.current_streak === "number" && !!current && streakPayload.current_streak > current.current_streak;
 
-      updatedHistory[todayStr] = {
-        ...existingToday,
-        status: "ACTIVE",
-        activities: Array.from(new Set([...existingToday.activities, streakPayload.activity_type].filter(Boolean))),
-      };
+    // The streak is newly activated if extended/incremented, or today was not active before, or streak increased
+    const shouldCelebrate =
+      streakPayload.extended === true ||
+      streakPayload.streak_incremented === true ||
+      (!wasActive && isNowActive) ||
+      streakIncreased;
 
-      const wasActive = current.is_active_today;
-      const shouldCelebrate = !wasActive || (streakPayload.current_streak > current.current_streak);
+    const updatedHistory = current?.calendar_history ? { ...current.calendar_history } : {};
+    const existingToday = updatedHistory[todayStr] || {
+      date: todayStr,
+      status: "ACTIVE" as const,
+      activities: [],
+    };
 
-      set({
-        isCelebrationOpen: shouldCelebrate,
-        data: {
-          ...current,
-          current_streak: streakPayload.current_streak,
-          best_streak: Math.max(current.best_streak, streakPayload.best_streak || streakPayload.current_streak),
-          is_active_today: true,
-          last_activity_date: todayStr,
-          today_activities: updatedTodayActivities,
-          calendar_history: updatedHistory,
-        },
-      });
+    const updatedTodayActivities = Array.from(
+      new Set([...(current?.today_activities || []), streakPayload.activity_type].filter(Boolean))
+    );
 
-      useAuthStore.getState().updateStreakDays(streakPayload.current_streak);
-    } else {
-      get().fetchStreak();
+    updatedHistory[todayStr] = {
+      ...existingToday,
+      status: "ACTIVE",
+      activities: Array.from(new Set([...existingToday.activities, streakPayload.activity_type].filter(Boolean))),
+    };
+
+    const nextStreak = typeof streakPayload.current_streak === "number"
+      ? streakPayload.current_streak
+      : (current?.current_streak ?? 1);
+    const nextBest = typeof streakPayload.best_streak === "number"
+      ? streakPayload.best_streak
+      : Math.max(current?.best_streak ?? nextStreak, nextStreak);
+
+    set({
+      data: {
+        current_streak: nextStreak,
+        best_streak: nextBest,
+        is_active_today: true,
+        last_activity_date: todayStr,
+        freezes_available: streakPayload.freezes_available ?? current?.freezes_available ?? 1,
+        can_recover: false,
+        previous_streak: 0,
+        broken_date: null,
+        today_activities: updatedTodayActivities,
+        calendar_history: updatedHistory,
+      },
+    });
+
+    useAuthStore.getState().updateStreakDays(nextStreak);
+
+    if (shouldCelebrate) {
+      // Small timeout to allow dismissing navigation modals to unmount cleanly
+      // preventing modal presentation collisions on iOS and Android
+      setTimeout(() => {
+        set({ isCelebrationOpen: true });
+      }, 450);
     }
+
+    // Refresh streak in background to guarantee full sync
+    get().fetchStreak();
   },
 }));

@@ -64,9 +64,13 @@ export default function PostReview() {
         return data;
       }
     },
-    onSuccess: () => {
+    onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ["reviews", params.bookId] });
-      useStreakStore.getState().fetchStreak();
+      if (data?.streak) {
+        useStreakStore.getState().syncFromLocalAction(data.streak);
+      } else {
+        useStreakStore.getState().fetchStreak();
+      }
       useAuthStore.getState().fetchUser();
       router.back();
     },

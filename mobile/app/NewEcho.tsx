@@ -78,9 +78,13 @@ export default function NewEchoScreen() {
       const response = await api.post('/api/social/echoes/', payload);
       return response.data;
     },
-    onSuccess: () => {
+    onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ['echoes'] });
-      useStreakStore.getState().fetchStreak();
+      if (data?.streak) {
+        useStreakStore.getState().syncFromLocalAction(data.streak);
+      } else {
+        useStreakStore.getState().fetchStreak();
+      }
       useAuthStore.getState().fetchUser();
       resetDraft();
       router.back();

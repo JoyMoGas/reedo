@@ -32,6 +32,7 @@ import Svg, {
 } from "react-native-svg";
 import { useStreakStore } from "../../store/useStreakStore";
 import Icon from "../../core/Icon";
+import { useRouter } from "expo-router";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
@@ -57,6 +58,7 @@ interface ParticleData {
 }
 
 export default function StreakCelebrationModal() {
+  const router = useRouter();
   const { isCelebrationOpen, setCelebrationOpen, data } = useStreakStore();
 
   const currentStreak = data?.current_streak ?? 1;
@@ -262,6 +264,13 @@ export default function StreakCelebrationModal() {
     } catch (e) {
       // User cancelled share
     }
+  };
+
+  const handleViewStreakHub = () => {
+    handleClose();
+    setTimeout(() => {
+      router.push('/streak' as any);
+    }, 250);
   };
 
   if (!isCelebrationOpen) return null;
@@ -575,14 +584,24 @@ export default function StreakCelebrationModal() {
               <Text style={styles.primaryBtnText}>Keep The Momentum</Text>
             </TouchableOpacity>
 
-            {/* Secondary Action: Share Achievement */}
+            {/* View Full Streak Hub */}
             <TouchableOpacity
               style={styles.secondaryBtn}
+              onPress={handleViewStreakHub}
+              activeOpacity={0.8}
+            >
+              <Icon name="fireSolid" size={16} color="#FF5A36" />
+              <Text style={styles.secondaryBtnText}>View Streak Details</Text>
+            </TouchableOpacity>
+
+            {/* Share Achievement */}
+            <TouchableOpacity
+              style={[styles.secondaryBtn, { borderWidth: 0, backgroundColor: 'transparent', paddingVertical: 8 }]}
               onPress={handleShare}
               activeOpacity={0.8}
             >
-              <Icon name="share" size={16} color="#E2E8F0" />
-              <Text style={styles.secondaryBtnText}>Share Achievement</Text>
+              <Icon name="share" size={16} color="#A8AAB2" />
+              <Text style={[styles.secondaryBtnText, { color: "#A8AAB2" }]}>Share Achievement</Text>
             </TouchableOpacity>
           </View>
         </Animated.View>
