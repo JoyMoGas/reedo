@@ -40,24 +40,49 @@ function BookDetails() {
   const params = useLocalSearchParams() as unknown as BookDetailProps;
   const bookId = params.bookId || params.id;
 
-  const { data: fetchedBook } = useQuery({
-    queryKey: ["bookDetail", bookId],
+  const queryClient = useQueryClient();
+  const { user } = useAuthStore();
+
+  // Fetch user's current library to detect if book is already added and extract full metadata
+  const { data: userBooksData = [] } = useQuery({
+    queryKey: ["userBooks"],
     queryFn: async () => {
-      if (!bookId) return null;
-      const { data } = await api.get(`api/books/${bookId}/`);
-      return data;
+      const response = await api.get("api/books/userbook/");
+      return response.data;
     },
-    enabled: !!bookId && (!params.bookName || !params.cover),
   });
 
-  const bookName = params.bookName || params.title || fetchedBook?.title || "";
-  const author = params.author || (Array.isArray(fetchedBook?.authors) ? fetchedBook.authors.join(", ") : fetchedBook?.authors) || "";
-  const cover = params.cover || params.cover_image || fetchedBook?.cover_image || "";
-  const genres = params.genres || (Array.isArray(fetchedBook?.genres) ? fetchedBook.genres.join(", ") : fetchedBook?.genres) || "";
-  const totalPages = params.totalPages || params.total_pages || (fetchedBook?.total_pages ? String(fetchedBook.total_pages) : "");
-  const averageRating = params.averageRating || params.average_rating || (fetchedBook?.average_rating ? String(fetchedBook.average_rating) : "");
+  const existingUserBook = useMemo(() => {
+    if (!bookId && !params.bookName) return null;
+    const target = String(bookId || "").toLowerCase();
+    return userBooksData.find((ub: any) => {
+      const bId = String(ub.book_id || ub.book?.id || "").toLowerCase();
+      const ubId = String(ub.id || "").toLowerCase();
+      const titleMatch = params.bookName && ub.title && String(ub.title).toLowerCase() === String(params.bookName).toLowerCase();
+      return (target && (bId === target || ubId === target)) || titleMatch;
+    }) || null;
+  }, [userBooksData, bookId, params.bookName]);
+
+  const effectiveBookId = bookId || existingUserBook?.book_id || existingUserBook?.book?.id;
+
+  const { data: fetchedBook } = useQuery({
+    queryKey: ["bookDetail", effectiveBookId],
+    queryFn: async () => {
+      if (!effectiveBookId) return null;
+      const { data } = await api.get(`api/books/${effectiveBookId}/`);
+      return data;
+    },
+    enabled: !!effectiveBookId && (!params.bookName || !params.cover || !params.description),
+  });
+
+  const bookName = params.bookName || params.title || existingUserBook?.title || existingUserBook?.book?.title || fetchedBook?.title || "";
+  const author = params.author || (Array.isArray(existingUserBook?.authors) ? existingUserBook.authors.join(", ") : existingUserBook?.authors) || (Array.isArray(fetchedBook?.authors) ? fetchedBook.authors.join(", ") : fetchedBook?.authors) || "";
+  const cover = params.cover || params.cover_image || existingUserBook?.cover_image || existingUserBook?.book?.cover_image || fetchedBook?.cover_image || "";
+  const genres = params.genres || (Array.isArray(existingUserBook?.genres) ? existingUserBook.genres.join(", ") : existingUserBook?.genres) || (Array.isArray(fetchedBook?.genres) ? fetchedBook.genres.join(", ") : fetchedBook?.genres) || "";
+  const totalPages = params.totalPages || params.total_pages || (existingUserBook?.total_pages ? String(existingUserBook.total_pages) : "") || (fetchedBook?.total_pages ? String(fetchedBook.total_pages) : "");
+  const averageRating = params.averageRating || params.average_rating || (existingUserBook?.average_rating ? String(existingUserBook.average_rating) : "") || (fetchedBook?.average_rating ? String(fetchedBook.average_rating) : "");
   const addedCount = params.addedCount;
-  const description = params.description || params.synopsis || fetchedBook?.synopsis || "";
+  const description = params.description || params.synopsis || existingUserBook?.synopsis || existingUserBook?.book?.synopsis || fetchedBook?.synopsis || "";
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const width = 180;
@@ -123,22 +148,6 @@ function BookDetails() {
       },
     })
   ).current;
-
-  const queryClient = useQueryClient();
-  const { user } = useAuthStore();
-
-  // Fetch user's current library to detect if book is already added
-  const { data: userBooksData = [] } = useQuery({
-    queryKey: ["userBooks"],
-    queryFn: async () => {
-      const response = await api.get("api/books/userbook/");
-      return response.data;
-    },
-  });
-
-  const existingUserBook = useMemo(() => {
-    return userBooksData.find((ub: any) => ub.book_id === bookId) || null;
-  }, [userBooksData, bookId]);
 
   const openArchiveSheet = () => {
     setArchiveSheetOpen(true);

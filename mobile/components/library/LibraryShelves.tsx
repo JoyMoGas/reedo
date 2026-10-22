@@ -1,5 +1,5 @@
-import React from "react";
-import { View, Text, ScrollView, TouchableOpacity, Image, Alert } from "react-native";
+import React, { useState } from "react";
+import { View, Text, ScrollView, TouchableOpacity, Image } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import Icon from "../../core/Icon";
@@ -9,12 +9,14 @@ import { useQuery } from "@tanstack/react-query";
 import api from "../../store/api";
 import { useLibraryStore } from "../../store/useLibraryStore";
 import { useAuthStore } from "../../store/useAuthStore";
+import ReadingActionsModal from "./ReadingActionsModal";
 
 export default function LibraryShelves() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const currentUser = useAuthStore(state => state.user);
   const shelves = useLibraryStore((state) => state.shelves);
+  const [selectedActionBook, setSelectedActionBook] = useState<any | null>(null);
 
   const { data: rawUserBooks = [] } = useQuery({
     queryKey: ["userBooks"],
@@ -85,49 +87,8 @@ export default function LibraryShelves() {
             {currentlyReading.slice(0, 3).map((book: any, idx: number) => (
               <TouchableOpacity 
                 key={idx} 
-                onPress={() => {
-                  Alert.alert(
-                    "Reading Actions",
-                    book.title,
-                    [
-                      {
-                        text: "Book Details",
-                        onPress: () => router.push({ pathname: "/BookDetails", params: { bookId: book.book_id, bookName: book.title } })
-                      },
-                      {
-                        text: "Immersion Mode",
-                        onPress: () => router.push({
-                          pathname: "/ImmersionSetup",
-                          params: {
-                            userbookId: book.id,
-                            bookId: book.book_id,
-                            title: book.title,
-                            author: book.authors ? book.authors.join(", ") : "",
-                            cover: book.cover_image,
-                            pagesRead: (book.current_page || 0).toString(),
-                            pagesTotal: (book.total_pages || 100).toString(),
-                          }
-                        })
-                      },
-                      {
-                        text: "Update Progress",
-                        onPress: () => router.push({ 
-                          pathname: "/UpdateProgress", 
-                          params: { 
-                            userbookId: book.id, 
-                            bookId: book.book_id,
-                            title: book.title,
-                            author: book.authors ? book.authors.join(", ") : "",
-                            cover: book.cover_image,
-                            pagesRead: (book.current_page || 0).toString(),
-                            pagesTotal: (book.total_pages || 100).toString(),
-                          } 
-                        })
-                      },
-                      { text: "Cancel", style: "cancel" }
-                    ]
-                  );
-                }}
+                onPress={() => setSelectedActionBook(book)}
+                activeOpacity={0.8}
                 className="w-full bg-[#FDF8F0] rounded-2xl p-4 flex-row shadow-sm border border-[#F5EEDF]"
               >
                 <BookCover uri={book.cover_image} className="w-[70px] h-[105px] rounded-md mr-4 shadow-sm" />
@@ -255,6 +216,12 @@ export default function LibraryShelves() {
         </View>
       )}
       
+      {/* Custom Reading Actions Bottom Sheet Modal */}
+      <ReadingActionsModal
+        visible={!!selectedActionBook}
+        book={selectedActionBook}
+        onClose={() => setSelectedActionBook(null)}
+      />
     </ScrollView>
   );
 }

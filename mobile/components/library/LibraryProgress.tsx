@@ -84,7 +84,20 @@ export default function LibraryProgress() {
                 <TouchableOpacity 
                   key={idx} 
                   className="mr-4 w-[120px]"
-                  onPress={() => router.push({ pathname: "/BookDetails", params: { bookId: book.book_id, bookName: book.title } })}
+                  onPress={() => router.push({
+                    pathname: "/BookDetails",
+                    params: {
+                      bookId: book.book_id,
+                      id: book.book_id,
+                      bookName: book.title,
+                      author: Array.isArray(book.authors) ? book.authors.join(", ") : (book.authors || ""),
+                      cover: book.cover_image,
+                      genres: Array.isArray(book.genres) ? book.genres.join(", ") : (book.genres || ""),
+                      totalPages: (book.total_pages || 0).toString(),
+                      averageRating: (book.average_rating || 0).toString(),
+                      description: book.synopsis || "",
+                    }
+                  })}
                 >
                   <View className="w-full h-[180px] rounded-lg mb-2 relative shadow-sm">
                     <BookCover uri={book.cover_image} className="w-full h-full rounded-lg bg-[#EAE2D5]" />
