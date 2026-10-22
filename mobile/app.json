@@ -8,10 +8,12 @@
     "orientation": "portrait",
     "icon": "./assets/LOGO.png",
     "userInterfaceStyle": "light",
-    "runtimeVersion": "1.0.0",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.joymogas.mobile"
+      "bundleIdentifier": "com.joymogas.mobile",
+      "runtimeVersion": {
+        "policy": "appVersion"
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -21,7 +23,8 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.joymogas.mobile"
+      "package": "com.joymogas.mobile",
+      "runtimeVersion": "1.0.0"
     },
     "androidStatusBar": {
       "barStyle": "dark-content",
