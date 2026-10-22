@@ -7,9 +7,7 @@
     "orientation": "portrait",
     "icon": "./assets/LOGO.png",
     "userInterfaceStyle": "light",
-    "runtimeVersion": {
-      "policy": "sdkVersion"
-    },
+    "runtimeVersion": "1.0.0",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.joymogas.mobile"
