@@ -8,6 +8,7 @@
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true,
+      "bundleIdentifier": "com.joymogas.mobile",
       "runtimeVersion": {
         "policy": "appVersion"
       }
@@ -49,6 +50,5 @@
       "url": "https://u.expo.dev/efce7e1f-2a49-466d-94f8-613df5b90cd4",
       "fallbackToCacheTimeout": 5000
     }
-
   }
 }
