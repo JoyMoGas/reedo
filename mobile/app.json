@@ -3,17 +3,14 @@
     "name": "REEDO",
     "slug": "mobile",
     "version": "1.0.0",
-    "sdkVersion": "58.0.0",
     "privacy": "public",
     "orientation": "portrait",
     "icon": "./assets/LOGO.png",
     "userInterfaceStyle": "light",
+    "runtimeVersion": "1.0.0",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.joymogas.mobile",
-      "runtimeVersion": {
-        "policy": "appVersion"
-      }
+      "bundleIdentifier": "com.joymogas.mobile"
     },
     "android": {
       "adaptiveIcon": {
@@ -23,8 +20,7 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.joymogas.mobile",
-      "runtimeVersion": "1.0.0"
+      "package": "com.joymogas.mobile"
     },
     "androidStatusBar": {
       "barStyle": "dark-content",
