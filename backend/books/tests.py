@@ -133,4 +133,91 @@ class UserBookAPITest(APITestCase):
         self.client.logout()
         response = self.client.get("/api/books/userbook/")
 
-        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_completar_libro_y_volver_a_leer(self):
+        """
+        Verifica que al alcanzar el 100% se marque como COMPLETED, se registre
+        finished_at y se incremente read_count. Luego verifica que 'REREAD'
+        reinicie a CURRENTLY_READING en página 0 manteniendo el conteo de lecturas.
+        """
+        # 1. Crear libro en lectura activa
+        ub = UserBook.objects.create(
+            user_id=self.user,
+            book_id=self.book,
+            status="CURRENTLY_READING",
+            current_page=150,
+            progress_percentage=75.0,
+            read_count=0
+        )
+
+        # 2. Completar libro alcanzando las 200 páginas
+        res = self.client.patch("/api/books/userbook/", {
+            "book_id": str(self.book.id),
+            "current_page": 200
+        })
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+
+        ub.refresh_from_db()
+        self.assertEqual(ub.status, "COMPLETED")
+        self.assertEqual(ub.current_page, 200)
+        self.assertEqual(ub.progress_percentage, 100.0)
+        self.assertEqual(ub.read_count, 1)
+        self.assertIsNotNone(ub.finished_at)
+
+        # 3. GET /api/books/userbook/ devuelve las nuevas métricas
+        get_res = self.client.get("/api/books/userbook/")
+        self.assertEqual(get_res.status_code, status.HTTP_200_OK)
+        book_data = next(b for b in get_res.data if b["book_id"] == str(self.book.id))
+        self.assertEqual(book_data["read_count"], 1)
+        self.assertIsNotNone(book_data["finished_at"])
+        self.assertIsNotNone(book_data["started_at"])
+
+        # 4. Volver a leer (REREAD)
+        reread_res = self.client.patch("/api/books/userbook/", {
+            "book_id": str(self.book.id),
+            "action": "REREAD"
+        })
+        self.assertEqual(reread_res.status_code, status.HTTP_200_OK)
+        self.assertEqual(reread_res.data["status"], "CURRENTLY_READING")
+        self.assertEqual(reread_res.data["current_page"], 0)
+        self.assertEqual(reread_res.data["progress_percentage"], 0.0)
+        self.assertEqual(reread_res.data["read_count"], 1)
+        self.assertIsNone(reread_res.data["finished_at"])
+
+        ub.refresh_from_db()
+        self.assertEqual(ub.status, "CURRENTLY_READING")
+        self.assertEqual(ub.current_page, 0)
+        self.assertEqual(ub.read_count, 1)
+        self.assertIsNone(ub.finished_at)
+
+    def test_agregar_libro_directo_a_terminados(self):
+        """
+        Verifica que al agregar un libro directamente con status='COMPLETED',
+        se guarde con current_page igual al total de páginas (100%), read_count=1,
+        finished_at asignado y se devuelvan los campos calculados.
+        """
+        res = self.client.post("/api/books/userbook/", {
+            "book_id": str(self.book.id),
+            "status": "COMPLETED",
+            "total_pages": 200,
+            "client_date": "2026-10-24"
+        })
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(res.data["status"], "COMPLETED")
+        self.assertEqual(res.data["current_page"], 200)
+        self.assertEqual(res.data["progress_percentage"], 100.0)
+
+        ub = UserBook.objects.get(user_id=self.user, book_id=self.book)
+        self.assertEqual(ub.status, "COMPLETED")
+        self.assertEqual(ub.current_page, 200)
+        self.assertEqual(ub.progress_percentage, 100.0)
+        self.assertEqual(ub.read_count, 1)
+        self.assertIsNotNone(ub.finished_at)
+
+        # Verificar que el endpoint GET también lo retorne al 100%
+        get_res = self.client.get("/api/books/userbook/")
+        self.assertEqual(get_res.status_code, status.HTTP_200_OK)
+        item = next(b for b in get_res.data if b["book_id"] == str(self.book.id))
+        self.assertEqual(item["progress_percentage"], 100.0)
+        self.assertEqual(item["current_page"], 200)

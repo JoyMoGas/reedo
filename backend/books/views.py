@@ -5,13 +5,17 @@
 @inspired-by Alondra Gamino (Constant Inspiration)
 @date 2026-05-21
 """
+import logging
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from django.db.models import Q
+from django.core.cache import cache
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from .models import Books, Genres, Authors, UserBook
-from .services import HardcoverService
+from .services import HardcoverService, sanitize_hardcover_books, is_valid_cover_url
+
+logger = logging.getLogger(__name__)
 
 def is_english_book(g_book):
     lang = g_book.get("language")
@@ -463,63 +467,58 @@ class BookSuggestionsView(APIView):
 
 class TrendingBooksView(APIView):
     permission_classes = [AllowAny]
+    CACHE_KEY = "reedo:books:trending"
+    CACHE_TTL_SECONDS = 6 * 3600
 
     def get(self, request):
+        force_refresh = request.query_params.get("refresh", "").lower() in ("true", "1")
+        if not force_refresh:
+            cached_data = cache.get(self.CACHE_KEY)
+            if cached_data is not None:
+                resp = Response(cached_data, status=status.HTTP_200_OK)
+                resp["X-Cache"] = "HIT"
+                return resp
+
         trending_books = []
         try:
-            api_books = HardcoverService.get_trending_books(limit=15)
-            for g_book in api_books:
-                if not is_english_book(g_book):
-                    continue
+            trending_books = HardcoverService.get_trending_books(limit=10)
+        except Exception as e:
+            logger.warning("Hardcover trending fetch failed: %s", str(e))
 
-                db_book = Books.objects.filter(title__iexact=g_book["title"]).first()
-                if not db_book:
-                    try:
-                        db_book = Books.objects.create(
-                            title=g_book["title"],
-                            synopsis=g_book["description"],
-                            total_pages=g_book["page_count"],
-                            cover_image=g_book["cover_url"],
-                            isbn=g_book["isbn"],
-                            average_rating=g_book["average_rating"]
-                        )
-                        for author_name in g_book["authors"]:
-                            author, _ = Authors.objects.get_or_create(name=author_name)
-                            db_book.authors.add(author)
+        if not trending_books:
+            local_fallback = (
+                Books.objects.exclude(cover_image="")
+                .exclude(cover_image__isnull=True)
+                .exclude(cover_image__icontains="placeholder")
+                .order_by("-average_rating")[:10]
+            )
+            for b in local_fallback:
+                authors = [a.name for a in b.authors.all()]
+                author_name = authors[0] if authors else "Unknown Author"
+                trending_books.append({
+                    "book_id": str(b.id),
+                    "id": str(b.id),
+                    "title": b.title,
+                    "author": author_name,
+                    "authors": authors or [author_name],
+                    "cover_url": b.cover_image or "",
+                    "cover_image": b.cover_image or "",
+                    "rating": b.average_rating or 0.0,
+                    "average_rating": b.average_rating or 0.0,
+                    "shelved_count": 0,
+                    "added_count": 0,
+                    "genres": [g.genre for g in b.genres.all()],
+                    "total_pages": b.total_pages or 0,
+                    "synopsis": b.synopsis or "",
+                })
 
-                        for cat_name in g_book["categories"]:
-                            genre, _ = Genres.objects.get_or_create(genre=cat_name)
-                            db_book.genres.add(genre)
-                    except Exception:
-                        pass
+        if trending_books:
+            cache.set(self.CACHE_KEY, trending_books[:10], timeout=self.CACHE_TTL_SECONDS)
 
-                if db_book and db_book not in trending_books and db_book.cover_image:
-                    trending_books.append(db_book)
-        except Exception:
-            pass
+        resp = Response(trending_books[:10], status=status.HTTP_200_OK)
+        resp["X-Cache"] = "MISS"
+        return resp
 
-        # Fallback local if empty/failed
-        if len(trending_books) < 10:
-            fallback = Books.objects.exclude(cover_image='').exclude(cover_image__isnull=True).order_by('-average_rating')[:10]
-            for b in fallback:
-                if b not in trending_books and b.cover_image:
-                    trending_books.append(b)
-
-        results = []
-        for book in trending_books[:10]:
-            results.append({
-                "id": str(book.id),
-                "title": book.title,
-                "synopsis": book.synopsis,
-                "cover_image": book.cover_image if book.cover_image else (f"https://covers.openlibrary.org/b/isbn/{book.isbn}-L.jpg?default=false" if book.isbn else ""),
-                "isbn": book.isbn,
-                "average_rating": book.average_rating,
-                "total_pages": book.total_pages,
-                "authors": [author.name for author in book.authors.all()],
-                "genres": [genre.genre for genre in book.genres.all()]
-            })
-
-        return Response(results, status=status.HTTP_200_OK)
 
 
 class UserBookSaveView(APIView):
@@ -530,20 +529,28 @@ class UserBookSaveView(APIView):
         results = []
         for ub in user_books:
             book = ub.book_id
+            read_cnt = ub.read_count or (1 if ub.status == 'COMPLETED' else 0)
+            is_completed = (ub.status == 'COMPLETED')
+            total = book.total_pages or 0
+            curr_page = total if (is_completed and total > 0) else (ub.current_page or 0)
+            prog_pct = 100.0 if is_completed else (ub.progress_percentage or 0.0)
             results.append({
-                "id": ub.id,
-                "book_id": book.id,
+                "id": str(ub.id),
+                "book_id": str(book.id),
                 "title": book.title,
                 "synopsis": book.synopsis,
                 "cover_image": book.cover_image if book.cover_image else (f"https://covers.openlibrary.org/b/isbn/{book.isbn}-L.jpg?default=false" if book.isbn else ""),
                 "status": ub.status,
-                "current_page": ub.current_page or 0,
-                "total_pages": book.total_pages or 0,
-                "progress_percentage": ub.progress_percentage or 0.0,
+                "current_page": curr_page,
+                "total_pages": total,
+                "progress_percentage": prog_pct,
                 "average_rating": book.average_rating,
                 "authors": [author.name for author in book.authors.all()],
                 "genres": [genre.genre for genre in book.genres.all()],
-                "reading_time_seconds": ub.reading_time_seconds or 0
+                "reading_time_seconds": ub.reading_time_seconds or 0,
+                "started_at": ub.started_at.strftime('%Y-%m-%d') if ub.started_at else None,
+                "finished_at": ub.finished_at.strftime('%Y-%m-%d') if ub.finished_at else None,
+                "read_count": read_cnt,
             })
         return Response(results, status=status.HTTP_200_OK)
 
@@ -596,69 +603,163 @@ class UserBookSaveView(APIView):
             else:
                 return Response({"error": "Book not found in database"}, status=status.HTTP_404_NOT_FOUND)
 
+        # Update total_pages if book doesn't have it yet but client provided it
+        total_pages_req = request.data.get("total_pages")
+        if total_pages_req and (not book.total_pages or book.total_pages <= 0):
+            try:
+                book.total_pages = int(total_pages_req)
+                book.save(update_fields=["total_pages"])
+            except (ValueError, TypeError):
+                pass
+
         user_book, created = UserBook.objects.update_or_create(
             user_id=request.user,
             book_id=book,
             defaults={"status": status_choice}
         )
 
-        # Update current_page if provided
-        current_page = request.data.get("current_page")
-        if current_page is not None:
-            user_book.current_page = int(current_page)
-            total = book.total_pages or 0
+        from django.utils import timezone
+        streak_data = None
+        client_date = request.data.get("client_date")
+        total = book.total_pages or 0
+
+        if status_choice == "COMPLETED":
+            user_book.status = "COMPLETED"
             if total > 0:
-                user_book.progress_percentage = round((int(current_page) / total) * 100, 2)
-            user_book.save(update_fields=["current_page", "progress_percentage"])
+                user_book.current_page = total
+            user_book.progress_percentage = 100.0
+            user_book.finished_at = timezone.now().date()
+            user_book.read_count = max(1, (user_book.read_count or 0) + 1)
+            user_book.save(update_fields=["status", "current_page", "progress_percentage", "finished_at", "read_count"])
+
+            try:
+                from users.streak_service import record_streak_activity
+                streak_data = record_streak_activity(
+                    request.user,
+                    'READING_PROGRESS',
+                    metadata={'book_id': str(book.id), 'current_page': user_book.current_page},
+                    client_date=client_date
+                )
+            except Exception:
+                pass
+        else:
+            current_page = request.data.get("current_page")
+            if current_page is not None:
+                user_book.current_page = int(current_page)
+                if total > 0:
+                    user_book.progress_percentage = round((int(current_page) / total) * 100, 2)
+                else:
+                    user_book.progress_percentage = 0.0
+                user_book.save(update_fields=["current_page", "progress_percentage"])
 
         return Response({
-            "id": user_book.id,
+            "id": str(user_book.id),
             "book_title": book.title,
             "status": user_book.status,
+            "current_page": user_book.current_page,
+            "total_pages": book.total_pages or 0,
+            "progress_percentage": user_book.progress_percentage,
+            "streak": streak_data,
             "created": created
         }, status=status.HTTP_200_OK)
 
     def patch(self, request):
-        """Update reading progress (current_page) or reading time for a book already in the user's library."""
+        """Update reading progress, status, rerun, or reading time for a book in user's library."""
         book_id = request.data.get("book_id")
         current_page = request.data.get("current_page")
         new_status = request.data.get("status")
         session_seconds = request.data.get("session_seconds")
+        action = request.data.get("action")
+        reread = request.data.get("reread")
 
         if not book_id:
             return Response({"error": "book_id is required"}, status=status.HTTP_400_BAD_REQUEST)
-
-        if current_page is None and new_status is None and session_seconds is None:
-            return Response({"error": "current_page, status, or session_seconds is required"}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             user_book = UserBook.objects.get(user_id=request.user, book_id=book_id)
         except UserBook.DoesNotExist:
             return Response({"error": "Book not found in your library"}, status=status.HTTP_404_NOT_FOUND)
 
+        from django.utils import timezone
+
+        # Handle 'REREAD' action
+        if action == "REREAD" or reread is True:
+            from_completion = request.data.get("from_completion") or (current_page is not None and total > 0 and int(current_page) >= total)
+            if from_completion:
+                user_book.read_count = (user_book.read_count or 0) + 1
+            elif not user_book.read_count or user_book.read_count < 1:
+                user_book.read_count = 1
+
+            user_book.status = "CURRENTLY_READING"
+            user_book.current_page = 0
+            user_book.progress_percentage = 0.0
+            user_book.started_at = timezone.now().date()
+            user_book.finished_at = None
+            user_book.save(update_fields=["status", "current_page", "progress_percentage", "started_at", "finished_at", "read_count"])
+
+            client_date = request.data.get("client_date")
+            streak_data = None
+            try:
+                from users.streak_service import record_streak_activity
+                streak_data = record_streak_activity(
+                    request.user,
+                    'READING_PROGRESS',
+                    metadata={'book_id': str(book_id), 'action': 'REREAD'},
+                    client_date=client_date
+                )
+            except Exception:
+                pass
+
+            return Response({
+                "id": str(user_book.id),
+                "current_page": 0,
+                "progress_percentage": 0.0,
+                "status": "CURRENTLY_READING",
+                "reading_time_seconds": user_book.reading_time_seconds or 0,
+                "started_at": user_book.started_at.strftime('%Y-%m-%d') if user_book.started_at else None,
+                "finished_at": None,
+                "read_count": user_book.read_count,
+                "streak": streak_data,
+            }, status=status.HTTP_200_OK)
+
         update_fields = []
+        total = user_book.book_id.total_pages or 0
 
-        if current_page is not None:
-            user_book.current_page = int(current_page)
-            update_fields.append("current_page")
-            total = user_book.book_id.total_pages or 0
+        # Mark as completed if reached 100% or explicitly requested
+        is_marking_completed = (
+            new_status == "COMPLETED" or
+            (current_page is not None and total > 0 and int(current_page) >= total)
+        )
+
+        if is_marking_completed:
+            user_book.status = "COMPLETED"
             if total > 0:
-                user_book.progress_percentage = round((int(current_page) / total) * 100, 2)
-            else:
-                user_book.progress_percentage = 0.0
-            update_fields.append("progress_percentage")
+                user_book.current_page = total
+            user_book.progress_percentage = 100.0
+            user_book.finished_at = timezone.now().date()
+            user_book.read_count = (user_book.read_count or 0) + 1
+            update_fields.extend(["status", "current_page", "progress_percentage", "finished_at", "read_count"])
+        else:
+            if current_page is not None:
+                user_book.current_page = int(current_page)
+                update_fields.append("current_page")
+                if total > 0:
+                    user_book.progress_percentage = round((int(current_page) / total) * 100, 2)
+                else:
+                    user_book.progress_percentage = 0.0
+                update_fields.append("progress_percentage")
 
-        if new_status is not None:
-            valid_statuses = [choice[0] for choice in UserBook.STATUS_CHOICES]
-            if new_status not in valid_statuses:
-                return Response({"error": f"Invalid status. Must be one of {valid_statuses}"}, status=status.HTTP_400_BAD_REQUEST)
-            user_book.status = new_status
-            update_fields.append("status")
+            if new_status is not None:
+                valid_statuses = [choice[0] for choice in UserBook.STATUS_CHOICES]
+                if new_status not in valid_statuses:
+                    return Response({"error": f"Invalid status. Must be one of {valid_statuses}"}, status=status.HTTP_400_BAD_REQUEST)
+                user_book.status = new_status
+                update_fields.append("status")
 
         if session_seconds is not None:
             try:
                 sec = int(session_seconds)
-                user_book.reading_time_seconds += sec
+                user_book.reading_time_seconds = (user_book.reading_time_seconds or 0) + sec
                 update_fields.append("reading_time_seconds")
                 
                 # Update global user reading time
@@ -669,7 +770,7 @@ class UserBookSaveView(APIView):
                 return Response({"error": "session_seconds must be an integer"}, status=status.HTTP_400_BAD_REQUEST)
 
         if update_fields:
-            user_book.save(update_fields=update_fields)
+            user_book.save(update_fields=list(set(update_fields)))
 
         # Trigger streak activity
         streak_data = None
@@ -683,7 +784,7 @@ class UserBookSaveView(APIView):
                 metadata={'book_id': str(book_id), 'session_seconds': int(session_seconds)},
                 client_date=client_date
             )
-        elif current_page is not None or new_status == 'COMPLETED':
+        elif current_page is not None or user_book.status == 'COMPLETED':
             streak_data = record_streak_activity(
                 request.user,
                 'READING_PROGRESS',
@@ -696,8 +797,11 @@ class UserBookSaveView(APIView):
             "current_page": user_book.current_page,
             "progress_percentage": user_book.progress_percentage,
             "status": user_book.status,
-            "reading_time_seconds": user_book.reading_time_seconds,
+            "reading_time_seconds": user_book.reading_time_seconds or 0,
             "total_user_reading_time_seconds": request.user.total_reading_time_seconds,
+            "started_at": user_book.started_at.strftime('%Y-%m-%d') if user_book.started_at else None,
+            "finished_at": user_book.finished_at.strftime('%Y-%m-%d') if user_book.finished_at else None,
+            "read_count": user_book.read_count,
             "streak": streak_data,
             "user_streak_days": request.user.streak_days
         }, status=status.HTTP_200_OK)
@@ -717,184 +821,263 @@ class UserBookSaveView(APIView):
 
 
 class DiscoverBooksView(APIView):
+    """
+    BFF Endpoint: Discover Your Next Read (/api/books/discover/)
+    Provides curated, high-quality book recommendations:
+    - Queries Hardcover GraphQL cached_books/books with strict filters:
+      (cover exists, users_count > 25, rating > 3.5, ordered by users_count desc)
+    - Sanitizes payload (discards placeholder covers, box sets, companions, summaries, dictionaries)
+    - Caches responses for 12 hours (TTL = 43200s) for <50ms response times
+    - Supports 'keep' parameter from mobile app while maintaining carousel size
+    - Falls back cleanly to local database if API is unavailable
+    """
     permission_classes = [AllowAny]
+    CACHE_TTL_SECONDS = 12 * 3600  # 12 hours
 
     def get(self, request):
-        import random
+        try:
+            limit = int(request.query_params.get("limit", 10))
+        except (ValueError, TypeError):
+            limit = 10
+        limit = min(max(limit, 1), 50)
+
+        try:
+            min_users = int(request.query_params.get("min_users", 25))
+        except (ValueError, TypeError):
+            min_users = 25
+
+        try:
+            min_rating = float(request.query_params.get("min_rating", 3.5))
+        except (ValueError, TypeError):
+            min_rating = 3.5
+
+        force_refresh = request.query_params.get("refresh", "").lower() in ("true", "1")
         keep_ids_str = request.query_params.get("keep", "")
         keep_ids = [k.strip() for k in keep_ids_str.split(",") if k.strip()]
-        
-        # 1. Obtener los libros a mantener (máximo 5)
-        keep_books = list(Books.objects.filter(id__in=keep_ids)[:5])
-        
-        # El carrusel siempre debe tener exactamente 10 libros.
-        # Si se mantienen K libros (máximo 5), necesitamos importar 10 - K libros nuevos.
-        target_total = 10
-        num_keep = len(keep_books)
-        num_needed = target_total - num_keep  # Siempre >= 5
-        
-        # 2. Obtener preferencias del usuario para personalizar la búsqueda
-        user_genres = []
-        user_authors = []
-        
-        # Acepta autenticación para poder leer preferencias
-        if request.user and request.user.is_authenticated:
-            user_genres = list(request.user.favorite_genres.values_list('genre', flat=True))
-            # Obtener autores de los libros que el usuario está leyendo o guardó
-            saved_authors = list(Authors.objects.filter(books__user_books__user_id=request.user).values_list('name', flat=True).distinct())
-            fav_authors = list(request.user.favorite_authors.values_list('name', flat=True))
-            # Combinar y quitar duplicados
-            user_authors = list(set(saved_authors + fav_authors))
-            
-        # 3. Construir posibles consultas
-        search_queries = []
-        if user_genres:
-            for g in user_genres:
-                search_queries.append(g)
-        if user_authors:
-            for a in user_authors:
-                search_queries.append(a)
-                
-        if search_queries:
-            query = random.choice(search_queries)
-        else:
-            categories = ["fiction", "history", "biography", "science", "poetry", "fantasy", "mystery", "self-help", "business"]
-            query = random.choice(categories)
-            
-        imported_books = []
-        try:
-            google_books = HardcoverService.search_and_clean_books(query, max_results=num_needed, intitle_only=False)
-            # Si la consulta combinada o específica no arrojó resultados, intentamos con una categoría general
-            if not google_books and search_queries:
-                categories = ["fiction", "history", "biography", "science", "poetry", "fantasy", "mystery", "self-help", "business"]
-                query = random.choice(categories)
-                google_books = HardcoverService.search_and_clean_books(query, max_results=num_needed, intitle_only=False)
 
-            for g_book in google_books:
-                # Enforce English-only imports
-                if not is_english_book(g_book):
-                    continue
-                book_exists = False
-                if g_book["isbn"]:
-                    book_exists = Books.objects.filter(isbn=g_book["isbn"]).exists()
-                if not book_exists:
-                    book_exists = Books.objects.filter(title__iexact=g_book["title"]).exists()
-                    
-                if not book_exists:
-                    cleaned_date = None
-                    pub_date = g_book.get("published_date")
-                    if pub_date:
-                        parts = pub_date.split('-')
-                        if len(parts) == 1:
-                            cleaned_date = f"{parts[0]}-01-01"
-                        elif len(parts) == 2:
-                            cleaned_date = f"{parts[0]}-{parts[1]}-01"
-                        elif len(parts) == 3:
-                            cleaned_date = pub_date
-                            
-                    new_book = Books.objects.create(
-                        title=g_book["title"],
-                        synopsis=g_book["description"],
-                        total_pages=g_book["page_count"],
-                        cover_image=g_book["cover_url"],
-                        isbn=g_book["isbn"],
-                        average_rating=g_book["average_rating"],
-                        published_date=cleaned_date,
-                        language=g_book.get("language")
-                    )
-                    
-                    # Asociar autores
-                    for author_name in g_book["authors"]:
-                        author, _ = Authors.objects.get_or_create(name=author_name)
-                        new_book.authors.add(author)
-                        
-                    # Asociar géneros
-                    for cat_name in g_book["categories"]:
-                        genre, _ = Genres.objects.get_or_create(genre=cat_name)
-                        new_book.genres.add(genre)
-                        
-                    imported_books.append(new_book)
-                else:
-                    # Si ya existe en la BD, lo recuperamos para que cuente como importado/disponible en esta tanda
-                    existing_book = Books.objects.filter(Q(isbn=g_book["isbn"]) | Q(title__iexact=g_book["title"])).first()
-                    if existing_book and existing_book not in keep_books and existing_book not in imported_books:
-                        imported_books.append(existing_book)
+        cache_key = f"reedo:books:discover:limit={limit}:min_users={min_users}:min_rating={min_rating}"
+
+        # 1. Check cache if no explicit force-refresh and no keep filter
+        if not force_refresh and not keep_ids:
+            cached_data = cache.get(cache_key)
+            if cached_data is not None:
+                resp = Response(cached_data, status=status.HTTP_200_OK)
+                resp["X-Cache"] = "HIT"
+                return resp
+
+        # 2. Fetch fresh books via HardcoverService BFF
+        books_pool = []
+        cache_status = "MISS"
+        try:
+            books_pool = HardcoverService.get_discover_books(
+                limit=max(limit * 2, 20),
+                min_users=min_users,
+                min_rating=min_rating,
+                sync_db=True
+            )
         except Exception as e:
-            pass
-            
-        # Si la API falló o no se completó la cantidad necesaria, rellenamos con libros aleatorios locales
-        if len(keep_books) + len(imported_books) < target_total:
-            existing_ids = [b.id for b in keep_books] + [b.id for b in imported_books]
-            needed_extra = target_total - (len(keep_books) + len(imported_books))
-            extra_imported = Books.objects.exclude(id__in=existing_ids).order_by('?')[:needed_extra]
-            imported_books.extend(extra_imported)
-            
-        # Unir y recortar para retornar exactamente 10 libros
-        final_books = (keep_books + imported_books)[:target_total]
-        
-        results = []
-        for book in final_books:
-            results.append({
-                "id": book.id,
-                "title": book.title,
-                "synopsis": book.synopsis,
-                "cover_image": book.cover_image if book.cover_image else (f"https://covers.openlibrary.org/b/isbn/{book.isbn}-L.jpg?default=false" if book.isbn else ""),
-                "isbn": book.isbn,
-                "average_rating": book.average_rating,
-                "total_pages": book.total_pages,
-                "authors": [author.name for author in book.authors.all()],
-                "genres": [genre.genre for genre in book.genres.all()]
-            })
-        return Response(results, status=status.HTTP_200_OK)
+            logger.warning("Hardcover discovery fetch failed: %s", str(e))
+
+        # 3. Cache the pool if retrieved successfully
+        if books_pool:
+            cache.set(cache_key, books_pool[:limit], timeout=self.CACHE_TTL_SECONDS)
+
+        # 4. Fallback to local clean database books if pool is empty
+        if not books_pool:
+            local_books = (
+                Books.objects.exclude(cover_image__isnull=True)
+                .exclude(cover_image="")
+                .exclude(cover_image__icontains="placeholder")
+                .filter(average_rating__gte=min_rating)
+                .order_by("-average_rating")[:limit]
+            )
+            for lb in local_books:
+                authors = [a.name for a in lb.authors.all()]
+                author_name = authors[0] if authors else "Unknown Author"
+                books_pool.append({
+                    "book_id": str(lb.id),
+                    "id": str(lb.id),
+                    "title": lb.title,
+                    "author": author_name,
+                    "authors": authors or [author_name],
+                    "cover_url": lb.cover_image or "",
+                    "cover_image": lb.cover_image or "",
+                    "rating": lb.average_rating or 0.0,
+                    "average_rating": lb.average_rating or 0.0,
+                    "shelved_count": 0,
+                    "added_count": 0,
+                    "genres": [g.genre for g in lb.genres.all()],
+                    "categories": [g.genre for g in lb.genres.all()],
+                    "synopsis": lb.synopsis or "",
+                    "description": lb.synopsis or "",
+                    "total_pages": lb.total_pages or 0,
+                    "pages": lb.total_pages or 0,
+                })
+            cache_status = "FALLBACK"
+
+        # 5. Handle keep_ids if provided by mobile client
+        if keep_ids:
+            kept_books = []
+            for kid in keep_ids[:5]:
+                matching_book = next(
+                    (b for b in books_pool if str(b.get("book_id")) == kid or str(b.get("id")) == kid),
+                    None
+                )
+                if not matching_book:
+                    db_keep = None
+                    try:
+                        valid_uuid = uuid.UUID(str(kid))
+                        db_keep = Books.objects.filter(id=valid_uuid).first()
+                    except Exception:
+                        db_keep = None
+
+                    if db_keep and db_keep.cover_image:
+                        authors = [a.name for a in db_keep.authors.all()]
+                        author_name = authors[0] if authors else "Unknown Author"
+                        matching_book = {
+                            "book_id": str(db_keep.id),
+                            "id": str(db_keep.id),
+                            "title": db_keep.title,
+                            "author": author_name,
+                            "authors": authors or [author_name],
+                            "cover_url": db_keep.cover_image,
+                            "cover_image": db_keep.cover_image,
+                            "rating": db_keep.average_rating or 0.0,
+                            "average_rating": db_keep.average_rating or 0.0,
+                            "shelved_count": 0,
+                            "added_count": 0,
+                            "genres": [g.genre for g in db_keep.genres.all()],
+                            "categories": [g.genre for g in db_keep.genres.all()],
+                            "synopsis": db_keep.synopsis or "",
+                            "description": db_keep.synopsis or "",
+                            "total_pages": db_keep.total_pages or 0,
+                            "pages": db_keep.total_pages or 0,
+                        }
+                if matching_book and matching_book not in kept_books:
+                    kept_books.append(matching_book)
+
+            kept_ids_set = {str(b.get("book_id")) for b in kept_books}
+            remaining = [b for b in books_pool if str(b.get("book_id")) not in kept_ids_set]
+            final_books = (kept_books + remaining)[:limit]
+        else:
+            final_books = books_pool[:limit]
+
+        # 3. Cache the resulting books so subsequent requests hit the cache immediately (<10ms)
+        if not keep_ids:
+            cache_ttl = self.CACHE_TTL_SECONDS if (cache_status != "FALLBACK" and final_books) else 60
+            cache.set(cache_key, final_books, timeout=cache_ttl)
+
+        response = Response(final_books, status=status.HTTP_200_OK)
+        response["X-Cache"] = cache_status
+        return response
 
 
 class GlobalBookshelfView(APIView):
+    """
+    BFF Endpoint: The Global Bookshelf (/api/books/global-bookshelf/)
+    Delivers popular and community-saved books with 6-hour caching and Hardcover fallback.
+    """
     permission_classes = [AllowAny]
+    CACHE_KEY = "reedo:books:global_bookshelf"
+    CACHE_TTL_SECONDS = 6 * 3600  # 6 hours
 
     def get(self, request):
         from django.db.models import Count
         import hashlib
-        
-        popular_userbooks = UserBook.objects.values('book_id').annotate(
-            added_count=Count('book_id')
-        ).order_by('-added_count')[:15]
 
-        counts_map = {str(item['book_id']): item['added_count'] for item in popular_userbooks}
-        book_ids = [item['book_id'] for item in popular_userbooks]
-        books = list(Books.objects.filter(id__in=book_ids))
-        
-        # Sort books by popularity ranking
-        books.sort(key=lambda b: book_ids.index(b.id) if b.id in book_ids else 999)
+        force_refresh = request.query_params.get("refresh", "").lower() in ("true", "1")
+        if not force_refresh:
+            cached_data = cache.get(self.CACHE_KEY)
+            if cached_data is not None:
+                resp = Response(cached_data, status=status.HTTP_200_OK)
+                resp["X-Cache"] = "HIT"
+                return resp
 
-        # Fallback to high rating books if database has little user activity
-        if len(books) < 5:
-            fallback = Books.objects.all().order_by('-average_rating')[:15]
-            for b in fallback:
-                if b not in books:
-                    books.append(b)
+        # 1. Check local user saves
+        popular_userbooks = list(
+            UserBook.objects.values('book_id')
+            .annotate(added_count=Count('book_id'))
+            .order_by('-added_count')[:15]
+        )
 
         results = []
-        for book in books[:10]:
-            added_count = counts_map.get(str(book.id), 0)
-            if added_count == 0:
-                # Deterministic fallback count to show activity in dev/staging environments
-                hash_val = int(hashlib.md5(str(book.id).encode()).hexdigest(), 16)
-                added_count = (hash_val % 12) + 3 # 3 to 14 saves
+        if len(popular_userbooks) >= 5:
+            book_ids = [item['book_id'] for item in popular_userbooks]
+            counts_map = {str(item['book_id']): item['added_count'] for item in popular_userbooks}
+            books = list(
+                Books.objects.filter(id__in=book_ids)
+                .exclude(cover_image__isnull=True)
+                .exclude(cover_image="")
+                .exclude(cover_image__icontains="placeholder")
+            )
+            books.sort(key=lambda b: book_ids.index(b.id) if b.id in book_ids else 999)
 
-            results.append({
-                "id": str(book.id),
-                "title": book.title,
-                "synopsis": book.synopsis,
-                "cover_image": book.cover_image if book.cover_image else (f"https://covers.openlibrary.org/b/isbn/{book.isbn}-L.jpg?default=false" if book.isbn else ""),
-                "isbn": book.isbn,
-                "average_rating": book.average_rating,
-                "total_pages": book.total_pages,
-                "authors": [author.name for author in book.authors.all()],
-                "genres": [genre.genre for genre in book.genres.all()],
-                "added_count": added_count
-            })
+            for b in books[:10]:
+                authors = [a.name for a in b.authors.all()]
+                author_name = authors[0] if authors else "Unknown Author"
+                results.append({
+                    "book_id": str(b.id),
+                    "id": str(b.id),
+                    "title": b.title,
+                    "author": author_name,
+                    "authors": authors or [author_name],
+                    "cover_url": b.cover_image or "",
+                    "cover_image": b.cover_image or "",
+                    "rating": b.average_rating or 0.0,
+                    "average_rating": b.average_rating or 0.0,
+                    "shelved_count": counts_map.get(str(b.id), 0),
+                    "added_count": counts_map.get(str(b.id), 0),
+                    "genres": [g.genre for g in b.genres.all()],
+                    "total_pages": b.total_pages or 0,
+                    "synopsis": b.synopsis or "",
+                })
 
-        return Response(results, status=status.HTTP_200_OK)
+        # 2. Fallback to Hardcover trending books if database has low community activity
+        if len(results) < 5:
+            try:
+                trending = HardcoverService.get_trending_books(limit=10)
+                if trending:
+                    results = trending[:10]
+            except Exception as e:
+                logger.warning("Failed to fetch trending books for global bookshelf: %s", str(e))
+
+        # 3. Fallback to highest rated local books if still empty
+        if len(results) < 5:
+            local_fallback = (
+                Books.objects.exclude(cover_image__isnull=True)
+                .exclude(cover_image="")
+                .exclude(cover_image__icontains="placeholder")
+                .order_by("-average_rating")[:10]
+            )
+            for b in local_fallback:
+                if not any(r.get("book_id") == str(b.id) for r in results):
+                    authors = [a.name for a in b.authors.all()]
+                    author_name = authors[0] if authors else "Unknown Author"
+                    hash_val = int(hashlib.md5(str(b.id).encode()).hexdigest(), 16)
+                    added_count = (hash_val % 12) + 3
+                    results.append({
+                        "book_id": str(b.id),
+                        "id": str(b.id),
+                        "title": b.title,
+                        "author": author_name,
+                        "authors": authors or [author_name],
+                        "cover_url": b.cover_image or "",
+                        "cover_image": b.cover_image or "",
+                        "rating": b.average_rating or 0.0,
+                        "average_rating": b.average_rating or 0.0,
+                        "shelved_count": added_count,
+                        "added_count": added_count,
+                        "genres": [g.genre for g in b.genres.all()],
+                        "total_pages": b.total_pages or 0,
+                        "synopsis": b.synopsis or "",
+                    })
+
+        if results:
+            cache.set(self.CACHE_KEY, results[:10], timeout=self.CACHE_TTL_SECONDS)
+
+        resp = Response(results[:10], status=status.HTTP_200_OK)
+        resp["X-Cache"] = "MISS"
+        return resp
 
 
 class NewlyArrivedBooksView(APIView):

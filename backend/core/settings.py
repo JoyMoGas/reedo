@@ -167,7 +167,18 @@ AUTHENTICATION_BACKENDS = [
 ]
 
 GOOGLE_BOOKS_API_KEY = env('GOOGLE_BOOKS_API_KEY', default=None)
-HARDCOVER_API_TOKEN = env('hardcover_api_token', default=None)
+HARDCOVER_API_TOKEN = env('HARDCOVER_API_TOKEN', default=None) or env('hardcover_api_token', default=None)
+
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'reedo-cache',
+        'TIMEOUT': 43200,  # 12 hours default TTL
+        'OPTIONS': {
+            'MAX_ENTRIES': 2000,
+        }
+    }
+}
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
@@ -180,3 +191,4 @@ SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(days=365),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=365),
 }
+

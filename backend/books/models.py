@@ -188,15 +188,27 @@ class UserBook(models.Model):
   )
 
   started_at = models.DateField(
-    auto_now_add=True,
-    editable=False,
+    null=True,
+    blank=True,
     help_text="Date when book was started"
   )
 
   finished_at = models.DateField(
-    auto_now=True,
+    null=True,
+    blank=True,
     help_text="Date when book was finished"
   )
+
+  read_count = models.IntegerField(
+    default=0,
+    help_text="Number of times the user has completed reading this book"
+  )
+
+  def save(self, *args, **kwargs):
+    if not self.started_at:
+      from django.utils import timezone
+      self.started_at = timezone.now().date()
+    super().save(*args, **kwargs)
 
   class Meta:
     unique_together = ('user_id', 'book_id')
