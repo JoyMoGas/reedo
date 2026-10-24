@@ -30,6 +30,7 @@ import api from "../store/api";
 import { useImmersionStore } from "../store/useImmersionStore";
 import { useStreakStore } from "../store/useStreakStore";
 import { queryClient } from "../store/queryClient";
+import InterruptedSessionModal from "../components/immersion/InterruptedSessionModal";
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
@@ -301,17 +302,57 @@ export default function ImmersionSessionScreen() {
     }
   }, [elapsed, isPaused, totalSeconds, mode, saveSession]);
 
+  const [sessionModalVisible, setSessionModalVisible] = useState(false);
+  const [sessionModalConfig, setSessionModalConfig] = useState<{
+    title: string;
+    subtitle: string;
+    timeReadText?: string;
+    badgeType: "interrupted" | "warning" | "completed";
+    primaryButtonText: string;
+    primaryButtonIcon: string;
+    onPrimaryAction: () => void;
+    secondaryButtonText?: string;
+    secondaryButtonIcon?: string;
+    onSecondaryAction?: () => void;
+    discardButtonText?: string;
+    onDiscardAction?: () => void;
+  }>({
+    title: "",
+    subtitle: "",
+    timeReadText: "",
+    badgeType: "interrupted",
+    primaryButtonText: "Save & Update Progress",
+    primaryButtonIcon: "checkCircle",
+    onPrimaryAction: () => {},
+  });
+
   useEffect(() => {
     if (isCompleted) {
-      Alert.alert(
-        "Session Complete! 📖",
-        `You read for ${Math.floor(totalSeconds / 60)} minutes. Well done, Reader.`,
-        [
-          { text: "+15 Minutes", onPress: () => addTime(15), style: "cancel" },
-          { text: "+30 Minutes", onPress: () => addTime(30) },
-          { text: "Finish & Update Progress", onPress: goToUpdateProgress, style: "default" }
-        ]
-      );
+      const minutesRead = Math.floor(totalSeconds / 60);
+      setSessionModalConfig({
+        title: "Session Complete! 📖",
+        subtitle: `Well done, Reader! You fulfilled your ${minutesRead}-minute immersion goal.`,
+        timeReadText: `${minutesRead}m reading goal completed`,
+        badgeType: "completed",
+        primaryButtonText: "Finish & Update Progress",
+        primaryButtonIcon: "checkCircle",
+        onPrimaryAction: () => {
+          setSessionModalVisible(false);
+          goToUpdateProgress();
+        },
+        secondaryButtonText: "+15 Minutes",
+        secondaryButtonIcon: "plus",
+        onSecondaryAction: () => {
+          setSessionModalVisible(false);
+          addTime(15);
+        },
+        discardButtonText: "+30 Minutes",
+        onDiscardAction: () => {
+          setSessionModalVisible(false);
+          addTime(30);
+        },
+      });
+      setSessionModalVisible(true);
     }
   }, [isCompleted]);
 
@@ -330,76 +371,95 @@ export default function ImmersionSessionScreen() {
   // ── Confirm exit ─────────────────────────────────────────────────────────
   const confirmExit = () => {
     if (intervalRef.current) clearInterval(intervalRef.current);
-    Alert.alert(
-      "Exit Session?",
-      "Would you like to save your reading time and update your progress?",
-      [
-        {
-          text: "Cancel",
-          style: "cancel",
-          onPress: () => {
-            if (!isPaused) startInterval();
-          },
-        },
-        {
-          text: "Exit without Saving",
-          style: "destructive",
-          onPress: () => {
-            clearSession();
-            router.back();
-          },
-        },
-        {
-          text: "Save & Update Progress",
-          style: "default",
-          onPress: goToUpdateProgress,
-        },
-      ]
-    );
+    const m = Math.floor(elapsed / 60);
+    const s = elapsed % 60;
+    setSessionModalConfig({
+      title: "Exit Reading Session?",
+      subtitle: "Your immersion session was interrupted. Would you like to save your reading time or continue reading?",
+      timeReadText: `${m}m ${s}s read`,
+      badgeType: "interrupted",
+      primaryButtonText: "Save & Update Progress",
+      primaryButtonIcon: "checkCircle",
+      onPrimaryAction: () => {
+        setSessionModalVisible(false);
+        goToUpdateProgress();
+      },
+      secondaryButtonText: "Resume Session",
+      secondaryButtonIcon: "reloadTime",
+      onSecondaryAction: () => {
+        setSessionModalVisible(false);
+        if (!isPaused) startInterval();
+      },
+      discardButtonText: "Exit without Saving",
+      onDiscardAction: () => {
+        setSessionModalVisible(false);
+        clearSession();
+        router.back();
+      },
+    });
+    setSessionModalVisible(true);
   };
 
   const confirmFinishEarly = () => {
     if (intervalRef.current) clearInterval(intervalRef.current);
-    const elapsedMin = Math.floor(elapsed / 60);
-    const elapsedSec = elapsed % 60;
-    Alert.alert(
-      "Finish Early?",
-      `You've read for ${elapsedMin}m ${elapsedSec}s.`,
-      [
-        {
-          text: "Continue Reading",
-          style: "cancel",
-          onPress: () => {
-            if (!isPaused) startInterval();
-          },
-        },
-        {
-          text: "Update Progress",
-          onPress: goToUpdateProgress,
-        },
-      ]
-    );
+    const m = Math.floor(elapsed / 60);
+    const s = elapsed % 60;
+    setSessionModalConfig({
+      title: "Finish Session Early?",
+      subtitle: `You have completed ${m}m ${s}s of focused reading. Ready to log your page progress?`,
+      timeReadText: `${m}m ${s}s read`,
+      badgeType: "warning",
+      primaryButtonText: "Save & Update Progress",
+      primaryButtonIcon: "checkCircle",
+      onPrimaryAction: () => {
+        setSessionModalVisible(false);
+        goToUpdateProgress();
+      },
+      secondaryButtonText: "Continue Reading",
+      secondaryButtonIcon: "reloadTime",
+      onSecondaryAction: () => {
+        setSessionModalVisible(false);
+        if (!isPaused) startInterval();
+      },
+      discardButtonText: "Discard Session",
+      onDiscardAction: () => {
+        setSessionModalVisible(false);
+        clearSession();
+        router.back();
+      },
+    });
+    setSessionModalVisible(true);
   };
 
   const confirmStopInfinite = () => {
     if (intervalRef.current) clearInterval(intervalRef.current);
-    Alert.alert(
-      "Stop Session?",
-      `Total time: ${formatStopwatch(elapsed)}`,
-      [
-        {
-          text: "Keep Going",
-          style: "cancel",
-          onPress: () => {
-            if (!isPaused) startInterval();
-          },
-        },
-        {
-          text: "Update Progress",
-          onPress: goToUpdateProgress,
-        },
-      ]
-    );
+    const m = Math.floor(elapsed / 60);
+    const s = elapsed % 60;
+    setSessionModalConfig({
+      title: "Stop Reading Session?",
+      subtitle: `You have immersed for ${formatStopwatch(elapsed)}. Would you like to record your reading time?`,
+      timeReadText: `${m}m ${s}s read`,
+      badgeType: "warning",
+      primaryButtonText: "Save & Update Progress",
+      primaryButtonIcon: "checkCircle",
+      onPrimaryAction: () => {
+        setSessionModalVisible(false);
+        goToUpdateProgress();
+      },
+      secondaryButtonText: "Keep Going",
+      secondaryButtonIcon: "reloadTime",
+      onSecondaryAction: () => {
+        setSessionModalVisible(false);
+        if (!isPaused) startInterval();
+      },
+      discardButtonText: "Discard Session",
+      onDiscardAction: () => {
+        setSessionModalVisible(false);
+        clearSession();
+        router.back();
+      },
+    });
+    setSessionModalVisible(true);
   };
 
   // ── Render ───────────────────────────────────────────────────────────────
@@ -555,6 +615,27 @@ export default function ImmersionSessionScreen() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      {/* ── Interrupted / Exit / Completion Custom Modal ── */}
+      <InterruptedSessionModal
+        visible={sessionModalVisible}
+        title={sessionModalConfig.title}
+        subtitle={sessionModalConfig.subtitle}
+        bookTitle={params.title}
+        bookAuthor={params.author}
+        bookCover={params.cover}
+        timeReadText={sessionModalConfig.timeReadText}
+        badgeType={sessionModalConfig.badgeType}
+        primaryButtonText={sessionModalConfig.primaryButtonText}
+        primaryButtonIcon={sessionModalConfig.primaryButtonIcon}
+        onPrimaryAction={sessionModalConfig.onPrimaryAction}
+        secondaryButtonText={sessionModalConfig.secondaryButtonText}
+        secondaryButtonIcon={sessionModalConfig.secondaryButtonIcon}
+        onSecondaryAction={sessionModalConfig.onSecondaryAction}
+        discardButtonText={sessionModalConfig.discardButtonText}
+        onDiscardAction={sessionModalConfig.onDiscardAction}
+        onClose={sessionModalConfig.onSecondaryAction}
+      />
     </View>
   );
 }

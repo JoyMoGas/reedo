@@ -6,11 +6,14 @@
  * @date 2026-08-27
  */
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ScrollView, Switch, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, ScrollView, Switch, KeyboardAvoidingView, Platform, Modal, ActivityIndicator } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useQueryClient } from '@tanstack/react-query';
 import Icon from '../core/Icon';
 import { useLibraryStore } from '../store/useLibraryStore';
+import BookCover from '../components/BookCover';
+import api from '../store/api';
 
 const AESTHETIC_COLORS = [
   '#212842', // Navy
@@ -23,23 +26,58 @@ const AESTHETIC_COLORS = [
 export default function NewShelfScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const queryClient = useQueryClient();
   const addShelf = useLibraryStore((state) => state.addShelf);
+
+  const params = useLocalSearchParams<{
+    autoAddBookId?: string;
+    autoAddBookTitle?: string;
+    autoAddBookAuthor?: string;
+    autoAddBookCover?: string;
+  }>();
 
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [color, setColor] = useState(AESTHETIC_COLORS[0]);
   const [isPrivate, setIsPrivate] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+  const [createdShelfId, setCreatedShelfId] = useState<string | null>(null);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
 
-  const handleCreate = () => {
+  const handleCreate = async () => {
     if (!name.trim()) return;
+    setIsCreating(true);
     
-    addShelf({
-      name: name.trim(),
-      description: description.trim(),
-      color,
-      isPrivate,
-    });
-    router.back();
+    try {
+      const newShelf = addShelf({
+        name: name.trim(),
+        description: description.trim(),
+        color,
+        isPrivate,
+      }, params.autoAddBookId);
+
+      if (params.autoAddBookId) {
+        try {
+          await api.post("api/books/userbook/", {
+            book_id: params.autoAddBookId,
+            status: "READ_LATER",
+            title: params.autoAddBookTitle,
+            authors: params.autoAddBookAuthor ? [params.autoAddBookAuthor] : [],
+            cover_image: params.autoAddBookCover,
+          });
+          await queryClient.invalidateQueries({ queryKey: ["userBooks"] });
+        } catch (err) {
+          console.warn("Could not register userbook in backend:", err);
+        }
+
+        setCreatedShelfId(newShelf.id);
+        setShowSuccessModal(true);
+      } else {
+        router.back();
+      }
+    } finally {
+      setIsCreating(false);
+    }
   };
 
   return (
@@ -61,6 +99,32 @@ export default function NewShelfScreen() {
               <Icon name="cancel" size={24} color="#212842" />
             </TouchableOpacity>
           </View>
+
+          {/* Auto-add Book Banner if requested */}
+          {params.autoAddBookId && (
+            <View className="bg-[#FAF3E8] border border-[#E8CAA4] rounded-2xl p-3.5 mb-6 flex-row items-center">
+              {params.autoAddBookCover ? (
+                <BookCover uri={params.autoAddBookCover} style={{ width: 38, height: 56, borderRadius: 5 }} resizeMode="cover" />
+              ) : (
+                <View className="w-[38px] h-[56px] bg-[#EBE7DF] rounded-md items-center justify-center">
+                  <Icon name="bookmarkOutline" size={20} color="#212842" />
+                </View>
+              )}
+              <View className="flex-1 ml-3">
+                <Text className="text-[10px] text-[#76767E] uppercase tracking-wider" style={{ fontFamily: "PublicSans-Bold" }}>
+                  WILL BE AUTOMATICALLY ADDED:
+                </Text>
+                <Text className="text-sm text-[#212842] mt-0.5" style={{ fontFamily: "Newsreader-Bold" }} numberOfLines={1}>
+                  {params.autoAddBookTitle || "Selected book"}
+                </Text>
+                {params.autoAddBookAuthor ? (
+                  <Text className="text-xs text-[#76767E]" style={{ fontFamily: "PublicSans-Italic" }} numberOfLines={1}>
+                    by {params.autoAddBookAuthor}
+                  </Text>
+                ) : null}
+              </View>
+            </View>
+          )}
 
           {/* Preview Card */}
           <View 
@@ -181,6 +245,88 @@ export default function NewShelfScreen() {
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
+
+      {/* Custom Book Added & Library Created Modal */}
+      <Modal
+        visible={showSuccessModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => router.back()}
+      >
+        <TouchableOpacity
+          className="flex-1 bg-black/50 justify-end"
+          activeOpacity={1}
+          onPress={() => router.back()}
+        >
+          <TouchableOpacity activeOpacity={1} className="bg-[#FFF8F0] rounded-t-3xl px-6 pb-10 pt-5 shadow-2xl">
+            <View className="w-12 h-1.5 bg-[#D9D4C7] rounded-full self-center mb-4" />
+
+            <View className="w-14 h-14 rounded-full bg-[#EBF4ED] items-center justify-center self-center mb-3">
+              <Icon name="checkCircle" size={32} color="#4A7C59" />
+            </View>
+
+            <Text className="text-2xl text-[#212842] text-center" style={{ fontFamily: "Newsreader-Bold" }}>
+              Shelf Created!
+            </Text>
+            <Text className="text-sm text-[#76767E] text-center mt-1.5 mb-5 px-4 leading-relaxed" style={{ fontFamily: "PublicSans-Regular" }}>
+              Successfully created shelf <Text style={{ fontFamily: "PublicSans-Bold", color: "#212842" }}>"{name.trim()}"</Text> and added your book to it.
+            </Text>
+
+            {/* Book Preview Card */}
+            {params.autoAddBookId && (
+              <View className="flex-row items-center bg-[#FAF3E8] border border-[#EBE7DF] rounded-2xl p-3.5 mb-6">
+                {params.autoAddBookCover ? (
+                  <BookCover uri={params.autoAddBookCover} style={{ width: 44, height: 64, borderRadius: 6 }} resizeMode="cover" />
+                ) : (
+                  <View className="w-11 h-16 bg-[#EBE7DF] rounded-md items-center justify-center">
+                    <Icon name="bookmarkOutline" size={20} color="#212842" />
+                  </View>
+                )}
+                <View className="flex-1 ml-3">
+                  <Text className="text-base text-[#212842]" style={{ fontFamily: "Newsreader-Bold" }} numberOfLines={1}>
+                    {params.autoAddBookTitle}
+                  </Text>
+                  {params.autoAddBookAuthor ? (
+                    <Text className="text-xs text-[#76767E] mt-0.5" style={{ fontFamily: "PublicSans-Italic" }} numberOfLines={1}>
+                      by {params.autoAddBookAuthor}
+                    </Text>
+                  ) : null}
+                </View>
+              </View>
+            )}
+
+            <TouchableOpacity
+              onPress={() => {
+                setShowSuccessModal(false);
+                if (createdShelfId) {
+                  router.replace(`/shelf/${createdShelfId}`);
+                } else {
+                  router.back();
+                }
+              }}
+              className="w-full bg-[#212842] py-4 rounded-2xl items-center justify-center mb-3 shadow-sm"
+              activeOpacity={0.85}
+            >
+              <Text className="text-white text-base font-bold" style={{ fontFamily: "PublicSans-Bold" }}>
+                View in new shelf
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => {
+                setShowSuccessModal(false);
+                router.back();
+              }}
+              className="w-full py-2.5 items-center justify-center"
+              activeOpacity={0.7}
+            >
+              <Text className="text-[#76767E] text-sm font-bold" style={{ fontFamily: "PublicSans-Bold" }}>
+                Done
+              </Text>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
     </SafeAreaView>
   );
 }

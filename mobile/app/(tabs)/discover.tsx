@@ -31,6 +31,7 @@ import NoCover from "../assets/NoCover.svg";
 import { Avatar } from "../../components/Avatar";
 import { useRouter } from "expo-router";
 import BookCard from "../../components/BookCard";
+import AddToLibraryModal from "../../components/library/AddToLibraryModal";
 
 interface TrendingBook {
   id: string;
@@ -291,53 +292,18 @@ export default function DiscoverScreen() {
     }
   };
 
-  const handleAddToLibrary = async (book: TrendingBook) => {
-    try {
-      const raw = book.rawBook;
-      await api.post("api/books/userbook/", {
-        book_id: book.id,
-        status: "READ_LATER",
-        title: raw?.title || book.title,
-        authors: raw?.authors || [book.author],
-        cover_image: raw?.cover_image || book.cover,
-        synopsis: raw?.synopsis,
-        total_pages: raw?.total_pages,
-        isbn: raw?.isbn,
-        average_rating: raw?.average_rating,
-        genres: raw?.genres
-      });
-      
-      // Invalidate cache immediately after adding
-      queryClient.invalidateQueries({ queryKey: ["userBooks"] });
+  const [bookToAddToLibrary, setBookToAddToLibrary] = useState<any | null>(null);
 
-      Alert.alert(
-        "Book Added",
-        "Would you like to add this book to your 'Currently Reading' list?",
-        [
-          {
-            text: "No, read later",
-            style: "cancel"
-          },
-          {
-            text: "Yes, start reading",
-            onPress: async () => {
-              try {
-                await api.post("api/books/userbook/", {
-                  book_id: book.id,
-                  status: "CURRENTLY_READING"
-                });
-                // Invalidate cache again for status update
-                queryClient.invalidateQueries({ queryKey: ["userBooks"] });
-              } catch (err) {
-                console.error("Error setting status to Currently Reading:", err);
-              }
-            }
-          }
-        ]
-      );
-    } catch (error) {
-      console.error("Error saving book to library:", error);
-    }
+  const handleAddToLibrary = (book: any) => {
+    const raw = book.rawBook || book;
+    setBookToAddToLibrary({
+      id: book.id,
+      title: book.title,
+      author: book.author || (book.authors ? book.authors.join(", ") : ""),
+      cover: book.cover || book.cover_image,
+      totalPages: raw.total_pages || raw.page_count || book.total_pages || book.page_count,
+      rawBook: raw,
+    });
   };
 
   const handleRemoveFromLibrary = async (bookId: string) => {
@@ -1354,6 +1320,13 @@ export default function DiscoverScreen() {
           )}
         </View>
       </ScrollView>
+
+      {/* Custom Add To Library Modal & Shelf Selector */}
+      <AddToLibraryModal
+        visible={!!bookToAddToLibrary}
+        book={bookToAddToLibrary}
+        onClose={() => setBookToAddToLibrary(null)}
+      />
     </SafeAreaView>
   );
 }

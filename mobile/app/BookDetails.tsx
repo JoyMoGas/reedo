@@ -17,6 +17,7 @@ import api from "../store/api";
 import { ReviewItem } from "../components/book/ReviewItem";
 import { useAuthStore } from "../store/useAuthStore";
 import { useLibraryStore } from "../store/useLibraryStore";
+import AddToLibraryModal from "../components/library/AddToLibraryModal";
 
 interface BookDetailProps {
   id?: string;
@@ -151,17 +152,10 @@ function BookDetails() {
 
   const openArchiveSheet = () => {
     setArchiveSheetOpen(true);
-    Animated.parallel([
-      Animated.timing(archiveTranslateY, { toValue: 0, duration: 320, useNativeDriver: true }),
-      Animated.timing(archiveOpacity, { toValue: 1, duration: 320, useNativeDriver: true }),
-    ]).start();
   };
 
   const closeArchiveSheet = () => {
-    Animated.parallel([
-      Animated.timing(archiveTranslateY, { toValue: screenHeight, duration: 260, useNativeDriver: true }),
-      Animated.timing(archiveOpacity, { toValue: 0, duration: 260, useNativeDriver: true }),
-    ]).start(() => setArchiveSheetOpen(false));
+    setArchiveSheetOpen(false);
   };
 
   const archivePanResponder = useRef(
@@ -795,127 +789,29 @@ function BookDetails() {
         </View>
       )}
 
-      {/* Inscribe to Archive Sheet */}
-      {archiveSheetOpen && (
-        <View style={[StyleSheet.absoluteFill, { zIndex: 200 }]} pointerEvents="box-none">
-          {/* Backdrop */}
-          <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: "rgba(0,0,0,0.45)", opacity: archiveOpacity }]}>
-            <TouchableOpacity style={StyleSheet.absoluteFill} onPress={closeArchiveSheet} activeOpacity={1} />
-          </Animated.View>
-
-          {/* Sheet */}
-          <Animated.View
-            {...archivePanResponder.panHandlers}
-            style={[styles.modalOverlay, { transform: [{ translateY: archiveTranslateY }] }]}
-            pointerEvents="box-none"
-          >
-            <TouchableWithoutFeedback>
-              <View style={[styles.archiveSheet, { paddingBottom: Math.max(insets.bottom, 24) }]}>
-                {/* Handle */}
-                <View style={styles.handleContainer}>
-                  <View style={styles.handle} />
-                </View>
-
-                {/* Header */}
-                <View className="flex-row items-center justify-between mb-2 mt-1">
-                  <Text style={{ fontFamily: "Newsreader-Bold" }} className="text-3xl text-[#212842]">
-                    Add to Archive
-                  </Text>
-                  <TouchableOpacity onPress={closeArchiveSheet} className="p-2 rounded-full bg-[#EBE7DF]/60">
-                    <Icon name="cancel" size={20} color="#212842" />
-                  </TouchableOpacity>
-                </View>
-                <Text style={{ fontFamily: "PublicSans-Italic" }} className="text-sm text-[#9E9B92] mb-6">
-                  {bookName}
-                </Text>
-
-                {/* ── Primary CTA: Currently Reading ── */}
-                <TouchableOpacity
-                  onPress={() => handleAddToShelf('CURRENTLY_READING', 'Currently Reading')}
-                  activeOpacity={0.85}
-                  disabled={addingToShelf !== null}
-                  style={styles.primaryShelfBtn}
-                >
-                  {addingToShelf === 'CURRENTLY_READING' ? (
-                    <ActivityIndicator size="small" color="#FFF8F0" />
-                  ) : (
-                    <>
-                      <View style={styles.primaryShelfIcon}>
-                        <Icon name="bookOpen" size={22} color="#212842" />
-                      </View>
-                      <View style={{ flex: 1, marginLeft: 14 }}>
-                        <Text style={{ fontFamily: "PublicSans-Bold", fontSize: 16, color: "#FFF8F0" }}>
-                          Currently Reading
-                        </Text>
-                        <Text style={{ fontFamily: "PublicSans-Regular", fontSize: 12, color: "rgba(255,248,240,0.65)", marginTop: 2 }}>
-                          Start tracking your progress now
-                        </Text>
-                      </View>
-                      <Icon name="arrowRight" size={18} color="rgba(255,248,240,0.6)" />
-                    </>
-                  )}
-                </TouchableOpacity>
-
-                {/* ── Other shelves divider ── */}
-                <View style={styles.dividerRow}>
-                  <View style={styles.dividerLine} />
-                  <Text style={styles.dividerText}>OTHER SHELVES</Text>
-                  <View style={styles.dividerLine} />
-                </View>
-
-                {/* ── Shelf list ── */}
-                <View style={{ gap: 8 }}>
-                  {shelves
-                    .filter((s) => s.id !== 'default-currently-reading')
-                    .map((shelf) => {
-                      const statusMap: Record<string, string> = {
-                        'default-read-later': 'READ_LATER',
-                        'default-already-read': 'COMPLETED',
-                        'default-favorites': 'READ_LATER', // fallback; favorites are managed locally
-                      };
-                      const status = statusMap[shelf.id] || 'READ_LATER';
-                      const isLoading = addingToShelf === status && shelf.id !== 'default-favorites';
-                      const isFavorites = shelf.id === 'default-favorites';
-
-                      return (
-                        <TouchableOpacity
-                          key={shelf.id}
-                          onPress={() => !isFavorites && handleAddToShelf(status, shelf.name)}
-                          activeOpacity={isFavorites ? 1 : 0.75}
-                          disabled={addingToShelf !== null || isFavorites}
-                          style={[styles.secondaryShelfBtn, isFavorites && { opacity: 0.45 }]}
-                        >
-                          {isLoading ? (
-                            <ActivityIndicator size="small" color="#212842" />
-                          ) : (
-                            <>
-                              <View
-                                style={[
-                                  styles.secondaryShelfIcon,
-                                  { backgroundColor: (shelf.color || '#EBE7DF') + '22' },
-                                ]}
-                              >
-                                <Icon name={shelf.icon || 'library'} size={20} color={shelf.color || '#5C5E69'} />
-                              </View>
-                              <Text style={{ fontFamily: "PublicSans-Bold", fontSize: 15, color: "#212842", flex: 1, marginLeft: 12 }}>
-                                {shelf.name}
-                              </Text>
-                              {isFavorites ? (
-                                <Text style={{ fontFamily: "PublicSans-Regular", fontSize: 11, color: "#9E9B92" }}>Managed locally</Text>
-                              ) : (
-                                <Icon name="arrowRight" size={16} color="#C0BDB4" />
-                              )}
-                            </>
-                          )}
-                        </TouchableOpacity>
-                      );
-                    })}
-                </View>
-              </View>
-            </TouchableWithoutFeedback>
-          </Animated.View>
-        </View>
-      )}
+      {/* Add To Library Modal & Shelf Selector */}
+      <AddToLibraryModal
+        visible={archiveSheetOpen}
+        book={{
+          id: bookId || "",
+          title: bookName || "",
+          author: author,
+          cover: cover,
+          totalPages: totalPages ? parseInt(totalPages as string, 10) : undefined,
+          rawBook: {
+            id: bookId,
+            title: bookName,
+            author,
+            authors: author ? [author] : [],
+            cover_image: cover,
+            total_pages: totalPages ? parseInt(totalPages as string, 10) : undefined,
+            genres: genres ? genres.split(",") : [],
+            synopsis: description,
+            average_rating: averageRating ? parseFloat(averageRating as string) : undefined,
+          }
+        }}
+        onClose={closeArchiveSheet}
+      />
     </SafeAreaView>
   );
 }

@@ -19,16 +19,46 @@ import {
   Keyboard,
   PanResponder,
   Dimensions,
+  Modal,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useProgressStore } from "../store/useProgressStore";
 import { useStreakStore } from "../store/useStreakStore";
 import Icon from "../core/Icon";
 import BookCover from "../components/BookCover";
 import NoCover from "./assets/NoCover.svg";
 import api from "../store/api";
+
+const formatDate = (dateStr?: string | null) => {
+  if (!dateStr) return "—";
+  try {
+    const parts = dateStr.split("-");
+    if (parts.length === 3) {
+      const d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+      return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+    }
+    const d = new Date(dateStr);
+    return isNaN(d.getTime()) ? dateStr : d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+  } catch {
+    return dateStr;
+  }
+};
+
+const formatReadingTime = (totalSeconds: number = 0) => {
+  if (!totalSeconds || totalSeconds <= 0) return "0m";
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  if (hours > 0 && minutes > 0) return `${hours}h ${minutes}m`;
+  if (hours > 0) return `${hours}h`;
+  return `${minutes}m`;
+};
+
+const formatReadCount = (count: number = 0) => {
+  if (count <= 1) return "1 time";
+  return `${count} times`;
+};
 
 export default function UpdateProgressScreen() {
   const insets = useSafeAreaInsets();
@@ -43,6 +73,10 @@ export default function UpdateProgressScreen() {
     cover: string;
     pagesRead: string;
     pagesTotal: string;
+    startedAt?: string;
+    finishedAt?: string;
+    readingTimeSeconds?: string;
+    readCount?: string;
   }>();
 
   const totalPages = parseInt(params.pagesTotal || "100", 10) || 100;
@@ -52,6 +86,27 @@ export default function UpdateProgressScreen() {
   const [inputText, setInputText] = useState(initialPages.toString());
   const [isSaving, setIsSaving] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
+  const [isRereading, setIsRereading] = useState(false);
+  const [showCompletionModal, setShowCompletionModal] = useState(false);
+
+  // Fetch current userbook data to get precise live reading stats
+  const { data: userBooksData = [] } = useQuery({
+    queryKey: ["userBooks"],
+    queryFn: async () => {
+      const response = await api.get("api/books/userbook/");
+      return response.data;
+    },
+  });
+
+  const currentUb = userBooksData.find(
+    (ub: any) => String(ub.book_id) === String(params.bookId) || String(ub.id) === String(params.userbookId)
+  );
+
+  const startedAt = currentUb?.started_at || params.startedAt || null;
+  const finishedAtToday = new Date().toLocaleDateString("en-CA");
+  const readingTimeSeconds = currentUb?.reading_time_seconds || parseInt(params.readingTimeSeconds || "0", 10) || 0;
+  const currentReadCount = currentUb?.read_count || parseInt(params.readCount || "0", 10) || 0;
+  const nextReadCount = currentReadCount + 1;
 
   // Animation for the percentage text bump
   const scaleAnim = useRef(new Animated.Value(1)).current;
@@ -133,6 +188,9 @@ export default function UpdateProgressScreen() {
     if (next !== baseValue) triggerBump();
     setCurrentPage(next);
     setInputText(next.toString());
+    if (next >= totalPages && totalPages > 0) {
+      setShowCompletionModal(true);
+    }
   };
 
   // Called when the user finishes typing a number manually
@@ -143,6 +201,9 @@ export default function UpdateProgressScreen() {
       setCurrentPage(clamped);
       setInputText(clamped.toString());
       if (clamped !== currentPage) triggerBump();
+      if (clamped >= totalPages && totalPages > 0) {
+        setShowCompletionModal(true);
+      }
     } else {
       // Reset to current value if input is invalid
       setInputText(currentPage.toString());
@@ -159,6 +220,11 @@ export default function UpdateProgressScreen() {
     setCurrentPage(pageToSave);
     setInputText(pageToSave.toString());
     Keyboard.dismiss();
+
+    if (pageToSave >= totalPages && totalPages > 0) {
+      setShowCompletionModal(true);
+      return;
+    }
 
     setIsSaving(true);
     try {
@@ -192,7 +258,13 @@ export default function UpdateProgressScreen() {
     }
   };
 
-  const handleMarkCompleted = async () => {
+  const handleMarkCompleted = () => {
+    setCurrentPage(totalPages);
+    setInputText(totalPages.toString());
+    setShowCompletionModal(true);
+  };
+
+  const handleConfirmCompletion = async () => {
     setIsCompleting(true);
     try {
       const localDate = new Date().toLocaleDateString("en-CA");
@@ -203,7 +275,7 @@ export default function UpdateProgressScreen() {
         client_date: localDate,
       });
 
-      const originalPages = parseInt(params.pagesRead as string || "0", 10);
+      const originalPages = parseInt((params.pagesRead as string) || "0", 10);
       const diff = totalPages - originalPages;
       if (diff > 0) {
         useProgressStore.getState().addPagesRead(diff);
@@ -217,11 +289,50 @@ export default function UpdateProgressScreen() {
 
       await queryClient.invalidateQueries({ queryKey: ["userBooks"] });
       await queryClient.refetchQueries({ queryKey: ["userBooks"] });
+      setShowCompletionModal(false);
       router.navigate("/(tabs)/home");
     } catch (error) {
       Alert.alert("Error", "Could not mark as completed. Please try again.");
     } finally {
       setIsCompleting(false);
+    }
+  };
+
+  const handleReread = async () => {
+    setIsRereading(true);
+    try {
+      const localDate = new Date().toLocaleDateString("en-CA");
+      const res = await api.patch("api/books/userbook/", {
+        book_id: params.bookId,
+        action: "REREAD",
+        from_completion: true,
+        client_date: localDate,
+      });
+
+      const originalPages = parseInt((params.pagesRead as string) || "0", 10);
+      const diff = totalPages - originalPages;
+      if (diff > 0) {
+        useProgressStore.getState().addPagesRead(diff);
+      }
+
+      if (res.data?.streak) {
+        useStreakStore.getState().syncFromLocalAction(res.data.streak);
+      } else {
+        useStreakStore.getState().fetchStreak();
+      }
+
+      await queryClient.invalidateQueries({ queryKey: ["userBooks"] });
+      await queryClient.refetchQueries({ queryKey: ["userBooks"] });
+      setShowCompletionModal(false);
+      Alert.alert(
+        "Ready to read again!",
+        "Your reading has been recorded as completed and the book has restarted at page 1."
+      );
+      router.navigate("/(tabs)/home");
+    } catch (error) {
+      Alert.alert("Error", "Could not restart reading session. Please try again.");
+    } finally {
+      setIsRereading(false);
     }
   };
 
@@ -383,6 +494,117 @@ export default function UpdateProgressScreen() {
           </TouchableOpacity>
         </SafeAreaView>
       </Animated.View>
+
+      {/* 100% Completion Bottom Sheet Modal */}
+      <Modal
+        visible={showCompletionModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowCompletionModal(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalBackdrop}
+          activeOpacity={1}
+          onPress={() => setShowCompletionModal(false)}
+        >
+          <TouchableOpacity
+            activeOpacity={1}
+            style={styles.modalSheet}
+          >
+            {/* Drag Handle */}
+            <View style={styles.modalPill} />
+
+            {/* Achievement Icon / Badge */}
+            <View style={styles.modalBadge}>
+              <Icon name="checkCircle" size={32} color="#4A7C59" />
+            </View>
+
+            {/* Title & Subtitle */}
+            <Text style={styles.modalTitle}>Volume Conquered!</Text>
+            <Text style={styles.modalSubtitle}>
+              You have reached 100% of this work. The book will be marked as completed in your personal archive.
+            </Text>
+
+            {/* Reading Journey Summary Card */}
+            <View style={styles.statsCard}>
+              <View style={styles.statsHeaderRow}>
+                <Icon name="bookClockOutline" size={16} color="#76767E" />
+                <Text style={styles.statsHeaderTitle}>READING JOURNEY SUMMARY</Text>
+              </View>
+
+              <View style={styles.statsRow}>
+                <View style={styles.statCol}>
+                  <Text style={styles.statLabel}>STARTED</Text>
+                  <Text style={styles.statValue}>{formatDate(startedAt)}</Text>
+                </View>
+                <View style={styles.statCol}>
+                  <Text style={styles.statLabel}>FINISHED</Text>
+                  <Text style={styles.statValue}>{formatDate(finishedAtToday)}</Text>
+                </View>
+              </View>
+
+              <View style={styles.statsDivider} />
+
+              <View style={styles.statsRow}>
+                <View style={styles.statCol}>
+                  <Text style={styles.statLabel}>TIME READ</Text>
+                  <Text style={styles.statValue}>{formatReadingTime(readingTimeSeconds)}</Text>
+                </View>
+                <View style={styles.statCol}>
+                  <Text style={styles.statLabel}>TIMES READ</Text>
+                  <Text style={[styles.statValue, { color: '#4A7C59' }]}>
+                    {formatReadCount(nextReadCount)}
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            {/* Primary Action: Marcar como Completado */}
+            <TouchableOpacity
+              onPress={handleConfirmCompletion}
+              style={styles.confirmCompletedBtn}
+              activeOpacity={0.85}
+              disabled={isCompleting || isRereading}
+            >
+              {isCompleting ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <>
+                  <Icon name="checkCircle" size={20} color="#FFFFFF" />
+                  <Text style={styles.confirmCompletedBtnText}>Mark as Completed</Text>
+                </>
+              )}
+            </TouchableOpacity>
+
+            {/* Secondary Action: Volver a leer */}
+            <TouchableOpacity
+              onPress={handleReread}
+              style={styles.rereadBtn}
+              activeOpacity={0.85}
+              disabled={isCompleting || isRereading}
+            >
+              {isRereading ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <>
+                  <Icon name="reloadTime" size={20} color="#FFFFFF" />
+                  <Text style={styles.rereadBtnText}>Read Again</Text>
+                </>
+              )}
+            </TouchableOpacity>
+
+            {/* Cancel / Keep Editing */}
+            <TouchableOpacity
+              onPress={() => setShowCompletionModal(false)}
+              style={styles.cancelModalBtn}
+              activeOpacity={0.7}
+              disabled={isCompleting || isRereading}
+            >
+              <Text style={styles.cancelModalBtnText}>Keep editing progress</Text>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 }
@@ -596,5 +818,153 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#FFF8F0",
     letterSpacing: 0.5,
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "flex-end",
+  },
+  modalSheet: {
+    backgroundColor: "#FFF8F0",
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    paddingHorizontal: 24,
+    paddingTop: 16,
+    paddingBottom: 28,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -6 },
+    shadowOpacity: 0.15,
+    shadowRadius: 20,
+    elevation: 20,
+  },
+  modalPill: {
+    width: 44,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: "#D6D1C4",
+    alignSelf: "center",
+    marginBottom: 16,
+  },
+  modalBadge: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: "#EBF4ED",
+    alignSelf: "center",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 12,
+  },
+  modalTitle: {
+    fontSize: 24,
+    color: "#212842",
+    fontFamily: "Newsreader-Bold",
+    textAlign: "center",
+  },
+  modalSubtitle: {
+    fontSize: 13,
+    color: "#76767E",
+    fontFamily: "PublicSans-Regular",
+    textAlign: "center",
+    marginTop: 6,
+    marginBottom: 16,
+    paddingHorizontal: 12,
+    lineHeight: 18,
+  },
+  statsCard: {
+    backgroundColor: "#FAF3E8",
+    borderWidth: 1,
+    borderColor: "#EBE7DF",
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 20,
+  },
+  statsHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  statsHeaderTitle: {
+    fontSize: 11,
+    color: "#76767E",
+    fontFamily: "PublicSans-Bold",
+    letterSpacing: 1,
+    marginLeft: 6,
+  },
+  statsRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  statCol: {
+    flex: 1,
+  },
+  statLabel: {
+    fontSize: 10,
+    color: "#76767E",
+    fontFamily: "PublicSans-Bold",
+    letterSpacing: 0.5,
+  },
+  statValue: {
+    fontSize: 15,
+    color: "#212842",
+    fontFamily: "PublicSans-Bold",
+    marginTop: 2,
+  },
+  statsDivider: {
+    height: 1,
+    backgroundColor: "#EBE7DF",
+    marginVertical: 10,
+  },
+  confirmCompletedBtn: {
+    backgroundColor: "#4A7C59",
+    borderRadius: 16,
+    paddingVertical: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 10,
+    shadowColor: "#4A7C59",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  confirmCompletedBtnText: {
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontFamily: "PublicSans-Bold",
+    letterSpacing: 0.5,
+    marginLeft: 8,
+  },
+  rereadBtn: {
+    backgroundColor: "#212842",
+    borderRadius: 16,
+    paddingVertical: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 10,
+    shadowColor: "#212842",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  rereadBtnText: {
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontFamily: "PublicSans-Bold",
+    letterSpacing: 0.5,
+    marginLeft: 8,
+  },
+  cancelModalBtn: {
+    paddingVertical: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  cancelModalBtnText: {
+    color: "#76767E",
+    fontSize: 14,
+    fontFamily: "PublicSans-Bold",
   },
 });

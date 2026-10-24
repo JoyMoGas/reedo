@@ -58,10 +58,11 @@ export default function LibraryShelves() {
   const savedEchoes: any[] = []; 
 
   const getBookCount = (shelfId: string, localCount: number) => {
-    if (!userBooksData.length) return localCount;
     if (shelfId === 'default-currently-reading') return currentlyReading.length;
     if (shelfId === 'default-read-later') return readLater.length;
     if (shelfId === 'default-already-read') return userBooksData.filter((ub: any) => ub.status === 'COMPLETED').length;
+    const found = shelves.find(s => s.id === shelfId);
+    if (found?.bookIds) return found.bookIds.length;
     return localCount;
   };
 

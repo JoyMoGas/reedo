@@ -34,6 +34,7 @@ import DailyQuest from "../../components/home/DailyQuest";
 import ReadingPulse from "../../components/home/ReadingPulse";
 import FriendsJourneys from "../../components/home/FriendsJourneys";
 import CommunityEchoes from "../../components/home/CommunityEchoes";
+import InterruptedSessionModal from "../../components/immersion/InterruptedSessionModal";
 
 export default function HomeScreen() {
   const { user, logout } = useAuthStore();
@@ -43,6 +44,11 @@ export default function HomeScreen() {
 
   const [refreshing, setRefreshing] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [interruptedSessionInfo, setInterruptedSessionInfo] = useState<{
+    session: any;
+    currentElapsed: number;
+  } | null>(null);
+  const [isSavingInterrupted, setIsSavingInterrupted] = useState(false);
 
   const lastScrollY = useRef(0);
   const scrollThreshold = 10;
@@ -62,65 +68,62 @@ export default function HomeScreen() {
             currentElapsed = session.totalSeconds;
           }
         }
-        
-        const m = Math.floor(currentElapsed / 60);
-        const s = currentElapsed % 60;
-        
-        Alert.alert(
-          "Unfinished Session",
-          `You have an unfinished reading session for '${session.title}'. (${m}m ${s}s)\n\nWhat would you like to do?`,
-          [
-            { 
-              text: "Discard", 
-              style: "destructive", 
-              onPress: () => useImmersionStore.getState().clearSession() 
-            },
-            { 
-              text: "Save & Update", 
-              onPress: async () => {
-                useImmersionStore.getState().clearSession();
-                try {
-                  await api.patch("api/books/userbook/", {
-                    book_id: session.bookId,
-                    session_seconds: currentElapsed,
-                  });
-                  queryClient.invalidateQueries({ queryKey: ["userBooks"] });
-                } catch(e) {}
-                router.push({
-                  pathname: "/UpdateProgress",
-                  params: {
-                    userbookId: session.userbookId,
-                    bookId: session.bookId,
-                    title: session.title,
-                    author: session.author,
-                    cover: session.cover,
-                    pagesRead: session.pagesRead,
-                    pagesTotal: session.pagesTotal,
-                  },
-                });
-              }
-            },
-            { 
-              text: "Resume", 
-              style: "default", 
-              onPress: () => {
-                router.push({
-                  pathname: "/ImmersionSession",
-                  params: { 
-                    ...session,
-                    elapsed: currentElapsed.toString(),
-                    isResume: "true" 
-                  } as any
-                });
-              }
-            }
-          ]
-        );
+        setInterruptedSessionInfo({ session, currentElapsed });
       }
     }, 1000);
     
     return () => clearTimeout(timeout);
   }, []);
+
+  const handleDiscardInterruptedSession = () => {
+    useImmersionStore.getState().clearSession();
+    setInterruptedSessionInfo(null);
+  };
+
+  const handleSaveInterruptedSession = async () => {
+    if (!interruptedSessionInfo) return;
+    const { session, currentElapsed } = interruptedSessionInfo;
+    setIsSavingInterrupted(true);
+    useImmersionStore.getState().clearSession();
+    try {
+      await api.patch("api/books/userbook/", {
+        book_id: session.bookId,
+        session_seconds: currentElapsed,
+      });
+      queryClient.invalidateQueries({ queryKey: ["userBooks"] });
+    } catch (e) {
+      console.warn("Failed to patch session_seconds:", e);
+    } finally {
+      setIsSavingInterrupted(false);
+      setInterruptedSessionInfo(null);
+    }
+    router.push({
+      pathname: "/UpdateProgress",
+      params: {
+        userbookId: session.userbookId,
+        bookId: session.bookId,
+        title: session.title,
+        author: session.author,
+        cover: session.cover,
+        pagesRead: session.pagesRead,
+        pagesTotal: session.pagesTotal,
+      },
+    });
+  };
+
+  const handleResumeInterruptedSession = () => {
+    if (!interruptedSessionInfo) return;
+    const { session, currentElapsed } = interruptedSessionInfo;
+    setInterruptedSessionInfo(null);
+    router.push({
+      pathname: "/ImmersionSession",
+      params: {
+        ...session,
+        elapsed: currentElapsed.toString(),
+        isResume: "true",
+      } as any,
+    });
+  };
 
   const handleScroll = (event: any) => {
     const currentOffset = event.nativeEvent.contentOffset.y;
@@ -204,6 +207,32 @@ export default function HomeScreen() {
         <CommunityEchoes />
 
       </ScrollView>
+
+      {/* Custom Interrupted Immersion Session Modal */}
+      <InterruptedSessionModal
+        visible={!!interruptedSessionInfo}
+        title="Unfinished Session Found"
+        subtitle="We found an interrupted reading session for this work. Would you like to save your logged time or resume reading?"
+        bookTitle={interruptedSessionInfo?.session?.title}
+        bookAuthor={interruptedSessionInfo?.session?.author}
+        bookCover={interruptedSessionInfo?.session?.cover}
+        timeReadText={
+          interruptedSessionInfo
+            ? `${Math.floor(interruptedSessionInfo.currentElapsed / 60)}m ${interruptedSessionInfo.currentElapsed % 60}s logged`
+            : undefined
+        }
+        badgeType="interrupted"
+        primaryButtonText="Save & Update Progress"
+        primaryButtonIcon="checkCircle"
+        onPrimaryAction={handleSaveInterruptedSession}
+        secondaryButtonText="Resume Session"
+        secondaryButtonIcon="reloadTime"
+        onSecondaryAction={handleResumeInterruptedSession}
+        discardButtonText="Discard Session"
+        onDiscardAction={handleDiscardInterruptedSession}
+        onClose={handleDiscardInterruptedSession}
+        isSaving={isSavingInterrupted}
+      />
     </SafeAreaView>
   );
 }

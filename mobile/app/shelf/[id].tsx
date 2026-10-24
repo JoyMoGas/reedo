@@ -10,11 +10,42 @@ import { View, Text, TouchableOpacity, FlatList, ActivityIndicator, Modal, Alert
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLibraryStore } from '../../store/useLibraryStore';
+import { useStreakStore } from '../../store/useStreakStore';
+import { useProgressStore } from '../../store/useProgressStore';
 import Icon from '../../core/Icon';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../../store/api';
 import BookCover from '../../components/BookCover';
 import NoCover from '../assets/NoCover.svg';
+
+const formatDate = (dateStr?: string | null) => {
+  if (!dateStr) return "—";
+  try {
+    const parts = dateStr.split('-');
+    if (parts.length === 3) {
+      const d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+      return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+    }
+    const d = new Date(dateStr);
+    return isNaN(d.getTime()) ? dateStr : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+  } catch {
+    return dateStr;
+  }
+};
+
+const formatReadingTime = (totalSeconds: number = 0) => {
+  if (!totalSeconds || totalSeconds <= 0) return "0m";
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  if (hours > 0 && minutes > 0) return `${hours}h ${minutes}m`;
+  if (hours > 0) return `${hours}h`;
+  return `${minutes}m`;
+};
+
+const formatReadCount = (count: number = 0) => {
+  if (count <= 1) return "1 time";
+  return `${count} times`;
+};
 
 export default function ShelfViewScreen() {
   const { id } = useLocalSearchParams();
@@ -36,12 +67,61 @@ export default function ShelfViewScreen() {
   });
 
   const changeShelfMutation = useMutation({
-    mutationFn: async ({ bookId, status }: { bookId: string, status: string }) => {
-      await api.post("api/books/userbook/", { book_id: bookId, status });
+    mutationFn: async ({ bookId, status }: { bookId: string; status: string }) => {
+      const localDate = new Date().toLocaleDateString("en-CA");
+      const res = await api.patch("api/books/userbook/", {
+        book_id: bookId,
+        status,
+        client_date: localDate,
+      });
+      return res.data;
     },
-    onSuccess: () => {
+    onSuccess: (data, variables) => {
+      if (variables.status === 'COMPLETED') {
+        const found = shelfBooks.find((b: any) => b.bookId === variables.bookId);
+        if (found) {
+          const total = found.pagesTotal || 100;
+          const read = found.pagesRead || 0;
+          const diff = Math.max(0, total - read);
+          if (diff > 0) {
+            useProgressStore.getState().addPagesRead(diff);
+          }
+        }
+        if (data?.streak) {
+          useStreakStore.getState().syncFromLocalAction(data.streak);
+        } else {
+          useStreakStore.getState().fetchStreak();
+        }
+      }
+      queryClient.invalidateQueries({ queryKey: ["userBooks"] });
+      queryClient.refetchQueries({ queryKey: ["userBooks"] });
+      setSelectedBookForMenu(null);
+    }
+  });
+
+  const rereadMutation = useMutation({
+    mutationFn: async (bookId: string) => {
+      const localDate = new Date().toLocaleDateString("en-CA");
+      const res = await api.patch("api/books/userbook/", {
+        book_id: bookId,
+        action: "REREAD",
+        client_date: localDate,
+      });
+      return res.data;
+    },
+    onSuccess: (data) => {
+      if (data?.streak) {
+        useStreakStore.getState().syncFromLocalAction(data.streak);
+      }
       queryClient.invalidateQueries({ queryKey: ["userBooks"] });
       setSelectedBookForMenu(null);
+      Alert.alert(
+        "Ready to read again!",
+        "The book has been restarted in your Currently Reading library for a fresh read."
+      );
+    },
+    onError: () => {
+      Alert.alert("Error", "Could not restart reading session. Please try again.");
     }
   });
 
@@ -65,6 +145,10 @@ export default function ShelfViewScreen() {
       filtered = userBooksData.filter((ub: any) => ub.status === 'READ_LATER');
     } else if (shelf.id === 'default-already-read') {
       filtered = userBooksData.filter((ub: any) => ub.status === 'COMPLETED');
+    } else if (shelf.bookIds && shelf.bookIds.length > 0) {
+      filtered = userBooksData.filter((ub: any) => 
+        shelf.bookIds?.includes(String(ub.book_id)) || shelf.bookIds?.includes(String(ub.id))
+      );
     } else {
       return [];
     }
@@ -82,6 +166,10 @@ export default function ShelfViewScreen() {
       description: ub.synopsis || "",
       averageRating: ub.rating || ub.average_rating || "",
       status: ub.status,
+      startedAt: ub.started_at,
+      finishedAt: ub.finished_at,
+      readingTimeSeconds: ub.reading_time_seconds || 0,
+      readCount: ub.read_count || (ub.status === 'COMPLETED' ? 1 : 0),
     }));
   }, [userBooksData, shelf]);
 
@@ -249,62 +337,243 @@ export default function ShelfViewScreen() {
         onRequestClose={() => setSelectedBookForMenu(null)}
       >
         <TouchableOpacity 
-          className="flex-1 bg-black/40 justify-end"
+          className="flex-1 bg-black/50 justify-end"
           activeOpacity={1}
           onPress={() => setSelectedBookForMenu(null)}
         >
           <TouchableOpacity 
             activeOpacity={1} 
-            className="bg-[#FFF8F0] rounded-t-3xl px-6 pb-10 pt-6 shadow-lg"
+            className="bg-[#FFF8F0] rounded-t-3xl px-6 pb-10 pt-5 shadow-2xl max-h-[85%]"
           >
-            <View className="w-12 h-1.5 bg-[#EBE7DF] rounded-full self-center mb-6" />
+            {/* Drag Handle */}
+            <View className="w-12 h-1.5 bg-[#D9D4C7] rounded-full self-center mb-4" />
             
-            <Text className="text-xl text-[#212842] mb-6 text-center" style={{ fontFamily: 'Newsreader-Bold' }}>
-              {selectedBookForMenu?.title}
-            </Text>
+            {/* Book Preview Header */}
+            <View className="flex-row items-center mb-4 pb-3 border-b border-[#EBE7DF]">
+              <View className="shadow-sm rounded-md mr-3" style={{ shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 3, elevation: 3 }}>
+                {selectedBookForMenu?.coverUrl ? (
+                  <BookCover uri={selectedBookForMenu.coverUrl} style={{ width: 44, height: 64, borderRadius: 5 }} resizeMode="cover" />
+                ) : (
+                  <NoCover width={44} height={64} style={{ borderRadius: 5 }} />
+                )}
+              </View>
+              <View className="flex-1 justify-center pr-1">
+                <Text className="text-lg text-[#212842] leading-tight" style={{ fontFamily: 'Newsreader-Bold' }} numberOfLines={2}>
+                  {selectedBookForMenu?.title}
+                </Text>
+                <Text className="text-xs text-[#76767E] mt-0.5" style={{ fontFamily: 'PublicSans-Italic' }} numberOfLines={1}>
+                  by {selectedBookForMenu?.author}
+                </Text>
 
-            <View className="gap-2">
-              {selectedBookForMenu?.status !== 'CURRENTLY_READING' && (
+                {/* Status Chip */}
+                <View className="flex-row items-center mt-1.5">
+                  {selectedBookForMenu?.status === 'COMPLETED' ? (
+                    <View className="flex-row items-center bg-[#EBF4ED] px-2.5 py-0.5 rounded-full">
+                      <Icon name="checkCircle" size={12} color="#4A7C59" />
+                      <Text className="text-[11px] text-[#4A7C59] ml-1" style={{ fontFamily: 'PublicSans-Bold' }}>
+                        Completed
+                      </Text>
+                    </View>
+                  ) : selectedBookForMenu?.status === 'CURRENTLY_READING' ? (
+                    <View className="flex-row items-center bg-[#EFEBE3] px-2.5 py-0.5 rounded-full">
+                      <Icon name="bookOpen" size={12} color="#212842" />
+                      <Text className="text-[11px] text-[#212842] ml-1" style={{ fontFamily: 'PublicSans-Bold' }}>
+                        {selectedBookForMenu?.progress}% completed
+                      </Text>
+                    </View>
+                  ) : (
+                    <View className="flex-row items-center bg-[#EFEBE3] px-2.5 py-0.5 rounded-full">
+                      <Icon name="bookmarkOutline" size={12} color="#76767E" />
+                      <Text className="text-[11px] text-[#76767E] ml-1" style={{ fontFamily: 'PublicSans-Bold' }}>
+                        Read Later
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              </View>
+            </View>
+
+            {/* Reading Stats Card (Shown for completed books or books with reading history) */}
+            {(selectedBookForMenu?.status === 'COMPLETED' || selectedBookForMenu?.readingTimeSeconds > 0 || selectedBookForMenu?.startedAt) && (
+              <View className="bg-[#FAF3E8] border border-[#EBE7DF] rounded-2xl p-4 mb-4">
+                <View className="flex-row items-center mb-3">
+                  <Icon name="bookClockOutline" size={16} color="#76767E" />
+                  <Text className="text-[11px] text-[#76767E] uppercase tracking-wider ml-1.5" style={{ fontFamily: 'PublicSans-Bold' }}>
+                    Reading History
+                  </Text>
+                </View>
+
+                <View className="flex-row justify-between mb-2.5">
+                  <View className="flex-1 mr-2">
+                    <Text className="text-[10px] text-[#76767E] uppercase" style={{ fontFamily: 'PublicSans-Bold' }}>
+                      Started
+                    </Text>
+                    <Text className="text-sm text-[#212842] mt-0.5" style={{ fontFamily: 'PublicSans-Bold' }}>
+                      {formatDate(selectedBookForMenu?.startedAt)}
+                    </Text>
+                  </View>
+                  <View className="flex-1 ml-2">
+                    <Text className="text-[10px] text-[#76767E] uppercase" style={{ fontFamily: 'PublicSans-Bold' }}>
+                      Finished
+                    </Text>
+                    <Text className="text-sm text-[#212842] mt-0.5" style={{ fontFamily: 'PublicSans-Bold' }}>
+                      {selectedBookForMenu?.status === 'COMPLETED' ? formatDate(selectedBookForMenu?.finishedAt) : 'In progress'}
+                    </Text>
+                  </View>
+                </View>
+
+                <View className="h-[1px] bg-[#EBE7DF] my-1" />
+
+                <View className="flex-row justify-between mt-1.5">
+                  <View className="flex-1 mr-2">
+                    <Text className="text-[10px] text-[#76767E] uppercase" style={{ fontFamily: 'PublicSans-Bold' }}>
+                      Reading Time
+                    </Text>
+                    <Text className="text-sm text-[#212842] mt-0.5" style={{ fontFamily: 'PublicSans-Bold' }}>
+                      {formatReadingTime(selectedBookForMenu?.readingTimeSeconds)}
+                    </Text>
+                  </View>
+                  <View className="flex-1 ml-2">
+                    <Text className="text-[10px] text-[#76767E] uppercase" style={{ fontFamily: 'PublicSans-Bold' }}>
+                      Times Read
+                    </Text>
+                    <Text className="text-sm text-[#4A7C59] mt-0.5" style={{ fontFamily: 'PublicSans-Bold' }}>
+                      {formatReadCount(selectedBookForMenu?.readCount)}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            )}
+
+            {/* Dynamic Actions based on current shelf or book status */}
+            <View className="gap-1">
+              {/* Option: Volver a leer (Read again) - Primary action for completed books */}
+              {selectedBookForMenu?.status === 'COMPLETED' && (
                 <TouchableOpacity 
-                  className="flex-row items-center py-4 border-b border-[#EBE7DF]"
+                  className="flex-row items-center py-3.5 border-b border-[#EBE7DF]"
+                  disabled={rereadMutation.isPending}
+                  onPress={() => rereadMutation.mutate(selectedBookForMenu.bookId)}
+                >
+                  <View className="w-10 h-10 rounded-full bg-[#EFEBE3] items-center justify-center mr-3">
+                    {rereadMutation.isPending ? (
+                      <ActivityIndicator size="small" color="#212842" />
+                    ) : (
+                      <Icon name="reloadTime" size={20} color="#212842" />
+                    )}
+                  </View>
+                  <View className="flex-1">
+                    <Text className="text-base text-[#212842]" style={{ fontFamily: 'PublicSans-Bold' }}>
+                      Read again
+                    </Text>
+                    <Text className="text-xs text-[#76767E]" style={{ fontFamily: 'PublicSans-Regular' }}>
+                      Restart at page 1 while preserving past reading logs
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              )}
+
+              {/* Option: Update Progress (for Currently Reading) */}
+              {selectedBookForMenu?.status === 'CURRENTLY_READING' && (
+                <TouchableOpacity 
+                  className="flex-row items-center py-3.5 border-b border-[#EBE7DF]"
+                  onPress={() => {
+                    const book = selectedBookForMenu;
+                    setSelectedBookForMenu(null);
+                    router.push({
+                      pathname: "/UpdateProgress",
+                      params: {
+                        userbookId: book.id,
+                        bookId: book.bookId,
+                        title: book.title,
+                        author: book.author,
+                        cover: book.coverUrl,
+                        pagesRead: book.pagesRead.toString(),
+                        pagesTotal: book.pagesTotal.toString(),
+                        startedAt: book.startedAt || '',
+                        finishedAt: book.finishedAt || '',
+                        readingTimeSeconds: (book.readingTimeSeconds || 0).toString(),
+                        readCount: (book.readCount || 0).toString(),
+                      }
+                    });
+                  }}
+                >
+                  <View className="w-10 h-10 rounded-full bg-[#EFEBE3] items-center justify-center mr-3">
+                    <Icon name="fileEdit" size={20} color="#212842" />
+                  </View>
+                  <View className="flex-1">
+                    <Text className="text-base text-[#212842]" style={{ fontFamily: 'PublicSans-Bold' }}>
+                      Update progress
+                    </Text>
+                    <Text className="text-xs text-[#76767E]" style={{ fontFamily: 'PublicSans-Regular' }}>
+                      {selectedBookForMenu.pagesRead} of {selectedBookForMenu.pagesTotal} pages ({selectedBookForMenu.progress}%)
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              )}
+
+              {/* Option: Start Reading (for Read Later) */}
+              {selectedBookForMenu?.status === 'READ_LATER' && (
+                <TouchableOpacity 
+                  className="flex-row items-center py-3.5 border-b border-[#EBE7DF]"
                   onPress={() => changeShelfMutation.mutate({ bookId: selectedBookForMenu.bookId, status: 'CURRENTLY_READING' })}
                 >
-                  <Icon name="bookOpen" size={20} color="#212842" />
-                  <Text className="text-base text-[#212842] ml-4" style={{ fontFamily: 'PublicSans-Bold' }}>
-                    Move to Currently Reading
-                  </Text>
+                  <View className="w-10 h-10 rounded-full bg-[#EFEBE3] items-center justify-center mr-3">
+                    <Icon name="bookOpen" size={20} color="#212842" />
+                  </View>
+                  <View className="flex-1">
+                    <Text className="text-base text-[#212842]" style={{ fontFamily: 'PublicSans-Bold' }}>
+                      Start reading
+                    </Text>
+                    <Text className="text-xs text-[#76767E]" style={{ fontFamily: 'PublicSans-Regular' }}>
+                      Move to books you are currently reading
+                    </Text>
+                  </View>
                 </TouchableOpacity>
               )}
 
-              {selectedBookForMenu?.status !== 'READ_LATER' && (
-                <TouchableOpacity 
-                  className="flex-row items-center py-4 border-b border-[#EBE7DF]"
-                  onPress={() => changeShelfMutation.mutate({ bookId: selectedBookForMenu.bookId, status: 'READ_LATER' })}
-                >
-                  <Icon name="bookmarkOutline" size={20} color="#212842" />
-                  <Text className="text-base text-[#212842] ml-4" style={{ fontFamily: 'PublicSans-Bold' }}>
-                    Move to Read Later
-                  </Text>
-                </TouchableOpacity>
-              )}
-
+              {/* Option: Mark as Completed (for non-completed books) */}
               {selectedBookForMenu?.status !== 'COMPLETED' && (
                 <TouchableOpacity 
-                  className="flex-row items-center py-4 border-b border-[#EBE7DF]"
+                  className="flex-row items-center py-3.5 border-b border-[#EBE7DF]"
                   onPress={() => changeShelfMutation.mutate({ bookId: selectedBookForMenu.bookId, status: 'COMPLETED' })}
                 >
-                  <Icon name="checkCircle" size={20} color="#212842" />
-                  <Text className="text-base text-[#212842] ml-4" style={{ fontFamily: 'PublicSans-Bold' }}>
-                    Mark as Completed
-                  </Text>
+                  <View className="w-10 h-10 rounded-full bg-[#EBF4ED] items-center justify-center mr-3">
+                    <Icon name="checkCircle" size={20} color="#4A7C59" />
+                  </View>
+                  <View className="flex-1">
+                    <Text className="text-base text-[#4A7C59]" style={{ fontFamily: 'PublicSans-Bold' }}>
+                      Mark as completed
+                    </Text>
+                    <Text className="text-xs text-[#76767E]" style={{ fontFamily: 'PublicSans-Regular' }}>
+                      Move to your completed books archive
+                    </Text>
+                  </View>
                 </TouchableOpacity>
               )}
 
+              {/* Option: Move to Read Later (if not already there) */}
+              {selectedBookForMenu?.status !== 'READ_LATER' && (
+                <TouchableOpacity 
+                  className="flex-row items-center py-3.5 border-b border-[#EBE7DF]"
+                  onPress={() => changeShelfMutation.mutate({ bookId: selectedBookForMenu.bookId, status: 'READ_LATER' })}
+                >
+                  <View className="w-10 h-10 rounded-full bg-[#EFEBE3] items-center justify-center mr-3">
+                    <Icon name="bookmarkOutline" size={20} color="#212842" />
+                  </View>
+                  <View className="flex-1">
+                    <Text className="text-base text-[#212842]" style={{ fontFamily: 'PublicSans-Bold' }}>
+                      Move to Read Later
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              )}
+
+              {/* Option: Remove from Library */}
               <TouchableOpacity 
-                className="flex-row items-center py-4"
+                className="flex-row items-center py-3.5"
                 onPress={() => {
                   Alert.alert(
-                    "Remove from Library",
+                    "Remove from library",
                     "Are you sure you want to remove this book from your library? Your progress will be lost.",
                     [
                       { text: "Cancel", style: "cancel" },
@@ -317,10 +586,14 @@ export default function ShelfViewScreen() {
                   );
                 }}
               >
-                <Icon name="cancel" size={20} color="#C95F44" />
-                <Text className="text-base text-[#C95F44] ml-4" style={{ fontFamily: 'PublicSans-Bold' }}>
-                  Remove from Library
-                </Text>
+                <View className="w-10 h-10 rounded-full bg-[#FAECE8] items-center justify-center mr-3">
+                  <Icon name="cancel" size={20} color="#C95F44" />
+                </View>
+                <View className="flex-1">
+                  <Text className="text-base text-[#C95F44]" style={{ fontFamily: 'PublicSans-Bold' }}>
+                    Remove from library
+                  </Text>
+                </View>
               </TouchableOpacity>
             </View>
           </TouchableOpacity>
