@@ -18,13 +18,16 @@ export interface Shelf {
   bookCount: number;
   icon?: string;
   isDefault?: boolean;
+  bookIds?: string[];
 }
 
 interface LibraryState {
   shelves: Shelf[];
-  addShelf: (shelf: Omit<Shelf, 'id' | 'bookCount' | 'isDefault'>) => void;
+  addShelf: (shelf: Omit<Shelf, 'id' | 'bookCount' | 'isDefault' | 'bookIds'>, initialBookId?: string) => Shelf;
   removeShelf: (id: string) => void;
   updateShelf: (id: string, updates: Partial<Shelf>) => void;
+  addBookToShelf: (shelfId: string, bookId: string) => void;
+  removeBookFromShelf: (shelfId: string, bookId: string) => void;
 }
 
 export const defaultShelves: Shelf[] = [
@@ -74,16 +77,16 @@ export const useLibraryStore = create<LibraryState>()(
   persist(
     (set) => ({
       shelves: defaultShelves,
-      addShelf: (shelfData) => {
-        set((state) => {
-          const newShelf: Shelf = {
-            ...shelfData,
-            id: Date.now().toString(36) + Math.random().toString(36).substring(2, 9),
-            bookCount: 0,
-            isDefault: false,
-          };
-          return { shelves: [...state.shelves, newShelf] };
-        });
+      addShelf: (shelfData, initialBookId) => {
+        const newShelf: Shelf = {
+          ...shelfData,
+          id: Date.now().toString(36) + Math.random().toString(36).substring(2, 9),
+          bookCount: initialBookId ? 1 : 0,
+          bookIds: initialBookId ? [initialBookId] : [],
+          isDefault: false,
+        };
+        set((state) => ({ shelves: [...state.shelves, newShelf] }));
+        return newShelf;
       },
       removeShelf: (id) => {
         set((state) => ({
@@ -95,6 +98,35 @@ export const useLibraryStore = create<LibraryState>()(
           shelves: state.shelves.map((shelf) => 
             shelf.id === id ? { ...shelf, ...updates } : shelf
           ),
+        }));
+      },
+      addBookToShelf: (shelfId, bookId) => {
+        set((state) => ({
+          shelves: state.shelves.map((shelf) => {
+            if (shelf.id !== shelfId) return shelf;
+            const existingIds = shelf.bookIds || [];
+            if (existingIds.includes(bookId)) return shelf;
+            const updatedIds = [...existingIds, bookId];
+            return {
+              ...shelf,
+              bookIds: updatedIds,
+              bookCount: updatedIds.length,
+            };
+          }),
+        }));
+      },
+      removeBookFromShelf: (shelfId, bookId) => {
+        set((state) => ({
+          shelves: state.shelves.map((shelf) => {
+            if (shelf.id !== shelfId) return shelf;
+            const existingIds = shelf.bookIds || [];
+            const updatedIds = existingIds.filter((id) => id !== bookId);
+            return {
+              ...shelf,
+              bookIds: updatedIds,
+              bookCount: updatedIds.length,
+            };
+          }),
         }));
       },
     }),
