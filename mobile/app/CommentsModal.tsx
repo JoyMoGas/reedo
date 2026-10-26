@@ -23,6 +23,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { X, ArrowUp } from 'lucide-react-native';
 import api from '../store/api';
+import { useSyncQueueStore } from '../store/useSyncQueueStore';
 import Icon from '../core/Icon';
 import { Avatar } from '../components/Avatar';
 import { useAuthStore } from '../store/useAuthStore';
@@ -88,27 +89,43 @@ export default function CommentsModal() {
 
   const comments = Array.isArray(rawComments) ? rawComments : (rawComments?.results || []);
 
-  const postMutation = useMutation({
-    mutationFn: async (text: string) => {
-      const payload = { content: text };
-      const res = await api.post(endpoint, payload);
-      return res.data;
-    },
-    onSuccess: () => {
-      setCommentText('');
-      queryClient.invalidateQueries({ queryKey });
-      // Invalidate the parent queries to update comment counts
-      if (isEcho) queryClient.invalidateQueries({ queryKey: ['echoes'] });
-      if (!isEcho) queryClient.invalidateQueries({ queryKey: ['reviews'] });
-      setTimeout(() => {
-        scrollViewRef.current?.scrollToEnd({ animated: true });
-      }, 150);
-    },
-  });
-
   const handlePost = () => {
-    if (!commentText.trim()) return;
-    postMutation.mutate(commentText.trim());
+    const text = commentText.trim();
+    if (!text) return;
+
+    // 1. Optimistic comment
+    const optimisticComment = {
+      id: `temp_${Date.now()}`,
+      user: {
+        id: user?.id,
+        username: user?.username || "You",
+        full_name: user?.full_name || "You",
+        thumbnail: user?.thumbnail,
+      },
+      content: text,
+      created_at: new Date().toISOString(),
+      is_optimistic: true,
+    };
+
+    queryClient.setQueryData(queryKey, (old: any) => {
+      const list = Array.isArray(old) ? old : (old?.results || []);
+      return [...list, optimisticComment];
+    });
+
+    // 2. Enqueue to persistent outbox
+    useSyncQueueStore.getState().enqueue({
+      type: "COMMENT",
+      endpoint,
+      method: "POST",
+      payload: { content: text },
+      title: "Comment",
+      queryKeysToInvalidate: [queryKey, isEcho ? ["echoes"] : ["reviews"]],
+    });
+
+    setCommentText("");
+    setTimeout(() => {
+      scrollViewRef.current?.scrollToEnd({ animated: true });
+    }, 150);
   };
 
   return (
@@ -217,15 +234,11 @@ export default function CommentsModal() {
               commentText.trim() ? 'bg-[#212842]' : 'bg-[#EBE7DF]'
             }`}
             onPress={handlePost}
-            disabled={!commentText.trim() || postMutation.isPending}
+            disabled={!commentText.trim()}
             activeOpacity={0.8}
             accessibilityLabel="Send comment"
           >
-            {postMutation.isPending ? (
-              <ActivityIndicator size="small" color="#FFF" />
-            ) : (
-              <ArrowUp size={20} color={commentText.trim() ? "#FFF" : "#A1A1A5"} />
-            )}
+            <ArrowUp size={20} color={commentText.trim() ? "#FFF" : "#A1A1A5"} />
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>

@@ -16,23 +16,112 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../store/api';
 import { useNotificationsStore } from '../store/useNotificationsStore';
 import { useSettingsStore } from '../store/useSettingsStore';
+import { CHRONICLE_ITEMS } from '../constants/chronicles';
 
 export default function ReaderProfileScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams();
-  const currentUser = useAuthStore(state => state.user);
+  const currentUser = useAuthStore((state) => state.user);
+  const currentAuthUser = currentUser;
   const queryClient = useQueryClient();
   const { setHasUnreadNotifications } = useNotificationsStore();
   const { honorPointsVisible, setHonorPointsVisible } = useSettingsStore();
 
-  const userId = params.userId as string;
-  const username = params.username as string || 'unknown';
-  const fullName = params.fullName as string || 'Unknown';
-  const avatar = params.avatar as string;
-  const memberSince = params.memberSince as string || 'Recently';
+  const userId = (params.userId as string) || (currentUser?.id ? String(currentUser.id) : "");
+  const targetUserId = userId;
+  const isSelf = !params.userId || (!!currentUser?.id && String(currentUser.id) === String(userId));
 
-  const isSelf = currentUser?.id === userId;
+  // 0. Fetch User Details for Hall of Honors and Metrics
+  const { data: profileDetails } = useQuery({
+    queryKey: ['profileDetail', targetUserId],
+    queryFn: async () => {
+      try {
+        const res = await api.get(`api/users/profile/${targetUserId}/`);
+        return res.data;
+      } catch {
+        return null;
+      }
+    },
+    enabled: !!targetUserId,
+  });
+
+  // Query userBooks to ensure all book reading time is included
+  const { data: userBooksData = [] } = useQuery({
+    queryKey: ['userBooks'],
+    queryFn: async () => {
+      const response = await api.get('api/books/userbook/');
+      return response.data;
+    },
+    enabled: isSelf,
+  });
+
+  const booksReadingTime = React.useMemo(() => {
+    if (!Array.isArray(userBooksData)) return 0;
+    return userBooksData.reduce((acc: number, ub: any) => acc + (ub.reading_time_seconds || 0), 0);
+  }, [userBooksData]);
+
+  // Aggregate cumulative total reading time from all sources
+  const totalReadingSeconds = React.useMemo(() => {
+    const fromAuth = isSelf ? (currentAuthUser?.total_reading_time_seconds || 0) : 0;
+    const fromProfile = profileDetails?.total_reading_time_seconds || 0;
+    const fromParams = parseInt((params.totalReadingTime as string) || '0', 10) || 0;
+    const fromBooks = isSelf ? booksReadingTime : 0;
+
+    return Math.max(fromAuth, fromProfile, fromParams, fromBooks);
+  }, [
+    currentAuthUser?.total_reading_time_seconds,
+    profileDetails?.total_reading_time_seconds,
+    params.totalReadingTime,
+    isSelf,
+    booksReadingTime,
+  ]);
+
+  const formatReadingTime = (sec: number) => {
+    if (sec <= 0) return "0m read";
+    const hours = Math.floor(sec / 3600);
+    const minutes = Math.floor((sec % 3600) / 60);
+    const seconds = sec % 60;
+
+    if (hours > 0) {
+      return minutes > 0 ? `${hours}h ${minutes}m read` : `${hours}h read`;
+    }
+    if (minutes > 0) {
+      return `${minutes}m read`;
+    }
+    return `${seconds}s read`;
+  };
+
+  const username = isSelf
+    ? (currentAuthUser?.username || (params.username as string) || 'reader')
+    : (profileDetails?.username || (params.username as string) || 'reader');
+
+  const fullName = isSelf
+    ? (currentAuthUser?.full_name || (params.fullName as string) || 'Reader')
+    : (profileDetails?.full_name || (params.fullName as string) || 'Reader');
+
+  const avatar = isSelf
+    ? (currentAuthUser?.thumbnail || (params.avatar as string))
+    : (profileDetails?.thumbnail || (params.avatar as string));
+
+  const memberSince = isSelf
+    ? (currentAuthUser?.member_since_formatted || (params.memberSince as string) || 'Recently')
+    : (profileDetails?.member_since_formatted || (params.memberSince as string) || 'Recently');
+
+  const honorPoints = isSelf
+    ? (currentAuthUser?.honor_points ?? profileDetails?.honor_points ?? 0)
+    : (profileDetails?.honor_points ?? (params.honorPoints ? Number(params.honorPoints) : 0));
+
+  const pinnedIds = isSelf
+    ? (currentAuthUser?.pinned_badges && currentAuthUser.pinned_badges.length > 0
+        ? currentAuthUser.pinned_badges
+        : profileDetails?.pinned_badges || [])
+    : (profileDetails?.pinned_badges || []);
+
+  const showcasedBadges = [0, 1, 2].map(idx => {
+    const id = pinnedIds[idx];
+    return id ? CHRONICLE_ITEMS.find(c => c.id === id) : null;
+  });
 
   // 1. Fetch Friendship Status
   const { data: friendStatus = "NONE", isLoading: isStatusLoading } = useQuery({
@@ -196,18 +285,17 @@ export default function ReaderProfileScreen() {
           </Text>
 
           <View className="flex-row items-center justify-center flex-wrap mt-3 gap-2">
-            {(isSelf || (!isSelf && params.honorPoints && params.honorPointsVisible !== 'false')) && (
+            {(isSelf || (!isSelf && (honorPoints > 0 || params.honorPointsVisible !== 'false'))) && (
               <View className="flex-row items-center bg-[#F5EEDF] px-4 py-1.5 rounded-full">
                 <Icon name="medalStarFilled" size={14} color="#E4A834" />
                 <Text className="text-sm text-[#212842] ml-2 tracking-wide" style={{ fontFamily: 'PublicSans-Bold' }}>
-                  {isSelf ? currentUser?.honor_points || 0 : params.honorPoints} Honor Points
+                  {honorPoints} Honor Points
                 </Text>
                 {isSelf && (
                   <TouchableOpacity 
                     className="ml-2 border-l border-[#DFDACB] pl-2 flex-row items-center"
                     onPress={() => {
                       setHonorPointsVisible(!honorPointsVisible);
-                      // In a real scenario, you would also trigger an API call here to persist the visibility preference
                     }}
                   >
                     <Icon name={honorPointsVisible ? "eyeOutline" : "eyeClosedSolid"} size={16} color="#8E8B82" />
@@ -223,13 +311,11 @@ export default function ReaderProfileScreen() {
               </Text>
             </View>
             
-            {params.totalReadingTime && parseInt(params.totalReadingTime as string, 10) > 0 ? (
+            {(isSelf || totalReadingSeconds > 0) ? (
               <View className="flex-row items-center bg-[#F5EEDF] px-4 py-1.5 rounded-full">
                 <Icon name="bookClockOutline" size={14} color="#C95F44" />
                 <Text className="text-sm text-[#C95F44] ml-2 tracking-wide" style={{ fontFamily: 'PublicSans-Bold' }}>
-                  {Math.floor(parseInt(params.totalReadingTime as string, 10) / 3600) > 0 
-                    ? `${Math.floor(parseInt(params.totalReadingTime as string, 10) / 3600)}h ${Math.floor((parseInt(params.totalReadingTime as string, 10) % 3600) / 60)}m read`
-                    : `${Math.floor(parseInt(params.totalReadingTime as string, 10) / 60)}m read`}
+                  {formatReadingTime(totalReadingSeconds)}
                 </Text>
               </View>
             ) : null}
@@ -263,8 +349,75 @@ export default function ReaderProfileScreen() {
           </View>
         )}
 
+        {/* Hall of Honors Section */}
+        <View className="px-6 mt-8">
+          <View className="w-full bg-[#212842] rounded-3xl p-5 overflow-hidden relative shadow-md">
+            <View className="absolute right-[-15] top-[-5] opacity-10">
+              <Icon name="library" size={160} color="#FFF" />
+            </View>
+            <View className="flex-row justify-between items-center mb-1">
+              <Text
+                className="text-[#A8AAB2] text-[9px] tracking-widest uppercase"
+                style={{ fontFamily: "PublicSans-Bold" }}
+              >
+                DISTINGUISHED HONORS
+              </Text>
+              {isSelf && (
+                <TouchableOpacity
+                  onPress={() => router.push("/(tabs)/library")}
+                  className="flex-row items-center bg-white/10 px-2.5 py-0.5 rounded-full gap-1"
+                >
+                  <Icon name="editOutline" size={11} color="#F5DEB3" />
+                  <Text className="text-[#F5DEB3] text-[8px] tracking-wider uppercase" style={{ fontFamily: "PublicSans-Bold" }}>
+                    EDIT
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
+            <Text
+              className="text-white text-2xl mb-5"
+              style={{ fontFamily: "Newsreader-Medium" }}
+            >
+              Hall of Honors
+            </Text>
+
+            <View className="flex-row justify-between items-center">
+              {showcasedBadges.map((badge, idx) => (
+                <View key={`showcase-${idx}`} className="items-center w-1/3 px-1">
+                  {badge ? (
+                    <>
+                      <View className="w-14 h-14 rounded-full items-center justify-center mb-1.5 shadow-sm bg-[#F5DEB3]">
+                        <Icon name={badge.icon} size={24} color="#212842" />
+                      </View>
+                      <Text
+                        className="text-white text-[8px] tracking-wider uppercase text-center"
+                        style={{ fontFamily: "PublicSans-Bold" }}
+                        numberOfLines={1}
+                      >
+                        {badge.title}
+                      </Text>
+                    </>
+                  ) : (
+                    <>
+                      <View className="w-14 h-14 rounded-full border border-dashed border-[#8E8B82] items-center justify-center mb-1.5">
+                        <Icon name="plus" size={18} color="#8E8B82" />
+                      </View>
+                      <Text
+                        className="text-[#8E8B82] text-[8px] tracking-wider uppercase text-center"
+                        style={{ fontFamily: "PublicSans-Bold" }}
+                      >
+                        EMPTY
+                      </Text>
+                    </>
+                  )}
+                </View>
+              ))}
+            </View>
+          </View>
+        </View>
+
         {/* Friends Section (Provisional) */}
-        <View className="mt-12 px-6">
+        <View className="mt-10 px-6">
           <Text className="text-xl text-[#212842] mb-4" style={{ fontFamily: 'Newsreader-Bold' }}>
             Friends
           </Text>
@@ -278,8 +431,8 @@ export default function ReaderProfileScreen() {
           ) : (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} className="flex-row overflow-visible">
               {friendsList.map((friend: any) => {
-                // Determine which user in the relationship is the friend (the one that isn't the profile owner)
-                const friendUser = friend.requester.id === userId ? friend.receiver : friend.requester;
+                const friendUser = String(friend?.requester?.id) === String(userId) ? friend?.receiver : friend?.requester;
+                if (!friendUser) return null;
                 return (
                   <TouchableOpacity 
                     key={friend.id}

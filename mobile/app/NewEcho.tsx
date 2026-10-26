@@ -19,6 +19,7 @@ import { useStreakStore } from '../store/useStreakStore';
 import { Avatar } from '../components/Avatar';
 import api from '../store/api';
 import { queryClient } from '../store/queryClient';
+import { useSyncQueueStore } from '../store/useSyncQueueStore';
 
 export default function NewEchoScreen() {
   const router = useRouter();
@@ -66,40 +67,64 @@ export default function NewEchoScreen() {
     ? friends.filter((f: any) => f.username.toLowerCase().includes(mentionQuery) || (f.full_name && f.full_name.toLowerCase().includes(mentionQuery)))
     : [];
 
-  const createEchoMutation = useMutation({
-    mutationFn: async () => {
-      const localDate = new Date().toLocaleDateString("en-CA");
-      const payload = {
-        content: content.trim(),
-        shared_book_id: taggedBook ? taggedBook.bookId : null,
-        is_spoiler: containsSpoilers,
-        client_date: localDate,
-      };
-      const response = await api.post('/api/social/echoes/', payload);
-      return response.data;
-    },
-    onSuccess: (data: any) => {
-      queryClient.invalidateQueries({ queryKey: ['echoes'] });
-      if (data?.streak) {
-        useStreakStore.getState().syncFromLocalAction(data.streak);
-      } else {
-        useStreakStore.getState().fetchStreak();
-      }
-      useAuthStore.getState().fetchUser();
-      resetDraft();
-      router.back();
-    },
-    onError: (error: any) => {
-      Alert.alert("Error", error.response?.data?.detail || "Failed to publish echo.");
-    }
-  });
-
-  const handlePublish = () => {
+  const handlePublish = async () => {
     if (!content.trim() && !taggedBook) {
       Alert.alert("Cannot Publish", "Please add some thoughts or tag a book to publish an echo.");
       return;
     }
-    createEchoMutation.mutate();
+
+    const localDate = new Date().toLocaleDateString("en-CA");
+    const payload = {
+      content: content.trim(),
+      shared_book_id: taggedBook ? taggedBook.bookId : null,
+      is_spoiler: containsSpoilers,
+      client_date: localDate,
+    };
+
+    // 1. Create optimistic Echo for instant display in feed
+    const tempId = `temp_${Date.now()}`;
+    const optimisticEcho = {
+      id: tempId,
+      user: {
+        id: user?.id,
+        username: user?.username || 'You',
+        full_name: user?.full_name || 'You',
+        thumbnail: user?.thumbnail,
+      },
+      content: content.trim(),
+      created_at: new Date().toISOString(),
+      likes_count: 0,
+      has_liked: false,
+      comments_count: 0,
+      is_spoiler: containsSpoilers,
+      shared_book: taggedBook ? {
+        id: taggedBook.bookId,
+        title: taggedBook.title,
+        cover_image: taggedBook.cover,
+        author: taggedBook.author,
+      } : null,
+      is_optimistic: true,
+    };
+
+    // Optimistically prepend to cache
+    queryClient.setQueryData(['echoes'], (old: any) => {
+      const list = Array.isArray(old) ? old : [];
+      return [optimisticEcho, ...list];
+    });
+
+    // 2. Enqueue into persistent outbox
+    useSyncQueueStore.getState().enqueue({
+      type: 'POST_ECHO',
+      endpoint: '/api/social/echoes/',
+      method: 'POST',
+      payload,
+      title: 'New Echo Post',
+      queryKeysToInvalidate: [['echoes']],
+    });
+
+    // 3. Reset draft & navigate back immediately without waiting for server cold start!
+    resetDraft();
+    router.back();
   };
 
   const handleClose = () => {
@@ -255,16 +280,12 @@ export default function NewEchoScreen() {
           {/* Submit Actions */}
           <TouchableOpacity 
             onPress={handlePublish}
-            disabled={createEchoMutation.isPending}
-            className="w-full bg-[#212842] py-4 rounded-3xl items-center justify-center mb-4"
+            disabled={!content.trim()}
+            className={`w-full py-4 rounded-3xl items-center justify-center mb-4 ${content.trim() ? 'bg-[#212842]' : 'bg-[#EBE7DF]'}`}
           >
-            {createEchoMutation.isPending ? (
-              <ActivityIndicator color="#FFFFFF" size="small" />
-            ) : (
-              <Text className="text-white text-base tracking-wide" style={{ fontFamily: 'PublicSans-Bold' }}>
-                PUBLISH ECHO
-              </Text>
-            )}
+            <Text className={`text-base tracking-wide ${content.trim() ? 'text-white' : 'text-[#8E8B82]'}`} style={{ fontFamily: 'PublicSans-Bold' }}>
+              PUBLISH ECHO
+            </Text>
           </TouchableOpacity>
 
           <TouchableOpacity 

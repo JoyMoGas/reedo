@@ -14,6 +14,7 @@ import Icon from '../core/Icon';
 import { useLibraryStore } from '../store/useLibraryStore';
 import BookCover from '../components/BookCover';
 import api from '../store/api';
+import { useSyncQueueStore } from '../store/useSyncQueueStore';
 
 const AESTHETIC_COLORS = [
   '#212842', // Navy
@@ -47,28 +48,33 @@ export default function NewShelfScreen() {
   const handleCreate = async () => {
     if (!name.trim()) return;
     setIsCreating(true);
-    
+
     try {
-      const newShelf = addShelf({
-        name: name.trim(),
-        description: description.trim(),
-        color,
-        isPrivate,
-      }, params.autoAddBookId);
+      const newShelf = addShelf(
+        {
+          name: name.trim(),
+          description: description.trim(),
+          color,
+          isPrivate,
+        },
+        params.autoAddBookId
+      );
 
       if (params.autoAddBookId) {
-        try {
-          await api.post("api/books/userbook/", {
+        useSyncQueueStore.getState().enqueue({
+          type: "ADD_TO_LIBRARY",
+          endpoint: "api/books/userbook/",
+          method: "POST",
+          payload: {
             book_id: params.autoAddBookId,
             status: "READ_LATER",
             title: params.autoAddBookTitle,
             authors: params.autoAddBookAuthor ? [params.autoAddBookAuthor] : [],
             cover_image: params.autoAddBookCover,
-          });
-          await queryClient.invalidateQueries({ queryKey: ["userBooks"] });
-        } catch (err) {
-          console.warn("Could not register userbook in backend:", err);
-        }
+          },
+          title: `Add ${params.autoAddBookTitle || "Book"} to ${name.trim()}`,
+          queryKeysToInvalidate: [["userBooks"]],
+        });
 
         setCreatedShelfId(newShelf.id);
         setShowSuccessModal(true);

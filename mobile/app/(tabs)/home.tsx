@@ -107,6 +107,7 @@ export default function HomeScreen() {
         cover: session.cover,
         pagesRead: session.pagesRead,
         pagesTotal: session.pagesTotal,
+        fromImmersion: "true",
       },
     });
   };

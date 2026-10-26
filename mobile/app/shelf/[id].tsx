@@ -15,6 +15,7 @@ import { useProgressStore } from '../../store/useProgressStore';
 import Icon from '../../core/Icon';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../../store/api';
+import { useSyncQueueStore } from '../../store/useSyncQueueStore';
 import BookCover from '../../components/BookCover';
 import NoCover from '../assets/NoCover.svg';
 
@@ -57,6 +58,7 @@ export default function ShelfViewScreen() {
   const shelf = useLibraryStore((state) => 
     state.shelves.find(s => s.id === id)
   );
+  const removeBookFromShelf = useLibraryStore((state) => state.removeBookFromShelf);
 
   const { data: userBooksData = [], isLoading } = useQuery({
     queryKey: ["userBooks"],
@@ -66,74 +68,118 @@ export default function ShelfViewScreen() {
     }
   });
 
-  const changeShelfMutation = useMutation({
-    mutationFn: async ({ bookId, status }: { bookId: string; status: string }) => {
-      const localDate = new Date().toLocaleDateString("en-CA");
-      const res = await api.patch("api/books/userbook/", {
+  const handleChangeShelf = ({ bookId, status }: { bookId: string; status: string }) => {
+    const localDate = new Date().toLocaleDateString("en-CA");
+
+    // 1. Optimistic progress for completed
+    if (status === "COMPLETED") {
+      const found = shelfBooks.find((b: any) => b.bookId === bookId);
+      if (found) {
+        const total = found.pagesTotal || 100;
+        const read = found.pagesRead || 0;
+        const diff = Math.max(0, total - read);
+        if (diff > 0) {
+          useProgressStore.getState().addPagesRead(diff);
+        }
+      }
+    }
+
+    // 2. Optimistic userBooks cache update
+    queryClient.setQueryData(["userBooks"], (old: any) => {
+      if (!Array.isArray(old)) return old;
+      return old.map((ub: any) => {
+        if (String(ub.book_id) === String(bookId) || String(ub.id) === String(bookId)) {
+          return {
+            ...ub,
+            status,
+            current_page: status === "COMPLETED" ? ub.book_id?.total_pages || 100 : ub.current_page,
+            progress_percentage: status === "COMPLETED" ? 100 : ub.progress_percentage,
+          };
+        }
+        return ub;
+      });
+    });
+
+    // 3. Persistent outbox enqueue
+    useSyncQueueStore.getState().enqueue({
+      type: "UPDATE_PROGRESS",
+      endpoint: "api/books/userbook/",
+      method: "PATCH",
+      payload: {
         book_id: bookId,
         status,
         client_date: localDate,
-      });
-      return res.data;
-    },
-    onSuccess: (data, variables) => {
-      if (variables.status === 'COMPLETED') {
-        const found = shelfBooks.find((b: any) => b.bookId === variables.bookId);
-        if (found) {
-          const total = found.pagesTotal || 100;
-          const read = found.pagesRead || 0;
-          const diff = Math.max(0, total - read);
-          if (diff > 0) {
-            useProgressStore.getState().addPagesRead(diff);
-          }
-        }
-        if (data?.streak) {
-          useStreakStore.getState().syncFromLocalAction(data.streak);
-        } else {
-          useStreakStore.getState().fetchStreak();
-        }
-      }
-      queryClient.invalidateQueries({ queryKey: ["userBooks"] });
-      queryClient.refetchQueries({ queryKey: ["userBooks"] });
-      setSelectedBookForMenu(null);
-    }
-  });
+      },
+      title: "Shelf Status Update",
+      queryKeysToInvalidate: [["userBooks"]],
+    });
 
-  const rereadMutation = useMutation({
-    mutationFn: async (bookId: string) => {
-      const localDate = new Date().toLocaleDateString("en-CA");
-      const res = await api.patch("api/books/userbook/", {
+    setSelectedBookForMenu(null);
+  };
+
+  const handleReread = (bookId: string) => {
+    const localDate = new Date().toLocaleDateString("en-CA");
+
+    // 1. Optimistic userBooks update
+    queryClient.setQueryData(["userBooks"], (old: any) => {
+      if (!Array.isArray(old)) return old;
+      return old.map((ub: any) => {
+        if (String(ub.book_id) === String(bookId) || String(ub.id) === String(bookId)) {
+          return {
+            ...ub,
+            status: "READING",
+            current_page: 0,
+            progress_percentage: 0,
+          };
+        }
+        return ub;
+      });
+    });
+
+    // 2. Persistent outbox enqueue
+    useSyncQueueStore.getState().enqueue({
+      type: "UPDATE_PROGRESS",
+      endpoint: "api/books/userbook/",
+      method: "PATCH",
+      payload: {
         book_id: bookId,
         action: "REREAD",
         client_date: localDate,
-      });
-      return res.data;
-    },
-    onSuccess: (data) => {
-      if (data?.streak) {
-        useStreakStore.getState().syncFromLocalAction(data.streak);
-      }
-      queryClient.invalidateQueries({ queryKey: ["userBooks"] });
-      setSelectedBookForMenu(null);
-      Alert.alert(
-        "Ready to read again!",
-        "The book has been restarted in your Currently Reading library for a fresh read."
-      );
-    },
-    onError: () => {
-      Alert.alert("Error", "Could not restart reading session. Please try again.");
-    }
-  });
+      },
+      title: "Reread Book",
+      queryKeysToInvalidate: [["userBooks"]],
+    });
 
-  const removeBookMutation = useMutation({
-    mutationFn: async (bookId: string) => {
-      await api.delete("api/books/userbook/", { data: { book_id: bookId } });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["userBooks"] });
-      setSelectedBookForMenu(null);
+    setSelectedBookForMenu(null);
+    Alert.alert(
+      "Ready to read again!",
+      "The book has been restarted in your Currently Reading library for a fresh read."
+    );
+  };
+
+  const handleRemoveBook = (bookId: string) => {
+    // 1. Optimistic userBooks filter
+    queryClient.setQueryData(["userBooks"], (old: any) => {
+      if (!Array.isArray(old)) return old;
+      return old.filter((ub: any) => String(ub.book_id) !== String(bookId) && String(ub.id) !== String(bookId));
+    });
+
+    if (shelf?.id && !shelf.id.startsWith("default-")) {
+      removeBookFromShelf(shelf.id, bookId);
     }
-  });
+
+    // 2. Persistent outbox enqueue
+    useSyncQueueStore.getState().enqueue({
+      type: "ADD_TO_LIBRARY",
+      endpoint: "api/books/userbook/",
+      method: "DELETE",
+      payload: { book_id: bookId },
+      title: "Remove from Library",
+      queryKeysToInvalidate: [["userBooks"]],
+    });
+
+    setSelectedBookForMenu(null);
+  };
 
   const shelfBooks = useMemo(() => {
     if (!userBooksData.length || !shelf) return [];
@@ -451,15 +497,10 @@ export default function ShelfViewScreen() {
               {selectedBookForMenu?.status === 'COMPLETED' && (
                 <TouchableOpacity 
                   className="flex-row items-center py-3.5 border-b border-[#EBE7DF]"
-                  disabled={rereadMutation.isPending}
-                  onPress={() => rereadMutation.mutate(selectedBookForMenu.bookId)}
+                  onPress={() => handleReread(selectedBookForMenu.bookId)}
                 >
                   <View className="w-10 h-10 rounded-full bg-[#EFEBE3] items-center justify-center mr-3">
-                    {rereadMutation.isPending ? (
-                      <ActivityIndicator size="small" color="#212842" />
-                    ) : (
-                      <Icon name="reloadTime" size={20} color="#212842" />
-                    )}
+                    <Icon name="reloadTime" size={20} color="#212842" />
                   </View>
                   <View className="flex-1">
                     <Text className="text-base text-[#212842]" style={{ fontFamily: 'PublicSans-Bold' }}>
@@ -515,7 +556,7 @@ export default function ShelfViewScreen() {
               {selectedBookForMenu?.status === 'READ_LATER' && (
                 <TouchableOpacity 
                   className="flex-row items-center py-3.5 border-b border-[#EBE7DF]"
-                  onPress={() => changeShelfMutation.mutate({ bookId: selectedBookForMenu.bookId, status: 'CURRENTLY_READING' })}
+                  onPress={() => handleChangeShelf({ bookId: selectedBookForMenu.bookId, status: 'CURRENTLY_READING' })}
                 >
                   <View className="w-10 h-10 rounded-full bg-[#EFEBE3] items-center justify-center mr-3">
                     <Icon name="bookOpen" size={20} color="#212842" />
@@ -535,7 +576,7 @@ export default function ShelfViewScreen() {
               {selectedBookForMenu?.status !== 'COMPLETED' && (
                 <TouchableOpacity 
                   className="flex-row items-center py-3.5 border-b border-[#EBE7DF]"
-                  onPress={() => changeShelfMutation.mutate({ bookId: selectedBookForMenu.bookId, status: 'COMPLETED' })}
+                  onPress={() => handleChangeShelf({ bookId: selectedBookForMenu.bookId, status: 'COMPLETED' })}
                 >
                   <View className="w-10 h-10 rounded-full bg-[#EBF4ED] items-center justify-center mr-3">
                     <Icon name="checkCircle" size={20} color="#4A7C59" />
@@ -555,7 +596,7 @@ export default function ShelfViewScreen() {
               {selectedBookForMenu?.status !== 'READ_LATER' && (
                 <TouchableOpacity 
                   className="flex-row items-center py-3.5 border-b border-[#EBE7DF]"
-                  onPress={() => changeShelfMutation.mutate({ bookId: selectedBookForMenu.bookId, status: 'READ_LATER' })}
+                  onPress={() => handleChangeShelf({ bookId: selectedBookForMenu.bookId, status: 'READ_LATER' })}
                 >
                   <View className="w-10 h-10 rounded-full bg-[#EFEBE3] items-center justify-center mr-3">
                     <Icon name="bookmarkOutline" size={20} color="#212842" />
@@ -580,7 +621,7 @@ export default function ShelfViewScreen() {
                       { 
                         text: "Remove", 
                         style: "destructive",
-                        onPress: () => removeBookMutation.mutate(selectedBookForMenu.bookId) 
+                        onPress: () => handleRemoveBook(selectedBookForMenu.bookId) 
                       }
                     ]
                   );

@@ -13,6 +13,8 @@ import { useSettingsStore } from "../../store/useSettingsStore";
 import { useProgressStore } from "../../store/useProgressStore";
 import { useAuthStore } from "../../store/useAuthStore";
 import { useStreakStore } from "../../store/useStreakStore";
+import { useHonorToastStore } from "../../store/useHonorToastStore";
+import { useSyncQueueStore } from "../../store/useSyncQueueStore";
 import api from "../../store/api";
 
 export default function DailyQuest() {
@@ -43,27 +45,38 @@ export default function DailyQuest() {
     setIsEditing(false);
   };
 
-  const handleClaim = async () => {
+  const handleClaim = () => {
     if (questClaimed || !isGoalMet || isClaiming) return;
-    setIsClaiming(true);
-    try {
-      const localDate = new Date().toLocaleDateString("en-CA");
-      const res = await api.post('api/users/claim-quest/', {
+
+    const localDate = new Date().toLocaleDateString("en-CA");
+
+    // 1. Optimistic progress & points
+    claimQuest();
+    const currentUser = useAuthStore.getState().user;
+    if (currentUser) {
+      useAuthStore.getState().setUser({
+        ...currentUser,
+        honor_points: (currentUser.honor_points || 0) + honorPointsReward,
+      });
+    }
+
+    useHonorToastStore.getState().showToast({
+      points: honorPointsReward,
+      title: "Daily Quest Conquered!",
+      message: `+${honorPointsReward} Honor Points for reaching your daily reading goal!`,
+    });
+
+    // 2. Persistent outbox queue
+    useSyncQueueStore.getState().enqueue({
+      type: "CLAIM_QUEST",
+      endpoint: "api/users/claim-quest/",
+      method: "POST",
+      payload: {
         points: honorPointsReward,
         client_date: localDate,
-      });
-      claimQuest();
-      if (fetchUser) fetchUser(); // Update honor points in UI
-      if (res.data?.streak) {
-        useStreakStore.getState().syncFromLocalAction(res.data.streak);
-      } else {
-        useStreakStore.getState().fetchStreak();
-      }
-    } catch (error) {
-      Alert.alert("Error", "Could not claim your reward.");
-    } finally {
-      setIsClaiming(false);
-    }
+      },
+      title: "Daily Literary Quest",
+    });
   };
 
   return (
@@ -158,7 +171,7 @@ export default function DailyQuest() {
             style={{ fontFamily: "Newsreader-Bold", fontSize: 20 }}
             className="text-[#212842] mt-0.5"
           >
-            {pagesReadToday}/{dailyReadingGoal}
+            {Math.min(pagesReadToday, dailyReadingGoal)}/{dailyReadingGoal}
           </Text>
         </View>
       </View>

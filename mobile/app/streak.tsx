@@ -191,7 +191,19 @@ export default function StreakScreen() {
           </TouchableOpacity>
 
           <TouchableOpacity
-            onPress={() => router.push("/ReaderProfile")}
+            onPress={() =>
+              router.push({
+                pathname: "/ReaderProfile",
+                params: {
+                  userId: user?.id,
+                  username: user?.username,
+                  fullName: user?.full_name,
+                  avatar: user?.thumbnail,
+                  memberSince: user?.member_since_formatted,
+                  totalReadingTime: (user?.total_reading_time_seconds || 0).toString(),
+                },
+              })
+            }
             activeOpacity={0.8}
             accessibilityLabel="Profile"
           >

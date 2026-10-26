@@ -17,6 +17,7 @@ import api from "../store/api";
 import { ReviewItem } from "../components/book/ReviewItem";
 import { useAuthStore } from "../store/useAuthStore";
 import { useLibraryStore } from "../store/useLibraryStore";
+import { useSyncQueueStore } from "../store/useSyncQueueStore";
 import AddToLibraryModal from "../components/library/AddToLibraryModal";
 
 interface BookDetailProps {
@@ -176,17 +177,52 @@ function BookDetails() {
   const handleAddToShelf = async (status: string, shelfLabel: string) => {
     if (!bookId) return;
     setAddingToShelf(status);
-    try {
-      await api.post("api/books/userbook/", { book_id: bookId, status });
-      queryClient.invalidateQueries({ queryKey: ["userBooks"] });
-      closeArchiveSheet();
-    } catch (error) {
-      // If already exists, it might just update — invalidate anyway
-      queryClient.invalidateQueries({ queryKey: ["userBooks"] });
-      closeArchiveSheet();
-    } finally {
-      setAddingToShelf(null);
-    }
+
+    const localDate = new Date().toLocaleDateString("en-CA");
+
+    // 1. Optimistic userBooks cache update
+    queryClient.setQueryData(["userBooks"], (old: any) => {
+      const list = Array.isArray(old) ? old : [];
+      const existingIndex = list.findIndex(
+        (ub: any) => String(ub.book_id) === String(bookId)
+      );
+      const newUb = {
+        id: `temp_${Date.now()}`,
+        book_id: bookId,
+        status,
+        current_page: 0,
+        progress_percentage: 0,
+        book_details: {
+          id: bookId,
+          title: bookName,
+          author: author,
+          cover_image: cover,
+        },
+      };
+      if (existingIndex >= 0) {
+        const copy = [...list];
+        copy[existingIndex] = { ...copy[existingIndex], status };
+        return copy;
+      }
+      return [...list, newUb];
+    });
+
+    // 2. Persistent outbox queue
+    useSyncQueueStore.getState().enqueue({
+      type: "ADD_TO_LIBRARY",
+      endpoint: "api/books/userbook/",
+      method: "POST",
+      payload: {
+        book_id: bookId,
+        status,
+        client_date: localDate,
+      },
+      title: `Move ${bookName} to ${shelfLabel}`,
+      queryKeysToInvalidate: [["userBooks"]],
+    });
+
+    setAddingToShelf(null);
+    closeArchiveSheet();
   };
 
   const getFormattedShelvedCount = () => {
@@ -243,11 +279,13 @@ function BookDetails() {
 
   const likeMutation = useMutation({
     mutationFn: async ({ reviewId, isLiked }: { reviewId: string, isLiked: boolean }) => {
-      if (isLiked) {
-        await api.delete(`api/social/reviews/${reviewId}/like/`);
-      } else {
-        await api.post(`api/social/reviews/${reviewId}/like/`);
-      }
+      useSyncQueueStore.getState().enqueue({
+        type: "LIKE_REVIEW",
+        endpoint: `api/social/reviews/${reviewId}/like/`,
+        method: isLiked ? "DELETE" : "POST",
+        title: isLiked ? "Unlike Review" : "Like Review",
+        queryKeysToInvalidate: [["reviews", bookId]],
+      });
     },
     onMutate: async ({ reviewId, isLiked }) => {
       await queryClient.cancelQueries({ queryKey: ["reviews", bookId] });
@@ -259,14 +297,6 @@ function BookDetails() {
         );
       });
       return { previousReviews };
-    },
-    onError: (err, variables, context) => {
-      if (context?.previousReviews) {
-        queryClient.setQueryData(["reviews", bookId], context.previousReviews);
-      }
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ["reviews", bookId] });
     },
   });
 

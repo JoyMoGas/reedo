@@ -19,6 +19,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Dimensions,
+  ActivityIndicator,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -31,6 +32,9 @@ import { useImmersionStore } from "../store/useImmersionStore";
 import { useStreakStore } from "../store/useStreakStore";
 import { queryClient } from "../store/queryClient";
 import InterruptedSessionModal from "../components/immersion/InterruptedSessionModal";
+import { useHonorToastStore } from "../store/useHonorToastStore";
+import { useAuthStore } from "../store/useAuthStore";
+import { useSyncQueueStore } from "../store/useSyncQueueStore";
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
@@ -182,6 +186,8 @@ export default function ImmersionSessionScreen() {
   );
   const [noteVisible, setNoteVisible] = useState(false);
   const [noteText, setNoteText] = useState("");
+  const [isFinishing, setIsFinishing] = useState(false);
+  const isFinishedRef = useRef(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const expectedTimeRef = useRef<number | null>(
     params.isResume === "true" && params.expectedTime && params.expectedTime !== "null"
@@ -196,37 +202,65 @@ export default function ImmersionSessionScreen() {
   const isCompleted = mode === "timed" && remaining <= 0;
 
   const goToUpdateProgress = async () => {
+    if (isFinishing) return;
+    setIsFinishing(true);
+
+    // Stop timer interval immediately and flag as finished
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+    isFinishedRef.current = true;
     clearSession();
-    // Log reading time to backend
+
+    // Log reading time to backend with outbox queue
     if (elapsed > 0) {
-      try {
-        const localDate = new Date().toLocaleDateString("en-CA");
-        const patchRes = await api.patch("api/books/userbook/", {
+      const localDate = new Date().toLocaleDateString("en-CA");
+      const points = elapsed >= 180 ? Math.max(1, Math.floor(elapsed / 180)) : 0;
+
+      // 1. Optimistic points and user reading time
+      if (points > 0) {
+        useHonorToastStore.getState().showToast({
+          points,
+          title: "Immersion Concluded",
+          message: `+${points} Honor Points for focused reading!`,
+        });
+      }
+
+      const currentUser = useAuthStore.getState().user;
+      if (currentUser) {
+        useAuthStore.getState().addReadingTime(elapsed);
+        if (points > 0) {
+          useAuthStore.getState().setUser({
+            ...useAuthStore.getState().user!,
+            honor_points: (currentUser.honor_points || 0) + points,
+          });
+        }
+      }
+
+      // 2. Enqueue persistent outbox request
+      useSyncQueueStore.getState().enqueue({
+        type: "IMMERSION_SESSION",
+        endpoint: "api/books/userbook/",
+        method: "PATCH",
+        payload: {
           book_id: params.bookId,
           session_seconds: elapsed,
           client_date: localDate,
-        });
-
-        const streakStore = useStreakStore.getState();
-        // Check if streak was broken and eligible for recovery with 10+ min reading
-        if (streakStore.data?.can_recover && elapsed >= 600) {
-          await streakStore.recoverStreak("IMMERSION", {
-            seconds: elapsed,
-            bookId: params.bookId,
-          });
-        } else if (patchRes.data?.streak) {
-          streakStore.syncFromLocalAction(patchRes.data.streak);
-        } else {
-          streakStore.fetchStreak();
-        }
-
-        queryClient.invalidateQueries({ queryKey: ["userBooks"] });
-      } catch (error) {
-        console.warn("Could not save reading time", error);
-      }
+        },
+        title: "Immersion Session",
+        queryKeysToInvalidate: [
+          ["userBooks"],
+          ["currentUser"],
+          ["profileDetail", currentUser?.id],
+        ],
+      });
     }
 
-    router.push({
+    setSessionModalVisible(false);
+    setIsFinishing(false);
+
+    router.replace({
       pathname: "/UpdateProgress",
       params: {
         userbookId: params.userbookId,
@@ -236,6 +270,7 @@ export default function ImmersionSessionScreen() {
         cover: params.cover,
         pagesRead: params.pagesRead,
         pagesTotal: params.pagesTotal,
+        fromImmersion: "true",
       },
     });
   };
@@ -283,6 +318,7 @@ export default function ImmersionSessionScreen() {
   }, []);
 
   useEffect(() => {
+    if (isFinishedRef.current) return;
     if (elapsed > 0 || isPaused) {
       saveSession({
         mode,
@@ -337,7 +373,6 @@ export default function ImmersionSessionScreen() {
         primaryButtonText: "Finish & Update Progress",
         primaryButtonIcon: "checkCircle",
         onPrimaryAction: () => {
-          setSessionModalVisible(false);
           goToUpdateProgress();
         },
         secondaryButtonText: "+15 Minutes",
@@ -381,7 +416,6 @@ export default function ImmersionSessionScreen() {
       primaryButtonText: "Save & Update Progress",
       primaryButtonIcon: "checkCircle",
       onPrimaryAction: () => {
-        setSessionModalVisible(false);
         goToUpdateProgress();
       },
       secondaryButtonText: "Resume Session",
@@ -392,6 +426,8 @@ export default function ImmersionSessionScreen() {
       },
       discardButtonText: "Exit without Saving",
       onDiscardAction: () => {
+        isFinishedRef.current = true;
+        if (intervalRef.current) clearInterval(intervalRef.current);
         setSessionModalVisible(false);
         clearSession();
         router.back();
@@ -412,7 +448,6 @@ export default function ImmersionSessionScreen() {
       primaryButtonText: "Save & Update Progress",
       primaryButtonIcon: "checkCircle",
       onPrimaryAction: () => {
-        setSessionModalVisible(false);
         goToUpdateProgress();
       },
       secondaryButtonText: "Continue Reading",
@@ -423,6 +458,8 @@ export default function ImmersionSessionScreen() {
       },
       discardButtonText: "Discard Session",
       onDiscardAction: () => {
+        isFinishedRef.current = true;
+        if (intervalRef.current) clearInterval(intervalRef.current);
         setSessionModalVisible(false);
         clearSession();
         router.back();
@@ -436,14 +473,13 @@ export default function ImmersionSessionScreen() {
     const m = Math.floor(elapsed / 60);
     const s = elapsed % 60;
     setSessionModalConfig({
-      title: "Stop Reading Session?",
+      title: "Conclude Reading Session?",
       subtitle: `You have immersed for ${formatStopwatch(elapsed)}. Would you like to record your reading time?`,
       timeReadText: `${m}m ${s}s read`,
       badgeType: "warning",
       primaryButtonText: "Save & Update Progress",
       primaryButtonIcon: "checkCircle",
       onPrimaryAction: () => {
-        setSessionModalVisible(false);
         goToUpdateProgress();
       },
       secondaryButtonText: "Keep Going",
@@ -454,6 +490,8 @@ export default function ImmersionSessionScreen() {
       },
       discardButtonText: "Discard Session",
       onDiscardAction: () => {
+        isFinishedRef.current = true;
+        if (intervalRef.current) clearInterval(intervalRef.current);
         setSessionModalVisible(false);
         clearSession();
         router.back();
@@ -556,12 +594,17 @@ export default function ImmersionSessionScreen() {
       {/* Finish Early / Stop */}
       <TouchableOpacity
         onPress={mode === "timed" ? confirmFinishEarly : confirmStopInfinite}
-        activeOpacity={0.7}
-        style={{ marginTop: 14, paddingVertical: 6 }}
+        activeOpacity={0.75}
+        disabled={isFinishing}
+        style={[styles.finishBtn, isFinishing && { opacity: 0.6 }]}
       >
-        <Text style={styles.finishEarlyText}>
-          {mode === "timed" ? "FINISH EARLY" : "STOP SESSION"}
-        </Text>
+        {isFinishing ? (
+          <ActivityIndicator size="small" color="#FFF8F0" />
+        ) : (
+          <Text style={styles.finishEarlyText}>
+            {mode === "timed" ? "FINISH & SAVE SESSION" : "END SESSION & LOG READING"}
+          </Text>
+        )}
       </TouchableOpacity>
 
       {/* ── Add Note Modal ── */}
@@ -635,6 +678,7 @@ export default function ImmersionSessionScreen() {
         discardButtonText={sessionModalConfig.discardButtonText}
         onDiscardAction={sessionModalConfig.onDiscardAction}
         onClose={sessionModalConfig.onSecondaryAction}
+        isSaving={isFinishing}
       />
     </View>
   );
@@ -779,12 +823,25 @@ const styles = StyleSheet.create({
     color: "rgba(255,248,240,0.55)",
     letterSpacing: 1.2,
   },
+  finishBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 14,
+    paddingVertical: 10,
+    paddingHorizontal: 22,
+    borderRadius: 999,
+    backgroundColor: "rgba(255, 248, 240, 0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 248, 240, 0.18)",
+    minHeight: 40,
+  },
   finishEarlyText: {
     fontFamily: "PublicSans-Bold",
     fontSize: 12,
-    color: "rgba(255,248,240,0.35)",
-    letterSpacing: 1.4,
-    textDecorationLine: "underline",
+    color: "#FFF8F0",
+    letterSpacing: 1.2,
+    textAlign: "center",
   },
   // Note Modal
   noteModalRoot: {

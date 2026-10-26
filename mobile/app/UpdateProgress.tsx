@@ -5,7 +5,7 @@
  * @inspired-by Alondra Gamino (Constant Inspiration)
  * @date 2026-09-06
  */
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   View,
   Text,
@@ -30,6 +30,10 @@ import Icon from "../core/Icon";
 import BookCover from "../components/BookCover";
 import NoCover from "./assets/NoCover.svg";
 import api from "../store/api";
+import { useImmersionStore } from "../store/useImmersionStore";
+import { useHonorToastStore } from "../store/useHonorToastStore";
+import { useAuthStore } from "../store/useAuthStore";
+import { useSyncQueueStore } from "../store/useSyncQueueStore";
 
 const formatDate = (dateStr?: string | null) => {
   if (!dateStr) return "—";
@@ -77,6 +81,7 @@ export default function UpdateProgressScreen() {
     finishedAt?: string;
     readingTimeSeconds?: string;
     readCount?: string;
+    fromImmersion?: string;
   }>();
 
   const totalPages = parseInt(params.pagesTotal || "100", 10) || 100;
@@ -84,10 +89,17 @@ export default function UpdateProgressScreen() {
 
   const [currentPage, setCurrentPage] = useState(initialPages);
   const [inputText, setInputText] = useState(initialPages.toString());
+  const [selectOnFocus, setSelectOnFocus] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
   const [isRereading, setIsRereading] = useState(false);
   const [showCompletionModal, setShowCompletionModal] = useState(false);
+
+  useEffect(() => {
+    if (params.fromImmersion === "true") {
+      useImmersionStore.getState().clearSession();
+    }
+  }, [params.fromImmersion]);
 
   // Fetch current userbook data to get precise live reading stats
   const { data: userBooksData = [] } = useQuery({
@@ -116,6 +128,9 @@ export default function UpdateProgressScreen() {
   const sheetTranslateY = useRef(new Animated.Value(0)).current;
 
   const dismissSheet = () => {
+    if (params.fromImmersion === "true") {
+      useImmersionStore.getState().clearSession();
+    }
     Keyboard.dismiss();
     Animated.timing(sheetTranslateY, {
       toValue: screenHeight,
@@ -226,36 +241,62 @@ export default function UpdateProgressScreen() {
       return;
     }
 
-    setIsSaving(true);
-    try {
-      const localDate = new Date().toLocaleDateString("en-CA");
-      // PATCH api/books/userbook/ with book_id + current_page in body
-      const res = await api.patch("api/books/userbook/", {
+    const localDate = new Date().toLocaleDateString("en-CA");
+    const originalPages = parseInt((params.pagesRead as string) || "0", 10);
+    const diff = pageToSave - originalPages;
+
+    // 1. Optimistic local progress update
+    if (diff > 0) {
+      useProgressStore.getState().addPagesRead(diff);
+      useHonorToastStore.getState().showToast({
+        points: diff,
+        title: "Pages Chronicled",
+        message: `+${diff} Honor Points added to your archive!`,
+      });
+      const currentUser = useAuthStore.getState().user;
+      if (currentUser) {
+        useAuthStore.getState().setUser({
+          ...currentUser,
+          honor_points: (currentUser.honor_points || 0) + diff,
+        });
+      }
+    }
+
+    // 2. Optimistic userBooks cache update
+    queryClient.setQueryData(["userBooks"], (old: any) => {
+      if (!Array.isArray(old)) return old;
+      return old.map((ub: any) => {
+        if (
+          String(ub.book_id) === String(params.bookId) ||
+          String(ub.id) === String(params.userbookId)
+        ) {
+          return {
+            ...ub,
+            current_page: pageToSave,
+            progress_percentage:
+              totalPages > 0 ? Math.round((pageToSave / totalPages) * 100) : 0,
+          };
+        }
+        return ub;
+      });
+    });
+
+    // 3. Persistent outbox queue
+    useSyncQueueStore.getState().enqueue({
+      type: "UPDATE_PROGRESS",
+      endpoint: "api/books/userbook/",
+      method: "PATCH",
+      payload: {
         book_id: params.bookId,
         current_page: pageToSave,
         client_date: localDate,
-      });
-      
-      const originalPages = parseInt(params.pagesRead as string || "0", 10);
-      const diff = pageToSave - originalPages;
-      if (diff > 0) {
-        useProgressStore.getState().addPagesRead(diff);
-      }
+      },
+      title: "Page Progress Update",
+      queryKeysToInvalidate: [["userBooks"]],
+    });
 
-      if (res.data?.streak) {
-        useStreakStore.getState().syncFromLocalAction(res.data.streak);
-      } else {
-        useStreakStore.getState().fetchStreak();
-      }
-
-      await queryClient.invalidateQueries({ queryKey: ["userBooks"] });
-      await queryClient.refetchQueries({ queryKey: ["userBooks"] });
-      router.navigate("/(tabs)/home");
-    } catch (error: any) {
-      Alert.alert("Error", "Could not update your progress. Please try again.");
-    } finally {
-      setIsSaving(false);
-    }
+    useImmersionStore.getState().clearSession();
+    router.navigate("/(tabs)/home");
   };
 
   const handleMarkCompleted = () => {
@@ -265,75 +306,120 @@ export default function UpdateProgressScreen() {
   };
 
   const handleConfirmCompletion = async () => {
-    setIsCompleting(true);
-    try {
-      const localDate = new Date().toLocaleDateString("en-CA");
-      const res = await api.patch("api/books/userbook/", {
+    const localDate = new Date().toLocaleDateString("en-CA");
+    const originalPages = parseInt((params.pagesRead as string) || "0", 10);
+    const diff = totalPages - originalPages;
+
+    // 1. Optimistic progress update
+    if (diff > 0) {
+      useProgressStore.getState().addPagesRead(diff);
+    }
+    const bonusPoints = 50 + Math.max(0, diff);
+    useHonorToastStore.getState().showToast({
+      points: bonusPoints,
+      title: "Volume Completed! 📖",
+      message: `+${bonusPoints} Honor Points for conquering the book!`,
+    });
+    const currentUser = useAuthStore.getState().user;
+    if (currentUser) {
+      useAuthStore.getState().setUser({
+        ...currentUser,
+        honor_points: (currentUser.honor_points || 0) + bonusPoints,
+      });
+    }
+
+    // 2. Optimistic userBooks cache update
+    queryClient.setQueryData(["userBooks"], (old: any) => {
+      if (!Array.isArray(old)) return old;
+      return old.map((ub: any) => {
+        if (
+          String(ub.book_id) === String(params.bookId) ||
+          String(ub.id) === String(params.userbookId)
+        ) {
+          return {
+            ...ub,
+            status: "COMPLETED",
+            current_page: totalPages,
+            progress_percentage: 100,
+            finished_at: localDate,
+            read_count: (ub.read_count || 0) + 1,
+          };
+        }
+        return ub;
+      });
+    });
+
+    // 3. Persistent outbox queue
+    useSyncQueueStore.getState().enqueue({
+      type: "UPDATE_PROGRESS",
+      endpoint: "api/books/userbook/",
+      method: "PATCH",
+      payload: {
         book_id: params.bookId,
         status: "COMPLETED",
         current_page: totalPages,
         client_date: localDate,
-      });
+      },
+      title: "Book Completed",
+      queryKeysToInvalidate: [["userBooks"]],
+    });
 
-      const originalPages = parseInt((params.pagesRead as string) || "0", 10);
-      const diff = totalPages - originalPages;
-      if (diff > 0) {
-        useProgressStore.getState().addPagesRead(diff);
-      }
-
-      if (res.data?.streak) {
-        useStreakStore.getState().syncFromLocalAction(res.data.streak);
-      } else {
-        useStreakStore.getState().fetchStreak();
-      }
-
-      await queryClient.invalidateQueries({ queryKey: ["userBooks"] });
-      await queryClient.refetchQueries({ queryKey: ["userBooks"] });
-      setShowCompletionModal(false);
-      router.navigate("/(tabs)/home");
-    } catch (error) {
-      Alert.alert("Error", "Could not mark as completed. Please try again.");
-    } finally {
-      setIsCompleting(false);
-    }
+    useImmersionStore.getState().clearSession();
+    setShowCompletionModal(false);
+    router.navigate("/(tabs)/home");
   };
 
   const handleReread = async () => {
-    setIsRereading(true);
-    try {
-      const localDate = new Date().toLocaleDateString("en-CA");
-      const res = await api.patch("api/books/userbook/", {
+    const localDate = new Date().toLocaleDateString("en-CA");
+    const originalPages = parseInt((params.pagesRead as string) || "0", 10);
+    const diff = totalPages - originalPages;
+
+    if (diff > 0) {
+      useProgressStore.getState().addPagesRead(diff);
+    }
+
+    // 1. Optimistic userBooks cache update
+    queryClient.setQueryData(["userBooks"], (old: any) => {
+      if (!Array.isArray(old)) return old;
+      return old.map((ub: any) => {
+        if (
+          String(ub.book_id) === String(params.bookId) ||
+          String(ub.id) === String(params.userbookId)
+        ) {
+          return {
+            ...ub,
+            status: "READING",
+            current_page: 0,
+            progress_percentage: 0,
+            read_count: (ub.read_count || 0) + 1,
+          };
+        }
+        return ub;
+      });
+    });
+
+    // 2. Persistent outbox queue
+    useSyncQueueStore.getState().enqueue({
+      type: "UPDATE_PROGRESS",
+      endpoint: "api/books/userbook/",
+      method: "PATCH",
+      payload: {
         book_id: params.bookId,
         action: "REREAD",
         from_completion: true,
         client_date: localDate,
-      });
+      },
+      title: "Reread Book",
+      queryKeysToInvalidate: [["userBooks"]],
+    });
 
-      const originalPages = parseInt((params.pagesRead as string) || "0", 10);
-      const diff = totalPages - originalPages;
-      if (diff > 0) {
-        useProgressStore.getState().addPagesRead(diff);
-      }
-
-      if (res.data?.streak) {
-        useStreakStore.getState().syncFromLocalAction(res.data.streak);
-      } else {
-        useStreakStore.getState().fetchStreak();
-      }
-
-      await queryClient.invalidateQueries({ queryKey: ["userBooks"] });
-      await queryClient.refetchQueries({ queryKey: ["userBooks"] });
-      setShowCompletionModal(false);
-      Alert.alert(
-        "Ready to read again!",
-        "Your reading has been recorded as completed and the book has restarted at page 1."
-      );
-      router.navigate("/(tabs)/home");
-    } catch (error) {
-      Alert.alert("Error", "Could not restart reading session. Please try again.");
-    } finally {
-      setIsRereading(false);
-    }
+    useImmersionStore.getState().clearSession();
+    setShowCompletionModal(false);
+    Alert.alert(
+      "Ready to read again!",
+      "Your reading has been recorded as completed and the book has restarted at page 1."
+    );
+    router.navigate("/(tabs)/home");
   };
 
   const quickChips = [5, 10, 20, 50];
@@ -407,14 +493,21 @@ export default function UpdateProgressScreen() {
                   style={styles.counterValue}
                   value={inputText}
                   onChangeText={(txt) => {
+                    if (selectOnFocus) setSelectOnFocus(false);
                     // Allow only digits while typing
                     if (/^\d*$/.test(txt)) setInputText(txt);
                   }}
-                  onBlur={commitInputText}
+                  onFocus={() => {
+                    setSelectOnFocus(false);
+                  }}
+                  onBlur={() => {
+                    commitInputText();
+                    setSelectOnFocus(true);
+                  }}
                   onSubmitEditing={commitInputText}
                   keyboardType="number-pad"
                   returnKeyType="done"
-                  selectTextOnFocus
+                  selectTextOnFocus={selectOnFocus}
                   maxLength={5}
                 />
               </Animated.View>

@@ -43,6 +43,7 @@ export default function ImmersionSetupScreen() {
   const [mode, setMode] = useState<SessionMode>("timed");
   const [minutes, setMinutes] = useState(25);
   const [minutesText, setMinutesText] = useState("25");
+  const [selectMinutesOnFocus, setSelectMinutesOnFocus] = useState(true);
 
   // Sheet dismiss animation
   const sheetTranslateY = useRef(new Animated.Value(0)).current;
@@ -205,12 +206,19 @@ export default function ImmersionSetupScreen() {
               <TextInput
                 style={[styles.minutesInput, mode !== "timed" && { opacity: 0.4 }]}
                 value={minutesText}
-                onChangeText={(t) => { if (/^\d*$/.test(t)) setMinutesText(t); }}
-                onBlur={commitMinutesText}
+                onChangeText={(t) => {
+                  if (selectMinutesOnFocus) setSelectMinutesOnFocus(false);
+                  if (/^\d*$/.test(t)) setMinutesText(t);
+                }}
+                onFocus={() => setSelectMinutesOnFocus(false)}
+                onBlur={() => {
+                  commitMinutesText();
+                  setSelectMinutesOnFocus(true);
+                }}
                 onSubmitEditing={commitMinutesText}
                 keyboardType="number-pad"
                 returnKeyType="done"
-                selectTextOnFocus
+                selectTextOnFocus={selectMinutesOnFocus}
                 maxLength={3}
                 editable={mode === "timed"}
               />

@@ -15,6 +15,7 @@ import { useRouter } from "expo-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "../../store/api";
 import { useAuthStore } from "../../store/useAuthStore";
+import { useSyncQueueStore } from "../../store/useSyncQueueStore";
 
 function formatTimeAgo(dateString: string) {
   const date = new Date(dateString);
@@ -83,41 +84,35 @@ export default function EchoItem({ item }: { item: any }) {
 
   // ... (useMutation code remains exactly the same) ...
 
-  const likeMutation = useMutation({
-    mutationFn: async (): Promise<void> => {
-      if (item.is_liked) {
-        await api.delete(`/api/social/echoes/${item.id}/like/`);
-      } else {
-        await api.post(`/api/social/echoes/${item.id}/like/`);
-      }
-    },
-    onMutate: async () => {
-      await queryClient.cancelQueries({ queryKey: ['echoes'] });
-      const previousEchoes = queryClient.getQueryData(['echoes']);
-      queryClient.setQueryData(['echoes'], (old: any) => {
-        if (!old) return old;
-        return old.map((echo: any) => {
-          if (echo.id === item.id) {
-            return {
-              ...echo,
-              is_liked: !echo.is_liked,
-              likes_count: echo.is_liked ? echo.likes_count - 1 : echo.likes_count + 1,
-            };
-          }
-          return echo;
-        });
+  const handleLikePress = () => {
+    const isLiked = !!item.is_liked;
+    const nextLiked = !isLiked;
+    const nextCount = isLiked ? Math.max(0, item.likes_count - 1) : item.likes_count + 1;
+
+    // Optimistically update cache
+    queryClient.setQueryData(['echoes'], (old: any) => {
+      if (!Array.isArray(old)) return old;
+      return old.map((echo: any) => {
+        if (echo.id === item.id) {
+          return {
+            ...echo,
+            is_liked: nextLiked,
+            likes_count: nextCount,
+          };
+        }
+        return echo;
       });
-      return { previousEchoes };
-    },
-    onError: (err, newTodo, context: any) => {
-      if (context?.previousEchoes) {
-        queryClient.setQueryData(['echoes'], context.previousEchoes);
-      }
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ['echoes'] });
-    },
-  });
+    });
+
+    // Enqueue to persistent outbox
+    useSyncQueueStore.getState().enqueue({
+      type: "LIKE_ECHO",
+      endpoint: `/api/social/echoes/${item.id}/like/`,
+      method: isLiked ? "DELETE" : "POST",
+      title: isLiked ? "Unlike Echo" : "Like Echo",
+      queryKeysToInvalidate: [['echoes']],
+    });
+  };
 
   const deleteMutation = useMutation({
     mutationFn: async (): Promise<void> => {
@@ -288,7 +283,7 @@ export default function EchoItem({ item }: { item: any }) {
 
       {/* Interaction Bar */}
       <View className="flex-row items-center gap-6 mt-1">
-        <TouchableOpacity onPress={() => likeMutation.mutate()} className="flex-row items-center gap-1.5" activeOpacity={0.7}>
+        <TouchableOpacity onPress={handleLikePress} className="flex-row items-center gap-1.5" activeOpacity={0.7}>
           <Icon name={item.is_liked ? "heartFilled" : "heart"} size={24} color={item.is_liked ? "#E57A7A" : "#76767E"} />
           <Text className="text-sm" style={{ fontFamily: 'PublicSans-Bold', color: item.is_liked ? "#E57A7A" : "#76767E" }}>
             {item.likes_count}

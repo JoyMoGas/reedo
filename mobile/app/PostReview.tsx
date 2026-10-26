@@ -15,6 +15,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "../store/api";
 import { useStreakStore } from "../store/useStreakStore";
 import { useAuthStore } from "../store/useAuthStore";
+import { useSyncQueueStore } from "../store/useSyncQueueStore";
 
 const STAR_LABELS: Record<number, string> = {
   0: "Select a rating",
@@ -46,35 +47,61 @@ export default function PostReview() {
 
   const isEditing = !!params.reviewId;
 
-  const saveMutation = useMutation({
-    mutationFn: async () => {
-      const localDate = new Date().toLocaleDateString("en-CA");
-      const payload = {
-        rating,
-        comment,
-        is_spoiler: isSpoiler,
-        client_date: localDate,
-      };
+  const handleSave = () => {
+    if (rating === 0 || comment.trim() === "") return;
 
+    const localDate = new Date().toLocaleDateString("en-CA");
+    const payload = {
+      rating,
+      comment: comment.trim(),
+      is_spoiler: isSpoiler,
+      client_date: localDate,
+    };
+
+    const tempId = params.reviewId || `temp_${Date.now()}`;
+    const currentUser = useAuthStore.getState().user;
+    const optimisticReview = {
+      id: tempId,
+      user: {
+        id: currentUser?.id,
+        username: currentUser?.username || "You",
+        full_name: currentUser?.full_name || "You",
+        thumbnail: currentUser?.thumbnail,
+      },
+      rating,
+      comment: comment.trim(),
+      is_spoiler: isSpoiler,
+      created_at: new Date().toISOString(),
+      likes_count: 0,
+      has_liked: false,
+      is_optimistic: true,
+    };
+
+    // Optimistically update reviews cache
+    queryClient.setQueryData(["reviews", params.bookId], (old: any) => {
+      const list = Array.isArray(old) ? old : [];
       if (isEditing) {
-        const { data } = await api.put(`api/social/reviews/${params.reviewId}/`, payload);
-        return data;
-      } else {
-        const { data } = await api.post(`api/social/books/${params.bookId}/reviews/`, payload);
-        return data;
+        return list.map((r: any) =>
+          String(r.id) === String(params.reviewId) ? { ...r, ...optimisticReview } : r
+        );
       }
-    },
-    onSuccess: (data: any) => {
-      queryClient.invalidateQueries({ queryKey: ["reviews", params.bookId] });
-      if (data?.streak) {
-        useStreakStore.getState().syncFromLocalAction(data.streak);
-      } else {
-        useStreakStore.getState().fetchStreak();
-      }
-      useAuthStore.getState().fetchUser();
-      router.back();
-    },
-  });
+      return [optimisticReview, ...list];
+    });
+
+    // Enqueue to persistent outbox
+    useSyncQueueStore.getState().enqueue({
+      type: "POST_REVIEW",
+      endpoint: isEditing
+        ? `api/social/reviews/${params.reviewId}/`
+        : `api/social/books/${params.bookId}/reviews/`,
+      method: isEditing ? "PUT" : "POST",
+      payload,
+      title: "Book Review",
+      queryKeysToInvalidate: [["reviews", params.bookId]],
+    });
+
+    router.back();
+  };
 
   return (
     <SafeAreaView className="flex-1 bg-[#F9F7F2]" edges={["top", "left", "right"]}>
@@ -179,23 +206,15 @@ export default function PostReview() {
         {/* Floating Post Button */}
         <View className="absolute bottom-0 w-full p-6 bg-[#F9F7F2]">
           <TouchableOpacity
-            className={`w-full rounded-full py-4 items-center flex-row justify-center ${(rating === 0 || comment.trim() === "" || saveMutation.isPending) ? "bg-[#EBE7DF]" : "bg-[#212842]"}`}
-            onPress={() => saveMutation.mutate()}
-            disabled={rating === 0 || comment.trim() === "" || saveMutation.isPending}
+            className={`w-full rounded-full py-4 items-center flex-row justify-center ${(rating === 0 || comment.trim() === "") ? "bg-[#EBE7DF]" : "bg-[#212842]"}`}
+            onPress={handleSave}
+            disabled={rating === 0 || comment.trim() === ""}
             activeOpacity={0.8}
           >
-            {saveMutation.isPending ? (
-              <Text className="text-[#8E8B82] text-lg" style={{ fontFamily: "PublicSans-Bold" }}>
-                POSTING...
-              </Text>
-            ) : (
-              <>
-                <Text className={`${(rating === 0 || comment.trim() === "") ? "text-[#8E8B82]" : "text-[#FFF]"} text-lg mr-2`} style={{ fontFamily: "PublicSans-Bold" }}>
-                  POST VERDICT
-                </Text>
-                <Icon name="quillWrite" size={20} color={(rating === 0 || comment.trim() === "") ? "#8E8B82" : "#FFF"} />
-              </>
-            )}
+            <Text className={`${(rating === 0 || comment.trim() === "") ? "text-[#8E8B82]" : "text-[#FFF]"} text-lg mr-2`} style={{ fontFamily: "PublicSans-Bold" }}>
+              POST VERDICT
+            </Text>
+            <Icon name="quillWrite" size={20} color={(rating === 0 || comment.trim() === "") ? "#8E8B82" : "#FFF"} />
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>

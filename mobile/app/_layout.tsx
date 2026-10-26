@@ -18,8 +18,10 @@ import * as SplashScreen from 'expo-splash-screen';
 import Logo from './assets/LOGO.svg';
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import { queryClient, asyncStoragePersister } from '../store/queryClient';
-import api from '../store/api';
 import StreakCelebrationModal from '../components/streak/StreakCelebrationModal';
+import HonorPointsToast from '../components/common/HonorPointsToast';
+import SyncStatusBanner from '../components/common/SyncStatusBanner';
+import { useSyncQueueStore } from '../store/useSyncQueueStore';
 
 // Suppress all React Native and Expo development warnings on-screen
 LogBox.ignoreAllLogs();
@@ -75,10 +77,7 @@ export default function RootLayout() {
 
   useEffect(() => {
     checkSession();
-    // Ping the backend to wake up the Render server
-    api.get('/').catch(() => {
-      // ignore errors, we just want to wake it up
-    });
+    useSyncQueueStore.getState().init();
   }, []);
 
   useEffect(() => {
@@ -159,6 +158,8 @@ export default function RootLayout() {
         <Stack.Screen name="ImmersionSession" options={{ presentation: 'fullScreenModal', animation: 'fade', headerShown: false }} />
       </Stack>
       <StreakCelebrationModal />
+      <HonorPointsToast />
+      <SyncStatusBanner />
       <StatusBar style="dark" />
     </PersistQueryClientProvider>
   );

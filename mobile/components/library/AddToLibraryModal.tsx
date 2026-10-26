@@ -24,6 +24,7 @@ import Icon from "../../core/Icon";
 import BookCover from "../BookCover";
 import NoCover from "../../app/assets/NoCover.svg";
 import api from "../../store/api";
+import { useSyncQueueStore } from "../../store/useSyncQueueStore";
 
 export interface BookToAdd {
   id: string;
@@ -67,21 +68,64 @@ export default function AddToLibraryModal({
 
   const handleSaveToShelf = async (shelfId: string, shelfName: string, statusChoice: string = "READ_LATER") => {
     setSavingShelfId(shelfId);
-    try {
-      const raw = book.rawBook;
-      const authors = raw?.authors
-        ? raw.authors
-        : book.author
-        ? [book.author]
-        : [];
+    const raw = book.rawBook;
+    const authors = raw?.authors
+      ? raw.authors
+      : book.author
+      ? [book.author]
+      : [];
 
-      const rawPages = raw?.total_pages || raw?.page_count || book.totalPages || 0;
-      const parsedPages = typeof rawPages === "number" ? rawPages : parseInt(rawPages as string, 10);
-      const totalPages = isNaN(parsedPages) || parsedPages <= 0 ? 100 : parsedPages;
+    const rawPages = raw?.total_pages || raw?.page_count || book.totalPages || 0;
+    const parsedPages =
+      typeof rawPages === "number" ? rawPages : parseInt(rawPages as string, 10);
+    const totalPages = isNaN(parsedPages) || parsedPages <= 0 ? 100 : parsedPages;
+    const localDate = new Date().toLocaleDateString("en-CA");
 
-      const localDate = new Date().toLocaleDateString("en-CA");
+    // 1. Optimistic progress
+    if (statusChoice === "COMPLETED") {
+      useProgressStore.getState().addPagesRead(totalPages);
+    }
 
-      const response = await api.post("api/books/userbook/", {
+    // 2. Custom shelf registration
+    const isCustom = !shelfId.startsWith("default-");
+    if (isCustom) {
+      addBookToShelf(shelfId, book.id);
+    }
+
+    // 3. Optimistic userBooks cache update
+    queryClient.setQueryData(["userBooks"], (old: any) => {
+      const list = Array.isArray(old) ? old : [];
+      const existingIndex = list.findIndex(
+        (ub: any) => String(ub.book_id) === String(book.id)
+      );
+      const newUb = {
+        id: `temp_${Date.now()}`,
+        book_id: book.id,
+        status: statusChoice,
+        current_page: statusChoice === "COMPLETED" ? totalPages : 0,
+        progress_percentage: statusChoice === "COMPLETED" ? 100 : 0,
+        book_details: {
+          id: book.id,
+          title: book.title,
+          author: book.author,
+          cover_image: book.cover,
+          total_pages: totalPages,
+        },
+      };
+      if (existingIndex >= 0) {
+        const copy = [...list];
+        copy[existingIndex] = { ...copy[existingIndex], ...newUb };
+        return copy;
+      }
+      return [...list, newUb];
+    });
+
+    // 4. Enqueue to persistent outbox
+    useSyncQueueStore.getState().enqueue({
+      type: "ADD_TO_LIBRARY",
+      endpoint: "api/books/userbook/",
+      method: "POST",
+      payload: {
         book_id: book.id,
         status: statusChoice,
         title: raw?.title || book.title,
@@ -94,39 +138,15 @@ export default function AddToLibraryModal({
         average_rating: raw?.average_rating,
         genres: raw?.genres || raw?.categories,
         client_date: localDate,
-      });
+      },
+      title: `Add ${book.title} to Library`,
+      queryKeysToInvalidate: [["userBooks"]],
+    });
 
-      // When added directly to Completed (100%), add book's total pages to progress store and sync streak
-      if (statusChoice === "COMPLETED") {
-        useProgressStore.getState().addPagesRead(totalPages);
-        if (response.data?.streak) {
-          useStreakStore.getState().syncFromLocalAction(response.data.streak);
-        } else {
-          useStreakStore.getState().fetchStreak();
-        }
-      }
-
-      // If it's a custom shelf, register in Zustand store as well
-      const isCustom = !shelfId.startsWith("default-");
-      if (isCustom) {
-        addBookToShelf(shelfId, book.id);
-      }
-
-      await queryClient.invalidateQueries({ queryKey: ["userBooks"] });
-      await queryClient.refetchQueries({ queryKey: ["userBooks"] });
-
-      setSavedShelfInfo({ id: shelfId, name: shelfName });
-      setShowSuccess(true);
-      if (onSuccess) onSuccess(shelfId, shelfName);
-    } catch (err) {
-      console.warn("Could not add book to library:", err);
-      // If error or already exists, invalidate to keep in sync
-      queryClient.invalidateQueries({ queryKey: ["userBooks"] });
-      setSavedShelfInfo({ id: shelfId, name: shelfName });
-      setShowSuccess(true);
-    } finally {
-      setSavingShelfId(null);
-    }
+    setSavedShelfInfo({ id: shelfId, name: shelfName });
+    setShowSuccess(true);
+    if (onSuccess) onSuccess(shelfId, shelfName);
+    setSavingShelfId(null);
   };
 
   const handleCreateNewShelf = () => {
