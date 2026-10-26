@@ -18,6 +18,7 @@ export interface ChronicleUserStats {
   completedBooks?: number;
   hoursRead?: number;
   annotationsCount?: number;
+  pagesRead?: number;
 }
 
 export interface ChronicleItem {
@@ -29,7 +30,7 @@ export interface ChronicleItem {
   icon: string;
   theme: ChronicleTheme;
   target: number;
-  unit: "days" | "books" | "notes" | "hours" | "nights";
+  unit: "days" | "books" | "notes" | "hours" | "nights" | "pages";
   reward: string;
   watermarkIcon?: string;
   // Dynamic calculation helpers
@@ -38,37 +39,36 @@ export interface ChronicleItem {
 }
 
 export const CHRONICLE_ITEMS: ChronicleItem[] = [
-  // 1. The Eternal Reader (Ultimate 365 Days Streak)
+  // 1. First Sparks (3 Days Streak)
   {
-    id: "eternal-reader",
-    title: "The Eternal Reader",
+    id: "first-sparks",
+    title: "First Sparks",
     category: "streak",
-    description: "Achieved by maintaining a streak for 365 days without a single disruption.",
-    requirement: "365 consecutive days of reading",
-    icon: "crown",
-    watermarkIcon: "stars",
-    theme: "navy",
-    target: 365,
+    description: "Ignite the ritual with your initial 3-day reading discipline.",
+    requirement: "3 consecutive days of reading",
+    icon: "fireSolid",
+    theme: "ember",
+    target: 3,
     unit: "days",
-    reward: "Crown of the Archive + 500 Honor Points",
-    computeUnlocked: (s) => Math.max(s.currentStreak, s.bestStreak) >= 365,
-    computeProgress: (s) => Math.min(100, Math.round((Math.max(s.currentStreak, s.bestStreak) / 365) * 100)),
+    reward: "First Sparks Badge + 15 Honor Points",
+    computeUnlocked: (s) => Math.max(s.currentStreak, s.bestStreak) >= 3,
+    computeProgress: (s) => Math.min(100, Math.round((Math.max(s.currentStreak, s.bestStreak) / 3) * 100)),
   },
 
-  // 2. Midnight Scholar (30 Days Night Discipline)
+  // 2. Week of Focus (7 Days Streak)
   {
-    id: "midnight-scholar",
-    title: "Midnight Scholar",
-    category: "ritual",
-    description: "Read for 30 consecutive days in deep twilight between 11 PM and 2 AM.",
-    requirement: "30 days of nocturnal reading",
-    icon: "moonFilled",
+    id: "week-of-focus",
+    title: "Week of Focus",
+    category: "streak",
+    description: "Solidify your habit into a lasting literary momentum with a full week.",
+    requirement: "7 consecutive days of reading",
+    icon: "stars",
     theme: "gold",
-    target: 30,
-    unit: "nights",
-    reward: "Scholar Insignia + 50 Honor Points",
-    computeUnlocked: (s) => Math.max(s.currentStreak, s.bestStreak) >= 30,
-    computeProgress: (s) => Math.min(100, Math.round((Math.max(s.currentStreak, s.bestStreak) / 30) * 100)),
+    target: 7,
+    unit: "days",
+    reward: "25 Honor Points + Ink Blot",
+    computeUnlocked: (s) => Math.max(s.currentStreak, s.bestStreak) >= 7,
+    computeProgress: (s) => Math.min(100, Math.round((Math.max(s.currentStreak, s.bestStreak) / 7) * 100)),
   },
 
   // 3. Scribe's Persistence (10 Days Streak)
@@ -87,7 +87,23 @@ export const CHRONICLE_ITEMS: ChronicleItem[] = [
     computeProgress: (s) => Math.min(100, Math.round((Math.max(s.currentStreak, s.bestStreak) / 10) * 100)),
   },
 
-  // 4. Centurion Reader (100 Days Streak)
+  // 4. Midnight Scholar (30 Days Night Discipline)
+  {
+    id: "midnight-scholar",
+    title: "Midnight Scholar",
+    category: "ritual",
+    description: "Read for 30 consecutive days in deep twilight between 11 PM and 2 AM.",
+    requirement: "30 days of nocturnal reading",
+    icon: "moonFilled",
+    theme: "navy",
+    target: 30,
+    unit: "nights",
+    reward: "Scholar Insignia + 50 Honor Points",
+    computeUnlocked: (s) => Math.max(s.currentStreak, s.bestStreak) >= 30,
+    computeProgress: (s) => Math.min(100, Math.round((Math.max(s.currentStreak, s.bestStreak) / 30) * 100)),
+  },
+
+  // 5. Centurion Reader (100 Days Streak)
   {
     id: "centurion-reader",
     title: "Centurion Reader",
@@ -95,8 +111,8 @@ export const CHRONICLE_ITEMS: ChronicleItem[] = [
     description: "Reach the formidable centurion milestone of 100 consecutive days of reading.",
     requirement: "100 consecutive days of reading",
     icon: "medalStarFilled",
-    watermarkIcon: "shieldCheck",
-    theme: "navy",
+    watermarkIcon: "stars",
+    theme: "gold",
     target: 100,
     unit: "days",
     reward: "Centurion Insignia + 200 Honor Points",
@@ -104,39 +120,24 @@ export const CHRONICLE_ITEMS: ChronicleItem[] = [
     computeProgress: (s) => Math.min(100, Math.round((Math.max(s.currentStreak, s.bestStreak) / 100) * 100)),
   },
 
-  // 5. Week of Focus (7 Days Streak)
+  // 6. The Eternal Reader (Ultimate 365 Days Streak)
   {
-    id: "week-of-focus",
-    title: "Week of Focus",
+    id: "eternal-reader",
+    title: "The Eternal Reader",
     category: "streak",
-    description: "Solidify your habit into a lasting literary momentum with a full week.",
-    requirement: "7 consecutive days of reading",
-    icon: "stars",
-    theme: "gold",
-    target: 7,
+    description: "Achieved by maintaining a streak for 365 days without a single disruption.",
+    requirement: "365 consecutive days of reading",
+    icon: "sealCheck",
+    watermarkIcon: "stars",
+    theme: "navy",
+    target: 365,
     unit: "days",
-    reward: "25 Honor Points + Ink Blot",
-    computeUnlocked: (s) => Math.max(s.currentStreak, s.bestStreak) >= 7,
-    computeProgress: (s) => Math.min(100, Math.round((Math.max(s.currentStreak, s.bestStreak) / 7) * 100)),
+    reward: "Crown of the Archive + 500 Honor Points",
+    computeUnlocked: (s) => Math.max(s.currentStreak, s.bestStreak) >= 365,
+    computeProgress: (s) => Math.min(100, Math.round((Math.max(s.currentStreak, s.bestStreak) / 365) * 100)),
   },
 
-  // 6. First Sparks (3 Days Streak)
-  {
-    id: "first-sparks",
-    title: "First Sparks",
-    category: "streak",
-    description: "Ignite the ritual with your initial 3-day reading discipline.",
-    requirement: "3 consecutive days of reading",
-    icon: "fireSolid",
-    theme: "ember",
-    target: 3,
-    unit: "days",
-    reward: "First Sparks Badge + 15 Honor Points",
-    computeUnlocked: (s) => Math.max(s.currentStreak, s.bestStreak) >= 3,
-    computeProgress: (s) => Math.min(100, Math.round((Math.max(s.currentStreak, s.bestStreak) / 3) * 100)),
-  },
-
-  // 7. First Folio (From Library > Honors)
+  // 7. First Folio (Complete 1 Book)
   {
     id: "first-folio",
     title: "First Folio",
@@ -152,51 +153,83 @@ export const CHRONICLE_ITEMS: ChronicleItem[] = [
     computeProgress: (s) => ((s.completedBooks || 0) >= 1 ? 100 : 0),
   },
 
-  // 8. Marginaliaist (From Library > Honors)
+  // 8. Literary Voyager (Complete 5 Books)
+  {
+    id: "literary-voyager",
+    title: "Literary Voyager",
+    category: "reading",
+    description: "Journey through five complete books in your personal journey.",
+    requirement: "5 completed books in archive",
+    icon: "library",
+    theme: "emerald",
+    target: 5,
+    unit: "books",
+    reward: "Voyager Badge + 100 Honor Points",
+    computeUnlocked: (s) => (s.completedBooks || 0) >= 5,
+    computeProgress: (s) => Math.min(100, Math.round(((s.completedBooks || 0) / 5) * 100)),
+  },
+
+  // 9. Page Conqueror (Read 100 Pages)
+  {
+    id: "page-conqueror",
+    title: "Page Conqueror",
+    category: "reading",
+    description: "Chronicle over 100 pages of literary prose across your library.",
+    requirement: "100 total pages read",
+    icon: "bookOpenPageVariantOutline",
+    theme: "gold",
+    target: 100,
+    unit: "pages",
+    reward: "Conqueror Seal + 50 Honor Points",
+    computeUnlocked: (s) => (s.pagesRead || 0) >= 100,
+    computeProgress: (s) => Math.min(100, Math.round(((s.pagesRead || 0) / 100) * 100)),
+  },
+
+  // 10. Century Scholar (Read 500 Pages)
+  {
+    id: "century-scholar",
+    title: "Century Scholar",
+    category: "reading",
+    description: "Immerse yourself through 500 pages of stories, history, and wisdom.",
+    requirement: "500 total pages read",
+    icon: "bookOpenPageVariant",
+    theme: "ember",
+    target: 500,
+    unit: "pages",
+    reward: "Scholar Crest + 150 Honor Points",
+    computeUnlocked: (s) => (s.pagesRead || 0) >= 500,
+    computeProgress: (s) => Math.min(100, Math.round(((s.pagesRead || 0) / 500) * 100)),
+  },
+
+  // 11. Deep Immersion (Read for 2+ hours total)
+  {
+    id: "deep-immersion",
+    title: "Deep Immersion",
+    category: "ritual",
+    description: "Spend at least 2 full hours immersed in focused reading sessions.",
+    requirement: "2 hours of immersion reading",
+    icon: "sandClock",
+    theme: "navy",
+    target: 2,
+    unit: "hours",
+    reward: "Timekeeper Emblem + 50 Honor Points",
+    computeUnlocked: (s) => (s.hoursRead || 0) >= 2,
+    computeProgress: (s) => Math.min(100, Math.round(((s.hoursRead || 0) / 2) * 100)),
+  },
+
+  // 12. Marginaliaist (Catalog 10 Books)
   {
     id: "marginaliaist",
     title: "Marginaliaist",
     category: "reading",
-    description: "Write 50 insightful book annotations or reflections in your personal archive.",
-    requirement: "50 written annotations",
+    description: "Build a thoughtful personal archive with at least 10 cataloged titles.",
+    requirement: "10 books in your personal library",
     icon: "editNote",
     theme: "emerald",
-    target: 50,
-    unit: "notes",
-    reward: "Golden Quill Insignia",
-    computeUnlocked: (s) => (s.annotationsCount || 0) >= 50,
-    computeProgress: (s) => Math.min(100, Math.round(((s.annotationsCount || 0) / 50) * 100)),
-  },
-
-  // 9. Bibliophile (From Library > Honors)
-  {
-    id: "bibliophile",
-    title: "Bibliophile",
-    category: "reading",
-    description: "Curate a personal library of over 100 titles in your digital collection.",
-    requirement: "100 titles cataloged",
-    icon: "library",
-    theme: "navy",
-    target: 100,
+    target: 10,
     unit: "books",
-    reward: "Bibliophile Seal + Master Pin",
-    computeUnlocked: (s) => (s.booksCount || 0) >= 100,
-    computeProgress: (s) => Math.min(100, Math.round(((s.booksCount || 0) / 100) * 100)),
-  },
-
-  // 10. Night Owl (From Library > Honors)
-  {
-    id: "night-owl",
-    title: "Night Owl",
-    category: "ritual",
-    description: "Read past midnight for 5 consecutive nights of contemplation.",
-    requirement: "5 consecutive nights past midnight",
-    icon: "moonFilled",
-    theme: "gold",
-    target: 5,
-    unit: "nights",
-    reward: "Nocturnal Feather Badge",
-    computeUnlocked: (s) => (s.currentStreak >= 5),
-    computeProgress: (s) => Math.min(100, Math.round((Math.min(s.currentStreak, 5) / 5) * 100)),
+    reward: "Golden Quill Insignia + 30 Honor Points",
+    computeUnlocked: (s) => (s.booksCount || 0) >= 10,
+    computeProgress: (s) => Math.min(100, Math.round(((s.booksCount || 0) / 10) * 100)),
   },
 ];

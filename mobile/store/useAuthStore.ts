@@ -20,6 +20,7 @@ export interface UserProfile {
   streak_days: number;
   total_reading_time_seconds?: number;
   member_since_formatted?: string;
+  pinned_badges?: string[];
 }
 
 interface AuthState {
@@ -32,6 +33,9 @@ interface AuthState {
   checkSession: () => Promise<void>;
   fetchUser: () => Promise<void>;
   updateStreakDays: (days: number) => void;
+  setPinnedBadges: (badges: string[]) => void;
+  setUser: (user: UserProfile) => void;
+  addReadingTime: (seconds: number) => void;
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -132,6 +136,31 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const currentUser = get().user;
     if (!currentUser) return;
     const updated = { ...currentUser, streak_days: days };
+    set({ user: updated });
+    SecureStore.setItemAsync("user", JSON.stringify(updated)).catch(() => {});
+  },
+
+  setPinnedBadges: (badges: string[]) => {
+    const currentUser = get().user;
+    if (!currentUser) return;
+    const updated = { ...currentUser, pinned_badges: badges };
+    set({ user: updated });
+    SecureStore.setItemAsync("user", JSON.stringify(updated)).catch(() => {});
+  },
+
+  setUser: (user: UserProfile) => {
+    set({ user });
+    SecureStore.setItemAsync("user", JSON.stringify(user)).catch(() => {});
+  },
+
+  addReadingTime: (seconds: number) => {
+    const currentUser = get().user;
+    if (!currentUser) return;
+    const updated = {
+      ...currentUser,
+      total_reading_time_seconds:
+        (currentUser.total_reading_time_seconds || 0) + seconds,
+    };
     set({ user: updated });
     SecureStore.setItemAsync("user", JSON.stringify(updated)).catch(() => {});
   },
