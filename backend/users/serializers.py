@@ -149,6 +149,7 @@ class UserSerializer(serializers.ModelSerializer):
     """
     thumbnail = serializers.SerializerMethodField()
     member_since_formatted = serializers.SerializerMethodField()
+    total_reading_time_seconds = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -160,6 +161,7 @@ class UserSerializer(serializers.ModelSerializer):
             'bio',
             'city_residence',
             'honor_points',
+            'pinned_badges',
             'streak_days',
             'show_spoilers',
             'member_since_formatted',
@@ -179,3 +181,13 @@ class UserSerializer(serializers.ModelSerializer):
         if not obj.member_since:
             return None
         return obj.member_since.strftime('%B %Y')
+
+    def get_total_reading_time_seconds(self, obj):
+        from django.db.models import Sum
+        user_books_time = obj.user_books.aggregate(t=Sum('reading_time_seconds'))['t'] or 0
+        user_field_time = obj.total_reading_time_seconds or 0
+        total_time = max(user_field_time, user_books_time)
+        if user_field_time < total_time:
+            obj.total_reading_time_seconds = total_time
+            obj.save(update_fields=['total_reading_time_seconds'])
+        return total_time

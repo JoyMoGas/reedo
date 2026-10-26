@@ -362,3 +362,42 @@ class UserStreakClaimFreezeView(APIView):
             "freezes_available": total_freezes,
             "message": "Streak freeze added successfully"
         }, status=200)
+
+
+class UpdatePinnedBadgesView(APIView):
+    """
+    Updates the authenticated user's 3 showcased badges for Hall of Honors.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        badges = request.data.get('pinned_badges', [])
+        if not isinstance(badges, list):
+            return Response({"error": "pinned_badges must be a list of badge IDs."}, status=400)
+
+        # Enforce maximum of 3 pinned badges
+        cleaned_badges = [str(b).strip() for b in badges if b][:3]
+        request.user.pinned_badges = cleaned_badges
+        request.user.save(update_fields=['pinned_badges'])
+
+        return Response({
+            "success": True,
+            "pinned_badges": request.user.pinned_badges
+        }, status=200)
+
+
+class UserProfileDetailView(APIView):
+    """
+    Returns public profile info for any reader by user_id, including honor points and pinned badges.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, user_id):
+        try:
+            target_user = User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            return Response({"error": "User not found."}, status=404)
+
+        serializer = UserSerializer(target_user, context={'request': request})
+        return Response(serializer.data, status=200)
+

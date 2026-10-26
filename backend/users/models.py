@@ -83,6 +83,12 @@ class User(AbstractUser):
     help_text="Total points for LeaderBoard ranking"
   )
 
+  pinned_badges = models.JSONField(
+    default=list,
+    blank=True,
+    help_text="IDs of up to 3 badges displayed in the user's Hall of Honors"
+  )
+
   total_reading_time_seconds = models.IntegerField(
     default=0,
     help_text="Total reading time in seconds"

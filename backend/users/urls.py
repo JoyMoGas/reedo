@@ -19,7 +19,9 @@ from .views import (
     CurrentUserView,
     UserStreakView,
     UserStreakRecoverView,
-    UserStreakClaimFreezeView
+    UserStreakClaimFreezeView,
+    UpdatePinnedBadgesView,
+    UserProfileDetailView,
 )
 
 urlpatterns = [
@@ -30,6 +32,8 @@ urlpatterns = [
     path('generate-username/', GenerateUsernameView.as_view(), name='generate-username'),
     path('profile/genres/', UpdateFavoriteGenresView.as_view(), name='update-genres'),
     path('profile/authors/', UpdateFavoriteAuthorsView.as_view(), name='update-authors'),
+    path('profile/pinned-badges/', UpdatePinnedBadgesView.as_view(), name='update-pinned-badges'),
+    path('profile/<uuid:user_id>/', UserProfileDetailView.as_view(), name='user-profile-detail'),
     path('suggestions/', UserSuggestionsView.as_view(), name='user-suggestions'),
     path('claim-quest/', ClaimQuestView.as_view(), name='claim-quest'),
     path('me/', CurrentUserView.as_view(), name='current-user'),

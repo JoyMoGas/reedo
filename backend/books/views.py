@@ -731,17 +731,26 @@ class UserBookSaveView(APIView):
             (current_page is not None and total > 0 and int(current_page) >= total)
         )
 
+        points_earned = 0
+        old_page = user_book.current_page or 0
+
         if is_marking_completed:
             user_book.status = "COMPLETED"
             if total > 0:
+                diff_pages = max(0, total - old_page)
+                points_earned += diff_pages
                 user_book.current_page = total
+            points_earned += 50  # 50 bonus Honor Points for completing a book
             user_book.progress_percentage = 100.0
             user_book.finished_at = timezone.now().date()
             user_book.read_count = (user_book.read_count or 0) + 1
             update_fields.extend(["status", "current_page", "progress_percentage", "finished_at", "read_count"])
         else:
             if current_page is not None:
-                user_book.current_page = int(current_page)
+                new_page = int(current_page)
+                diff_pages = max(0, new_page - old_page)
+                points_earned += diff_pages  # 1 Honor Point per page read
+                user_book.current_page = new_page
                 update_fields.append("current_page")
                 if total > 0:
                     user_book.progress_percentage = round((int(current_page) / total) * 100, 2)
@@ -766,8 +775,18 @@ class UserBookSaveView(APIView):
                 user = request.user
                 user.total_reading_time_seconds += sec
                 user.save(update_fields=["total_reading_time_seconds"])
+
+                # Award honor points for immersion: 1 point per 3 minutes (180s)
+                if sec >= 180:
+                    points_earned += max(1, sec // 180)
             except ValueError:
                 return Response({"error": "session_seconds must be an integer"}, status=status.HTTP_400_BAD_REQUEST)
+
+        if points_earned > 0:
+            request.user.honor_points = (request.user.honor_points or 0) + points_earned
+            request.user.save(update_fields=["honor_points"])
+            user_book.honor_points = (user_book.honor_points or 0) + points_earned
+            update_fields.append("honor_points")
 
         if update_fields:
             user_book.save(update_fields=list(set(update_fields)))
@@ -802,6 +821,8 @@ class UserBookSaveView(APIView):
             "started_at": user_book.started_at.strftime('%Y-%m-%d') if user_book.started_at else None,
             "finished_at": user_book.finished_at.strftime('%Y-%m-%d') if user_book.finished_at else None,
             "read_count": user_book.read_count,
+            "honor_points_earned": points_earned,
+            "total_honor_points": request.user.honor_points,
             "streak": streak_data,
             "user_streak_days": request.user.streak_days
         }, status=status.HTTP_200_OK)
