@@ -128,7 +128,13 @@ export default function StreakScreen() {
 
   // Recovery with challenge
   const handleStartImmersionChallenge = () => {
-    router.push("/ImmersionSetup");
+    router.push({
+      pathname: "/ImmersionSetup",
+      params: {
+        initialMinutes: "10",
+        isRecoveryChallenge: "true",
+      },
+    });
   };
 
   // Start reading CTA

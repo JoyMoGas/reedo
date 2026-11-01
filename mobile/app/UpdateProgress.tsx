@@ -388,7 +388,7 @@ export default function UpdateProgressScreen() {
         ) {
           return {
             ...ub,
-            status: "READING",
+            status: "CURRENTLY_READING",
             current_page: 0,
             progress_percentage: 0,
             read_count: (ub.read_count || 0) + 1,

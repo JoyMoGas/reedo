@@ -23,6 +23,10 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Icon from "../../core/Icon";
 import BookCover from "../BookCover";
 import NoCover from "../../app/assets/NoCover.svg";
+import {
+  useReadingNotesStore,
+  filterNotesForBook,
+} from "../../store/useReadingNotesStore";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
@@ -30,15 +34,26 @@ interface ReadingActionsModalProps {
   visible: boolean;
   book: any | null;
   onClose: () => void;
+  onOpenNotes?: (book: any) => void;
 }
 
 export default function ReadingActionsModal({
   visible,
   book,
   onClose,
+  onOpenNotes,
 }: ReadingActionsModalProps) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const allNotes = useReadingNotesStore((state) => state.notes);
+  const bookNotesCount = book
+    ? filterNotesForBook(
+        allNotes,
+        book.book_id || book.id,
+        book.id,
+        book.title
+      ).length
+    : 0;
 
   const backdropAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
@@ -273,6 +288,34 @@ export default function ReadingActionsModal({
               </View>
               <Icon name="chevronRight" size={18} color="#A8AAB2" />
             </TouchableOpacity>
+
+            {/* 2.5 Reading Notes */}
+            {onOpenNotes && (
+              <TouchableOpacity
+                onPress={() => {
+                  const targetBook = book;
+                  handleDismiss();
+                  if (targetBook) {
+                    setTimeout(() => onOpenNotes(targetBook), 220);
+                  }
+                }}
+                style={styles.actionItem}
+                activeOpacity={0.75}
+              >
+                <View style={[styles.iconCircle, { backgroundColor: "#EBF2EE" }]}>
+                  <Icon name="notepadText" size={20} color="#4A7C59" />
+                </View>
+                <View style={styles.actionTextCol}>
+                  <Text style={styles.actionTitle}>
+                    Reading Notes{bookNotesCount > 0 ? ` (${bookNotesCount})` : ""}
+                  </Text>
+                  <Text style={styles.actionSubtitle}>
+                    View notes by page & immersion time for this book
+                  </Text>
+                </View>
+                <Icon name="chevronRight" size={18} color="#A8AAB2" />
+              </TouchableOpacity>
+            )}
 
             {/* 3. Book Details */}
             <TouchableOpacity

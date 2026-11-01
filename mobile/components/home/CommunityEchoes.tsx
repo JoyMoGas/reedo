@@ -6,11 +6,12 @@
  * @date 2026-06-27
  */
 import React from "react";
-import { Text, View, TouchableOpacity, ActivityIndicator } from "react-native";
+import { Text, View, TouchableOpacity } from "react-native";
 import { useRouter } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import api from "../../store/api";
 import EchoItem from "../social/EchoItem";
+import EchoSkeleton from "../social/EchoSkeleton";
 
 export default function CommunityEchoes() {
   const router = useRouter();
@@ -25,8 +26,16 @@ export default function CommunityEchoes() {
 
   if (isLoading) {
     return (
-      <View className="w-full mt-10 items-center justify-center py-10">
-        <ActivityIndicator size="small" color="#212842" />
+      <View className="w-full mt-10">
+        <View className="flex-row justify-between items-center w-full mb-4">
+          <Text
+            className="text-xl font-bold text-[#76767E] tracking-widest"
+            style={{ fontFamily: "PublicSans-Bold" }}
+          >
+            COMMUNITY ECHOES
+          </Text>
+        </View>
+        <EchoSkeleton count={3} />
       </View>
     );
   }

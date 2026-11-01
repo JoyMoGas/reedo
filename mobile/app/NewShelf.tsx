@@ -61,6 +61,45 @@ export default function NewShelfScreen() {
       );
 
       if (params.autoAddBookId) {
+        const normalizedAuthors = params.autoAddBookAuthor
+          ? [params.autoAddBookAuthor]
+          : ["Unknown Author"];
+
+        queryClient.setQueryData(["userBooks"], (old: any) => {
+          const list = Array.isArray(old) ? old : [];
+          const existingIndex = list.findIndex(
+            (ub: any) => String(ub.book_id) === String(params.autoAddBookId)
+          );
+          if (existingIndex >= 0) {
+            return list;
+          }
+          const newUb = {
+            id: `temp_${Date.now()}`,
+            book_id: params.autoAddBookId,
+            title: params.autoAddBookTitle || "Untitled",
+            authors: normalizedAuthors,
+            cover_image: params.autoAddBookCover || "",
+            synopsis: "",
+            total_pages: 100,
+            genres: [],
+            average_rating: 0,
+            status: "READ_LATER",
+            current_page: 0,
+            progress_percentage: 0,
+            reading_time_seconds: 0,
+            read_count: 0,
+            book_details: {
+              id: params.autoAddBookId,
+              title: params.autoAddBookTitle || "Untitled",
+              author: params.autoAddBookAuthor || "Unknown Author",
+              authors: normalizedAuthors,
+              cover_image: params.autoAddBookCover || "",
+              total_pages: 100,
+            },
+          };
+          return [...list, newUb];
+        });
+
         useSyncQueueStore.getState().enqueue({
           type: "ADD_TO_LIBRARY",
           endpoint: "api/books/userbook/",
@@ -69,7 +108,7 @@ export default function NewShelfScreen() {
             book_id: params.autoAddBookId,
             status: "READ_LATER",
             title: params.autoAddBookTitle,
-            authors: params.autoAddBookAuthor ? [params.autoAddBookAuthor] : [],
+            authors: normalizedAuthors,
             cover_image: params.autoAddBookCover,
           },
           title: `Add ${params.autoAddBookTitle || "Book"} to ${name.trim()}`,

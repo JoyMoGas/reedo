@@ -6,7 +6,7 @@
  * @date 2026-06-27
  */
 import React, { useEffect, useState, useCallback } from "react";
-import { Text, View, TouchableOpacity, FlatList, ActivityIndicator, Image, RefreshControl } from "react-native";
+import { Text, View, TouchableOpacity, FlatList, RefreshControl, ScrollView } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useUIStore } from "../../store/useUIStore";
 import { useRouter } from "expo-router";
@@ -14,6 +14,7 @@ import Icon from "../../core/Icon";
 import { useQuery } from "@tanstack/react-query";
 import api from "../../store/api";
 import EchoItem from "../../components/social/EchoItem";
+import EchoSkeleton from "../../components/social/EchoSkeleton";
 
 export default function EchoesScreen() {
   const insets = useSafeAreaInsets();
@@ -80,9 +81,12 @@ export default function EchoesScreen() {
       </View>
 
       {isLoading ? (
-        <View className="flex-1 items-center justify-center">
-          <ActivityIndicator size="large" color="#212842" />
-        </View>
+        <ScrollView
+          contentContainerStyle={{ paddingHorizontal: 24, paddingTop: 12, paddingBottom: insets.bottom + 120 }}
+          showsVerticalScrollIndicator={false}
+        >
+          <EchoSkeleton count={4} />
+        </ScrollView>
       ) : echoes.length === 0 ? (
         <EmptyState />
       ) : (

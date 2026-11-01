@@ -181,6 +181,14 @@ function BookDetails() {
     const localDate = new Date().toLocaleDateString("en-CA");
 
     // 1. Optimistic userBooks cache update
+    const parsedTotalPages = totalPages ? parseInt(totalPages as string, 10) || 100 : 100;
+    const normalizedAuthors = author
+      ? author.split(",").map((a: string) => a.trim()).filter(Boolean)
+      : ["Unknown Author"];
+    const normalizedGenres = genres
+      ? genres.split(",").map((g: string) => g.trim()).filter(Boolean)
+      : [];
+
     queryClient.setQueryData(["userBooks"], (old: any) => {
       const list = Array.isArray(old) ? old : [];
       const existingIndex = list.findIndex(
@@ -189,14 +197,25 @@ function BookDetails() {
       const newUb = {
         id: `temp_${Date.now()}`,
         book_id: bookId,
+        title: bookName || "Untitled",
+        authors: normalizedAuthors,
+        cover_image: cover || "",
+        synopsis: description || "",
+        total_pages: parsedTotalPages,
+        genres: normalizedGenres,
+        average_rating: averageRating ? parseFloat(averageRating as string) || 0 : 0,
         status,
-        current_page: 0,
-        progress_percentage: 0,
+        current_page: status === "COMPLETED" ? parsedTotalPages : 0,
+        progress_percentage: status === "COMPLETED" ? 100 : 0,
+        reading_time_seconds: 0,
+        read_count: status === "COMPLETED" ? 1 : 0,
         book_details: {
           id: bookId,
           title: bookName,
           author: author,
+          authors: normalizedAuthors,
           cover_image: cover,
+          total_pages: parsedTotalPages,
         },
       };
       if (existingIndex >= 0) {

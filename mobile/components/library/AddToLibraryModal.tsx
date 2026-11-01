@@ -93,6 +93,24 @@ export default function AddToLibraryModal({
     }
 
     // 3. Optimistic userBooks cache update
+    const normalizedAuthors = Array.isArray(authors)
+      ? authors
+      : typeof authors === "string" && authors
+      ? [authors]
+      : book.author
+      ? [book.author]
+      : ["Unknown Author"];
+    const rawGenres = raw?.genres || raw?.categories;
+    const normalizedGenres = Array.isArray(rawGenres)
+      ? rawGenres
+      : typeof rawGenres === "string" && rawGenres
+      ? rawGenres.split(",").map((g: string) => g.trim()).filter(Boolean)
+      : [];
+    const resolvedTitle = raw?.title || book.title || "Untitled";
+    const resolvedCover = raw?.cover_image || raw?.cover_url || book.cover || "";
+    const resolvedSynopsis = raw?.synopsis || raw?.description || "";
+    const resolvedRating = raw?.average_rating || 0;
+
     queryClient.setQueryData(["userBooks"], (old: any) => {
       const list = Array.isArray(old) ? old : [];
       const existingIndex = list.findIndex(
@@ -101,20 +119,30 @@ export default function AddToLibraryModal({
       const newUb = {
         id: `temp_${Date.now()}`,
         book_id: book.id,
+        title: resolvedTitle,
+        authors: normalizedAuthors,
+        cover_image: resolvedCover,
+        synopsis: resolvedSynopsis,
+        total_pages: totalPages,
+        genres: normalizedGenres,
+        average_rating: resolvedRating,
         status: statusChoice,
         current_page: statusChoice === "COMPLETED" ? totalPages : 0,
         progress_percentage: statusChoice === "COMPLETED" ? 100 : 0,
+        reading_time_seconds: 0,
+        read_count: statusChoice === "COMPLETED" ? 1 : 0,
         book_details: {
           id: book.id,
-          title: book.title,
-          author: book.author,
-          cover_image: book.cover,
+          title: resolvedTitle,
+          author: normalizedAuthors.join(", "),
+          authors: normalizedAuthors,
+          cover_image: resolvedCover,
           total_pages: totalPages,
         },
       };
       if (existingIndex >= 0) {
         const copy = [...list];
-        copy[existingIndex] = { ...copy[existingIndex], ...newUb };
+        copy[existingIndex] = { ...copy[existingIndex], ...newUb, id: copy[existingIndex].id };
         return copy;
       }
       return [...list, newUb];

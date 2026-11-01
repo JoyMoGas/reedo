@@ -41,7 +41,7 @@ export default function NewlyArrivedScreen() {
       return response.data.map((b: any) => ({
         id: b.id,
         title: b.title,
-        author: b.authors.join(", "),
+        author: Array.isArray(b.authors) ? b.authors.join(", ") : (b.author || "Unknown Author"),
         cover: b.cover_image || "",
         publishedDate: b.published_date,
       }));

@@ -124,7 +124,7 @@ export default function DiscoverScreen() {
       return response.data.map((b: any) => ({
         id: b.id,
         title: b.title,
-        author: b.authors.join(", "),
+        author: Array.isArray(b.authors) ? b.authors.join(", ") : (b.author || "Unknown Author"),
         cover: b.cover_image || "",
       }));
     }
@@ -143,7 +143,7 @@ export default function DiscoverScreen() {
       return response.data.map((b: any) => ({
         id: b.id,
         title: b.title,
-        author: b.authors.join(", "),
+        author: Array.isArray(b.authors) ? b.authors.join(", ") : (b.author || "Unknown Author"),
         cover: b.cover_image || "",
         rawBook: b,
       }));
@@ -192,7 +192,7 @@ export default function DiscoverScreen() {
       return response.data.map((b: any) => ({
         id: b.id,
         title: b.title,
-        author: b.authors.join(", "),
+        author: Array.isArray(b.authors) ? b.authors.join(", ") : (b.author || "Unknown Author"),
         cover: b.cover_image || "",
         publishedDate: b.published_date,
       }));

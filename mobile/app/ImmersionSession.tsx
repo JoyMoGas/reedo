@@ -35,12 +35,20 @@ import InterruptedSessionModal from "../components/immersion/InterruptedSessionM
 import { useHonorToastStore } from "../store/useHonorToastStore";
 import { useAuthStore } from "../store/useAuthStore";
 import { useSyncQueueStore } from "../store/useSyncQueueStore";
+import {
+  useReadingNotesStore,
+  formatImmersionTimestamp,
+} from "../store/useReadingNotesStore";
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
 function formatCountdown(seconds: number): string {
-  const m = Math.floor(seconds / 60);
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
   const s = seconds % 60;
+  if (h > 0) {
+    return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+  }
   return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
 }
 
@@ -165,6 +173,7 @@ export default function ImmersionSessionScreen() {
     cover: string;
     pagesRead: string;
     pagesTotal: string;
+    isRecoveryChallenge?: string;
     // Resume params
     isResume?: string;
     totalSeconds?: string;
@@ -186,6 +195,21 @@ export default function ImmersionSessionScreen() {
   );
   const [noteVisible, setNoteVisible] = useState(false);
   const [noteText, setNoteText] = useState("");
+  const [notePageText, setNotePageText] = useState(() => {
+    const initialPage = parseInt(params.pagesRead || "0", 10);
+    return initialPage > 0 ? String(initialPage) : "";
+  });
+  const [noteError, setNoteError] = useState<string | null>(null);
+  const [latestSessionPage, setLatestSessionPage] = useState(() =>
+    Math.max(0, parseInt(params.pagesRead || "0", 10) || 0)
+  );
+  const [sessionNotesCount, setSessionNotesCount] = useState(0);
+  const [noteSavedBanner, setNoteSavedBanner] = useState<{
+    page: number;
+    timeLabel: string;
+  } | null>(null);
+  const noteBannerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const addReadingNote = useReadingNotesStore((state) => state.addNote);
   const [isFinishing, setIsFinishing] = useState(false);
   const isFinishedRef = useRef(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -200,6 +224,72 @@ export default function ImmersionSessionScreen() {
 
   const remaining = totalSeconds - elapsed;
   const isCompleted = mode === "timed" && remaining <= 0;
+
+  const openNoteModal = () => {
+    setNoteError(null);
+    if (!notePageText && latestSessionPage > 0) {
+      setNotePageText(String(latestSessionPage));
+    }
+    setNoteVisible(true);
+  };
+
+  const handleSaveNote = () => {
+    const parsedPage = parseInt(notePageText.trim(), 10);
+    const maxPages = parseInt(params.pagesTotal || "0", 10);
+
+    if (!notePageText.trim() || isNaN(parsedPage) || parsedPage <= 0) {
+      setNoteError("Please enter the page number you are currently on.");
+      return;
+    }
+    if (maxPages > 0 && parsedPage > maxPages) {
+      setNoteError(`Page number cannot exceed ${maxPages} total pages.`);
+      return;
+    }
+    if (!noteText.trim()) {
+      setNoteError("Please write your note before saving.");
+      return;
+    }
+
+    const capturedSeconds = elapsed;
+    addReadingNote({
+      bookId: String(params.bookId || params.userbookId || ""),
+      userbookId: params.userbookId ? String(params.userbookId) : undefined,
+      bookTitle: params.title || "Untitled Book",
+      bookAuthor: params.author || "Unknown Author",
+      bookCover: params.cover || undefined,
+      pageNumber: parsedPage,
+      immersionSeconds: capturedSeconds,
+      content: noteText.trim(),
+    });
+
+    if (parsedPage > latestSessionPage) {
+      setLatestSessionPage(parsedPage);
+    }
+    setNotePageText(String(parsedPage));
+    setNoteText("");
+    setNoteError(null);
+    setNoteVisible(false);
+    setSessionNotesCount((prev) => prev + 1);
+
+    if (noteBannerTimerRef.current) {
+      clearTimeout(noteBannerTimerRef.current);
+    }
+    setNoteSavedBanner({
+      page: parsedPage,
+      timeLabel: formatImmersionTimestamp(capturedSeconds),
+    });
+    noteBannerTimerRef.current = setTimeout(() => {
+      setNoteSavedBanner(null);
+    }, 3500);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (noteBannerTimerRef.current) {
+        clearTimeout(noteBannerTimerRef.current);
+      }
+    };
+  }, []);
 
   const goToUpdateProgress = async () => {
     if (isFinishing) return;
@@ -238,7 +328,19 @@ export default function ImmersionSessionScreen() {
         }
       }
 
-      // 2. Enqueue persistent outbox request
+      // 2. If this was a Streak Recovery Challenge (or user can recover and completed >= 10m), trigger streak recovery
+      const canRecoverStreak = useStreakStore.getState().data?.can_recover;
+      if (params.isRecoveryChallenge === "true" || (canRecoverStreak && elapsed >= 600)) {
+        useStreakStore
+          .getState()
+          .recoverStreak("IMMERSION", {
+            book_id: params.bookId,
+            session_seconds: elapsed,
+          })
+          .catch(() => {});
+      }
+
+      // 3. Enqueue persistent outbox request
       useSyncQueueStore.getState().enqueue({
         type: "IMMERSION_SESSION",
         endpoint: "api/books/userbook/",
@@ -268,7 +370,12 @@ export default function ImmersionSessionScreen() {
         title: params.title,
         author: params.author,
         cover: params.cover,
-        pagesRead: params.pagesRead,
+        pagesRead: String(
+          Math.max(
+            latestSessionPage,
+            parseInt(params.pagesRead || "0", 10) || 0
+          )
+        ),
         pagesTotal: params.pagesTotal,
         fromImmersion: "true",
       },
@@ -504,6 +611,7 @@ export default function ImmersionSessionScreen() {
   const progress = mode === "timed" ? elapsed / totalSeconds : 0;
   const displayTime =
     mode === "timed" ? formatCountdown(Math.max(0, remaining)) : formatStopwatch(elapsed);
+  const hasHours = displayTime.length > 5;
 
   return (
     <View style={styles.root}>
@@ -542,13 +650,22 @@ export default function ImmersionSessionScreen() {
             <CircularRing progress={progress} />
             <View style={StyleSheet.absoluteFill} pointerEvents="none">
               <View style={styles.ringCenter}>
-                <Text style={[styles.timeText, isPaused && styles.timeTextPaused]}>
+                <Text
+                  style={[
+                    styles.timeText,
+                    hasHours && styles.timeTextHours,
+                    isPaused && styles.timeTextPaused,
+                  ]}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.6}
+                >
                   {displayTime}
                 </Text>
                 <View style={styles.remainingRow}>
-                  <Icon name="moon" size={12} color="rgba(255,248,240,0.45)" />
+                  <Icon name="moonLineDuotone" size={12} color="rgba(255,248,240,0.45)" />
                   <Text style={styles.remainingLabel}>
-                    {isPaused ? "PAUSED" : "MINUTES REMAINING"}
+                    {isPaused ? "PAUSED" : "TIME REMAINING"}
                   </Text>
                 </View>
               </View>
@@ -558,7 +675,16 @@ export default function ImmersionSessionScreen() {
           <View style={styles.infiniteTimerWrap}>
             <PulseRing />
             <View style={styles.infiniteCenter}>
-              <Text style={[styles.timeText, isPaused && styles.timeTextPaused]}>
+              <Text
+                style={[
+                  styles.timeText,
+                  hasHours && styles.timeTextHours,
+                  isPaused && styles.timeTextPaused,
+                ]}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.6}
+              >
                 {displayTime}
               </Text>
               <Text style={styles.remainingLabel}>
@@ -575,7 +701,7 @@ export default function ImmersionSessionScreen() {
         style={styles.pauseBtn}
         activeOpacity={0.85}
       >
-        <Icon name={isPaused ? "play" : "pause"} size={20} color="#212842" />
+        <Icon name={isPaused ? "playOutline" : "pause"} size={20} color="#212842" />
         <Text style={styles.pauseBtnText}>
           {isPaused ? "Resume Session" : "Pause Session"}
         </Text>
@@ -583,13 +709,25 @@ export default function ImmersionSessionScreen() {
 
       {/* Add Note */}
       <TouchableOpacity
-        onPress={() => setNoteVisible(true)}
+        onPress={openNoteModal}
         style={styles.noteBtn}
         activeOpacity={0.75}
       >
-        <Icon name="pencil" size={15} color="rgba(255,248,240,0.55)" />
-        <Text style={styles.noteBtnText}>ADD NOTE</Text>
+        <Icon name="pen" size={15} color="rgba(255,248,240,0.55)" />
+        <Text style={styles.noteBtnText}>
+          {sessionNotesCount > 0 ? `ADD NOTE (${sessionNotesCount})` : "ADD NOTE"}
+        </Text>
       </TouchableOpacity>
+
+      {/* Visual Confirmation Banner when a Note is Added */}
+      {noteSavedBanner && (
+        <View style={styles.noteSavedToast}>
+          <Icon name="checkCircle" size={16} color="#4A7C59" />
+          <Text style={styles.noteSavedToastText}>
+            Note saved on Page {noteSavedBanner.page} • {noteSavedBanner.timeLabel}
+          </Text>
+        </View>
+      )}
 
       {/* Finish Early / Stop */}
       <TouchableOpacity
@@ -626,33 +764,75 @@ export default function ImmersionSessionScreen() {
           <View style={[styles.noteSheet, { paddingBottom: Math.max(insets.bottom, 24) }]}>
             <View style={styles.noteHandle} />
             <View style={styles.noteHeader}>
-              <Text style={styles.noteHeading}>Add a Note</Text>
+              <Text style={styles.noteHeading}>Add a Reading Note</Text>
               <TouchableOpacity onPress={() => setNoteVisible(false)}>
                 <Icon name="cancel" size={20} color="#212842" />
               </TouchableOpacity>
             </View>
             <Text style={styles.noteSubheading}>
-              Capture your thoughts at this moment.
+              Enter the page you are on and capture your thoughts at this moment.
             </Text>
+
+            {/* Page Number & Immersion Time Row */}
+            <View style={styles.noteMetaRow}>
+              <View style={styles.notePageFieldWrap}>
+                <Text style={styles.noteFieldLabel}>CURRENT PAGE *</Text>
+                <View style={styles.notePageInputBox}>
+                  <Icon name="bookOpen" size={16} color="#212842" />
+                  <TextInput
+                    style={styles.notePageInput}
+                    keyboardType="number-pad"
+                    placeholder="Page #"
+                    placeholderTextColor="#9E9B92"
+                    value={notePageText}
+                    onChangeText={(val) => {
+                      setNotePageText(val.replace(/[^0-9]/g, ""));
+                      if (noteError) setNoteError(null);
+                    }}
+                    maxLength={6}
+                  />
+                  {params.pagesTotal && parseInt(params.pagesTotal, 10) > 0 ? (
+                    <Text style={styles.notePageTotalText}>
+                      / {params.pagesTotal}
+                    </Text>
+                  ) : null}
+                </View>
+              </View>
+
+              <View style={styles.noteTimeBadgeWrap}>
+                <Text style={styles.noteFieldLabel}>IMMERSION TIME</Text>
+                <View style={styles.noteTimeBadge}>
+                  <Icon name="hourglass" size={14} color="#C95F44" />
+                  <Text style={styles.noteTimeBadgeText}>
+                    {formatImmersionTimestamp(elapsed)}
+                  </Text>
+                </View>
+              </View>
+            </View>
+
             <TextInput
               style={styles.noteInput}
               multiline
-              placeholder="Write your thoughts here..."
+              placeholder="Write your note for this page..."
               placeholderTextColor="#C0BDB4"
               value={noteText}
-              onChangeText={setNoteText}
-              autoFocus
+              onChangeText={(val) => {
+                setNoteText(val);
+                if (noteError) setNoteError(null);
+              }}
               maxLength={1000}
             />
+
+            {noteError ? (
+              <Text style={styles.noteErrorText}>{noteError}</Text>
+            ) : null}
+
             <TouchableOpacity
-              onPress={() => {
-                // TODO: persist note via API
-                setNoteText("");
-                setNoteVisible(false);
-              }}
+              onPress={handleSaveNote}
               style={styles.noteSaveBtn}
               activeOpacity={0.85}
             >
+              <Icon name="checkCircle" size={18} color="#FFF8F0" />
               <Text style={styles.noteSaveBtnText}>Save Note</Text>
             </TouchableOpacity>
           </View>
@@ -746,12 +926,18 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
+    paddingHorizontal: 22,
   },
   timeText: {
     fontFamily: "Newsreader-Bold",
     fontSize: 52,
     color: "#FFF8F0",
     textAlign: "center",
+    maxWidth: RING_SIZE - 44,
+  },
+  timeTextHours: {
+    fontSize: 36,
+    letterSpacing: -0.5,
   },
   timeTextPaused: {
     opacity: 0.5,
@@ -785,6 +971,9 @@ const styles = StyleSheet.create({
   },
   infiniteCenter: {
     alignItems: "center",
+    justifyContent: "center",
+    width: RING_SIZE - 36,
+    paddingHorizontal: 8,
   },
   // Buttons
   pauseBtn: {
@@ -822,6 +1011,26 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "rgba(255,248,240,0.55)",
     letterSpacing: 1.2,
+  },
+  noteSavedToast: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(245, 238, 223, 0.96)",
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderRadius: 999,
+    marginTop: 10,
+    gap: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  noteSavedToastText: {
+    fontFamily: "PublicSans-Bold",
+    fontSize: 12,
+    color: "#212842",
   },
   finishBtn: {
     flexDirection: "row",
@@ -881,6 +1090,65 @@ const styles = StyleSheet.create({
     color: "#9E9B92",
     marginBottom: 14,
   },
+  noteMetaRow: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    gap: 12,
+    marginBottom: 14,
+  },
+  notePageFieldWrap: {
+    flex: 1,
+  },
+  noteFieldLabel: {
+    fontFamily: "PublicSans-Bold",
+    fontSize: 10,
+    color: "#9E9B92",
+    letterSpacing: 1,
+    marginBottom: 6,
+  },
+  notePageInputBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F5EEDF",
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    height: 46,
+    borderWidth: 1,
+    borderColor: "#E8E3D5",
+    gap: 8,
+  },
+  notePageInput: {
+    flex: 1,
+    fontFamily: "PublicSans-Bold",
+    fontSize: 16,
+    color: "#212842",
+    paddingVertical: 0,
+  },
+  notePageTotalText: {
+    fontFamily: "PublicSans-Regular",
+    fontSize: 13,
+    color: "#9E9B92",
+  },
+  noteTimeBadgeWrap: {
+    minWidth: 118,
+  },
+  noteTimeBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F5EEDF",
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    height: 46,
+    borderWidth: 1,
+    borderColor: "#E8E3D5",
+    gap: 6,
+  },
+  noteTimeBadgeText: {
+    fontFamily: "PublicSans-Bold",
+    fontSize: 14,
+    color: "#212842",
+  },
   noteInput: {
     backgroundColor: "#F5EEDF",
     borderRadius: 14,
@@ -888,15 +1156,26 @@ const styles = StyleSheet.create({
     fontFamily: "PublicSans-Regular",
     fontSize: 15,
     color: "#212842",
-    minHeight: 130,
+    minHeight: 120,
     textAlignVertical: "top",
-    marginBottom: 14,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "#E8E3D5",
+  },
+  noteErrorText: {
+    fontFamily: "PublicSans-Medium",
+    fontSize: 12,
+    color: "#C95F44",
+    marginBottom: 12,
   },
   noteSaveBtn: {
+    flexDirection: "row",
+    justifyContent: "center",
     backgroundColor: "#212842",
     borderRadius: 999,
     paddingVertical: 16,
     alignItems: "center",
+    gap: 8,
   },
   noteSaveBtnText: {
     fontFamily: "PublicSans-Bold",

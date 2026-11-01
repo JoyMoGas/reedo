@@ -68,6 +68,17 @@ export default function StreakModal({ visible, onClose }: StreakModalProps) {
     }
   };
 
+  const handleStartImmersionChallenge = () => {
+    onClose();
+    router.push({
+      pathname: "/ImmersionSetup",
+      params: {
+        initialMinutes: "10",
+        isRecoveryChallenge: "true",
+      },
+    });
+  };
+
   const handleStartReading = () => {
     onClose();
     router.push("/ImmersionSetup");
@@ -162,7 +173,7 @@ export default function StreakModal({ visible, onClose }: StreakModalProps) {
                 <View style={styles.recoveryActions}>
                   <TouchableOpacity
                     style={styles.recoveryChallengeBtn}
-                    onPress={handleStartReading}
+                    onPress={handleStartImmersionChallenge}
                     activeOpacity={0.85}
                   >
                     <Icon name="eyeOutline" size={16} color="#212842" />

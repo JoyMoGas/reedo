@@ -69,14 +69,16 @@ export default function KeepReading({ refreshTrigger = 0, onLoadEnd }: KeepReadi
     const mapped = userBooksData.map((ub: any) => ({
       id: ub.id,
       bookId: ub.book_id,
-      title: ub.title,
-      author: ub.authors.join(", "),
-      coverUrl: ub.cover_image || "",
+      title: ub.title || ub.book_details?.title || "Untitled",
+      author: Array.isArray(ub.authors)
+        ? ub.authors.join(", ")
+        : ub.authors || ub.author || ub.book_details?.author || "Unknown Author",
+      coverUrl: ub.cover_image || ub.book_details?.cover_image || "",
       pagesRead: ub.current_page || 0,
-      pagesTotal: ub.total_pages || 100,
+      pagesTotal: ub.total_pages || ub.book_details?.total_pages || 100,
       progress: Math.round(ub.progress_percentage || 0),
-      genres: ub.genres ? ub.genres.join(",") : "",
-      description: ub.synopsis || "",
+      genres: Array.isArray(ub.genres) ? ub.genres.join(",") : ub.genres || "",
+      description: ub.synopsis || ub.book_details?.synopsis || "",
       averageRating: ub.rating || ub.average_rating || "",
       readingTimeSeconds: ub.reading_time_seconds || 0,
     }));
