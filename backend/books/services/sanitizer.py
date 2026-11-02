@@ -13,7 +13,7 @@ from typing import Any, Dict, List, Optional, Union
 
 logger = logging.getLogger(__name__)
 
-# Case-insensitive title keywords to discard low-quality / compilation / reference items
+# Case-insensitive title keywords to discard low-quality / compilation / reference / magazine items
 BLACKLIST_TITLE_KEYWORDS = [
     "box set",
     "boxset",
@@ -29,6 +29,30 @@ BLACKLIST_TITLE_KEYWORDS = [
     "workbook",
     "sparknotes",
     "cliffnotes",
+    "cliffsnotes",
+    "magazine",
+    "periodical",
+    "issue #",
+    "journal of",
+    "proceedings of",
+    "bulletin",
+    "pamphlet",
+    "brochure",
+    "catalogue",
+    "catalog",
+    "almanac",
+    "directory",
+    "coloring book",
+    "activity book",
+    "Notebook",
+    "notecards",
+    "postcards",
+    "sheet music",
+    "screenplay",
+    "analysis of",
+    "BookRags",
+    "SuperSummary",
+    "Instaread",
 ]
 
 # Patterns in image URLs that indicate missing covers, default avatars or placeholders

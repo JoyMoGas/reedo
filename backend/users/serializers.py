@@ -150,6 +150,8 @@ class UserSerializer(serializers.ModelSerializer):
     thumbnail = serializers.SerializerMethodField()
     member_since_formatted = serializers.SerializerMethodField()
     total_reading_time_seconds = serializers.SerializerMethodField()
+    favorite_authors = serializers.SerializerMethodField()
+    favorite_genres = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -166,8 +168,16 @@ class UserSerializer(serializers.ModelSerializer):
             'show_spoilers',
             'member_since_formatted',
             'total_reading_time_seconds',
+            'favorite_authors',
+            'favorite_genres',
         ]
-        read_only_fields = ['id', 'honor_points', 'streak_days', 'member_since_formatted', 'total_reading_time_seconds']
+        read_only_fields = ['id', 'honor_points', 'streak_days', 'member_since_formatted', 'total_reading_time_seconds', 'favorite_authors', 'favorite_genres']
+
+    def get_favorite_authors(self, obj):
+        return [{"id": str(a.id), "name": a.name} for a in obj.favorite_authors.all()]
+
+    def get_favorite_genres(self, obj):
+        return [{"id": str(g.id), "genre": g.genre} for g in obj.favorite_genres.all()]
 
     def get_thumbnail(self, obj):
         if not obj.thumbnail:

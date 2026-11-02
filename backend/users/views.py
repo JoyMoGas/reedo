@@ -129,28 +129,43 @@ class UpdateFavoriteGenresView(APIView):
 class UpdateFavoriteAuthorsView(APIView):
   permission_classes = [IsAuthenticated]
 
+  def get(self, request):
+    user = request.user
+    return Response({
+      "favorite_authors": [{"id": str(a.id), "name": a.name} for a in user.favorite_authors.all()]
+    }, status=200)
+
   def post(self, request):
     user = request.user
-    author_ids = request.data.get("authors") # Para actualización en lote (onboarding)
-    author_id = request.data.get("author_id") # Para seguir/desseguir individualmente
-    action = request.data.get("action", "follow") # 'follow' o 'unfollow'
+    author_ids = request.data.get("authors")  # Para actualización en lote (onboarding)
+    author_id = request.data.get("author_id")  # Para seguir/desseguir individualmente por ID
+    author_name = request.data.get("author_name")  # Para seguir/desseguir individualmente por nombre
+    action = request.data.get("action", "follow")  # 'follow' o 'unfollow'
 
     if author_ids is not None:
       # Caso lote (onboarding)
-      valid_authors = Authors.objects.filter(id__in=author_ids)
+      valid_authors = list(Authors.objects.filter(id__in=[a for a in author_ids if str(a).isdigit()]))
+      for item in author_ids:
+        if isinstance(item, str) and not item.isdigit() and item.strip():
+          auth_obj, _ = Authors.objects.get_or_create(name=item.strip())
+          if auth_obj not in valid_authors:
+            valid_authors.append(auth_obj)
       user.favorite_authors.set(valid_authors)
       return Response({
         "message": "Favorite authors updated successfully",
-        "favorite_authors": [{"id": a.id, "name": a.name} for a in user.favorite_authors.all()]
+        "favorite_authors": [{"id": str(a.id), "name": a.name} for a in user.favorite_authors.all()]
       }, status=200)
 
-    if author_id:
-      # Caso individual (seguir/desseguir)
-      try:
-        author = Authors.objects.get(id=author_id)
-      except Authors.DoesNotExist:
-        return Response({"error": "Author not found"}, status=404)
+    author = None
+    if author_id and str(author_id).isdigit():
+      author = Authors.objects.filter(id=int(author_id)).first()
+    if not author and author_name and str(author_name).strip():
+      clean_name = str(author_name).strip()
+      author = Authors.objects.filter(name__iexact=clean_name).first()
+      if not author:
+        author = Authors.objects.create(name=clean_name)
 
+    if author:
       if action == "follow":
         user.favorite_authors.add(author)
         message = f"Started following {author.name}"
@@ -160,10 +175,10 @@ class UpdateFavoriteAuthorsView(APIView):
 
       return Response({
         "message": message,
-        "favorite_authors": [{"id": a.id, "name": a.name} for a in user.favorite_authors.all()]
+        "favorite_authors": [{"id": str(a.id), "name": a.name} for a in user.favorite_authors.all()]
       }, status=200)
 
-    return Response({"error": "Either 'authors' list or 'author_id' must be provided"}, status=400)
+    return Response({"error": "Either 'authors' list, 'author_id', or 'author_name' must be provided"}, status=400)
 
 
 class GenerateUsernameView(APIView):

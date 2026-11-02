@@ -375,12 +375,14 @@ class HardcoverService:
             if google_key:
                 try:
                     gb_resp = requests.get(
-                        f"https://www.googleapis.com/books/v1/volumes?q=bestseller+fiction&maxResults=20&key={google_key}",
+                        f"https://www.googleapis.com/books/v1/volumes?q=bestseller+fiction&printType=books&maxResults=20&key={google_key}",
                         timeout=5
                     )
                     if gb_resp.status_code == 200:
                         for it in gb_resp.json().get("items", []):
                             v = it.get("volumeInfo", {})
+                            if str(v.get("printType", "BOOK")).upper() != "BOOK":
+                                continue
                             thumb = (v.get("imageLinks", {}).get("thumbnail") or "").replace("http://", "https://")
                             if thumb:
                                 items.append({
@@ -437,12 +439,14 @@ class HardcoverService:
             if google_key:
                 try:
                     gb_resp = requests.get(
-                        f"https://www.googleapis.com/books/v1/volumes?q={requests.utils.quote(query)}&maxResults={max_results}&key={google_key}",
+                        f"https://www.googleapis.com/books/v1/volumes?q={requests.utils.quote(query)}&printType=books&maxResults={max_results}&key={google_key}",
                         timeout=5
                     )
                     if gb_resp.status_code == 200:
                         for it in gb_resp.json().get("items", []):
                             v = it.get("volumeInfo", {})
+                            if str(v.get("printType", "BOOK")).upper() != "BOOK":
+                                continue
                             thumb = (v.get("imageLinks", {}).get("thumbnail") or "").replace("http://", "https://")
                             if thumb:
                                 items.append({
