@@ -25,6 +25,7 @@ import BookCover from "../BookCover";
 import NoCover from "../../app/assets/NoCover.svg";
 import api from "../../store/api";
 import { useSyncQueueStore } from "../../store/useSyncQueueStore";
+import { useAuthorFollowStore } from "../../store/useAuthorFollowStore";
 
 export interface BookToAdd {
   id: string;
@@ -86,9 +87,9 @@ export default function AddToLibraryModal({
       useProgressStore.getState().addPagesRead(totalPages);
     }
 
-    // 2. Custom shelf registration
+    // 2. Custom or Favorites shelf registration
     const isCustom = !shelfId.startsWith("default-");
-    if (isCustom) {
+    if (isCustom || shelfId === "default-favorites") {
       addBookToShelf(shelfId, book.id);
     }
 
@@ -147,6 +148,18 @@ export default function AddToLibraryModal({
       }
       return [...list, newUb];
     });
+
+    // 3b. Record taste signal for recommendation algorithm
+    useAuthorFollowStore.getState().recordBookSignal({
+      bookId: String(book.id),
+      title: resolvedTitle,
+      authors: normalizedAuthors,
+      genres: normalizedGenres,
+      weight: shelfId === "default-favorites" ? 4 : 3,
+    });
+    queryClient.invalidateQueries({ queryKey: ["discoverBooks"] });
+    queryClient.invalidateQueries({ queryKey: ["authorSpotlight"] });
+    queryClient.invalidateQueries({ queryKey: ["basedOnHistory"] });
 
     // 4. Enqueue to persistent outbox
     useSyncQueueStore.getState().enqueue({

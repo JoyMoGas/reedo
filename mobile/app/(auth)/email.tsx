@@ -1,123 +1,82 @@
-/**
- * @project Reedo
- * @module email
- * @author José Antonio Montaño (Lead Developer)
- * @inspired-by Alondra Gamino (Constant Inspiration)
- * @date 2026-05-30
- */
-import React, { useState, useRef, useEffect } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
-  Text,
-  View,
-  TouchableOpacity,
-  TextInput,
-  KeyboardAvoidingView,
-  ScrollView,
-  Platform,
+  ActivityIndicator,
   Animated,
   Easing,
-  ActivityIndicator,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  ScrollView,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Logo from "../assets/LOGO.svg";
-import { useAuthStore } from "../../store/useAuthStore";
+import Icon from "../../core/Icon";
 import api from "../../store/api";
+import { useAuthStore } from "../../store/useAuthStore";
 import { useSignUpStore } from "../../store/useSignUpStore";
 
 export default function SignInStep6Screen() {
   const router = useRouter();
   const { login } = useAuthStore();
-  const { email: storedEmail, setStep6 } = useSignUpStore();
+  const {
+    email: storedEmail,
+    full_name,
+    username,
+    favorite_genres,
+    favorite_authors,
+    favorite_books,
+    setStep6,
+  } = useSignUpStore();
 
   const [email, setEmail] = useState(storedEmail || "");
   const [password, setPassword] = useState("");
   const [repeatPassword, setRepeatPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [errors, setErrors] = useState<{ email?: string; password?: string; repeatPassword?: string; general?: string }>({});
+  const [errors, setErrors] = useState<{
+    email?: string;
+    password?: string;
+    repeatPassword?: string;
+    general?: string;
+  }>({});
   const [showPassword, setShowPassword] = useState(false);
   const [showRepeatPassword, setShowRepeatPassword] = useState(false);
-  const [focusedField, setFocusedField] = useState<string | null>(null);
+  const [focusedField, setFocusedField] = useState<"email" | "password" | "confirm" | null>(null);
+  const [activeLegalModal, setActiveLegalModal] = useState<"terms" | "privacy" | null>(null);
 
-  const emailRef = useRef<TextInput>(null);
   const passwordRef = useRef<TextInput>(null);
   const repeatPasswordRef = useRef<TextInput>(null);
 
-  // Underline focus animated values
-  const emailFocusAnim = useRef(new Animated.Value(0)).current;
-  const passwordFocusAnim = useRef(new Animated.Value(0)).current;
-  const repeatPasswordFocusAnim = useRef(new Animated.Value(0)).current;
-
-  const animateFocus = (anim: Animated.Value, toValue: number) => {
-    Animated.timing(anim, {
-      toValue,
-      duration: 250,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: false,
-    }).start();
-  };
-
-  const emailLineWidth = emailFocusAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ["0%", "100%"],
-  });
-
-  const passwordLineWidth = passwordFocusAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ["0%", "100%"],
-  });
-
-  const repeatPasswordLineWidth = repeatPasswordFocusAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ["0%", "100%"],
-  });
-
-  // Animated values
   const progressAnim = useRef(new Animated.Value(5 / 6)).current;
-  const dotTransition = useRef(new Animated.Value(0)).current;
+  const shakeAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    // Top progress bar: from 5/6 (step 5) to 6/6 (step 6 - 100%)
     Animated.timing(progressAnim, {
-      toValue: 6 / 6,
-      duration: 800,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: false,
-    }).start();
-
-    // Bottom dots: transitioning active pill from dot 5 to dot 6
-    Animated.timing(dotTransition, {
       toValue: 1,
-      duration: 800,
+      duration: 600,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: false,
     }).start();
-  }, []);
+  }, [progressAnim]);
 
   const progressWidth = progressAnim.interpolate({
     inputRange: [0, 1],
     outputRange: ["0%", "100%"],
   });
 
-  const dot5Width = dotTransition.interpolate({
-    inputRange: [0, 1],
-    outputRange: [20, 8],
-  });
-
-  const dot6Width = dotTransition.interpolate({
-    inputRange: [0, 1],
-    outputRange: [8, 20],
-  });
-
-  const dot5Color = dotTransition.interpolate({
-    inputRange: [0, 1],
-    outputRange: ["#212842", "#EBE7DF"],
-  });
-
-  const dot6Color = dotTransition.interpolate({
-    inputRange: [0, 1],
-    outputRange: ["#EBE7DF", "#212842"],
-  });
+  const triggerShake = () => {
+    Animated.sequence([
+      Animated.timing(shakeAnim, { toValue: 10, duration: 50, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue: -10, duration: 50, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue: 8, duration: 50, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue: -8, duration: 50, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue: 0, duration: 50, useNativeDriver: true }),
+    ]).start();
+  };
 
   const handleFinalize = async () => {
     setErrors({});
@@ -125,15 +84,18 @@ export default function SignInStep6Screen() {
     const localErrors: typeof errors = {};
 
     if (!email.trim()) {
-      localErrors.email = "Please enter your email.";
+      localErrors.email = "Please enter your email address.";
       hasLocalError = true;
     }
     if (!password) {
-      localErrors.password = "Please enter your master password.";
+      localErrors.password = "Please create a password for your account.";
+      hasLocalError = true;
+    } else if (password.length < 6) {
+      localErrors.password = "Password must be at least 6 characters long.";
       hasLocalError = true;
     }
     if (!repeatPassword) {
-      localErrors.repeatPassword = "Please repeat your password.";
+      localErrors.repeatPassword = "Please confirm your password.";
       hasLocalError = true;
     }
     if (password && repeatPassword && password !== repeatPassword) {
@@ -143,23 +105,27 @@ export default function SignInStep6Screen() {
 
     if (hasLocalError) {
       setErrors(localErrors);
+      triggerShake();
       return;
     }
 
     setIsLoading(true);
+    setStep6(email.trim());
 
     try {
       const checkResponse = await api.post("api/users/check-email/", {
         email: email.trim(),
       });
       if (checkResponse.data?.exists) {
-        setErrors({ email: "This email is already in use. Please choose another." });
+        setErrors({
+          email: "This email is already registered. Please sign in or use another email.",
+        });
+        triggerShake();
         setIsLoading(false);
         return;
       }
     } catch (error) {
       console.warn("Failed to check email availability:", error);
-      // Fallback: proceed to signup if server or connection issues occur during this auxiliary check
     }
 
     const signUpState = useSignUpStore.getState();
@@ -179,15 +145,15 @@ export default function SignInStep6Screen() {
     try {
       const response = await api.post("api/users/signup/", payload);
       const { tokens, user: userProfile } = response.data;
-      
-      // Save onboarding favorite books to UserBook shelf in Supabase BEFORE logging in (to prevent race conditions with navigation redirect)
+
       if (signUpState.favorite_books.length > 0) {
         try {
           for (const book of signUpState.favorite_books) {
             const raw = book.rawBook;
-            await api.post("api/books/userbook/", 
-              { 
-                book_id: book.id, 
+            await api.post(
+              "api/books/userbook/",
+              {
+                book_id: book.id,
                 status: "READ_LATER",
                 title: raw?.title || book.title,
                 authors: raw?.authors || [book.author],
@@ -196,7 +162,7 @@ export default function SignInStep6Screen() {
                 total_pages: raw?.total_pages,
                 isbn: raw?.isbn,
                 average_rating: raw?.average_rating,
-                genres: raw?.genres
+                genres: raw?.genres,
               },
               { headers: { Authorization: `Bearer ${tokens.access}` } }
             );
@@ -206,49 +172,53 @@ export default function SignInStep6Screen() {
         }
       }
 
-      // Save access token and user locally/globally (this will trigger navigation redirect)
       await login(tokens.access, userProfile);
-
       signUpState.reset();
     } catch (error: any) {
+      triggerShake();
       const errorData = error.response?.data;
-      let errMsg = "Registration failed.";
+      let errMsg = "Registration failed. Please try again.";
       if (errorData) {
         if (typeof errorData === "string") {
           errMsg = errorData;
         } else if (errorData.error) {
           errMsg = errorData.error;
         } else {
-          // Check for field-specific errors
           const newErrors: typeof errors = {};
           let hasFieldErrors = false;
-          
+
           if (errorData.email) {
-            newErrors.email = Array.isArray(errorData.email) ? errorData.email[0] : errorData.email;
+            newErrors.email = Array.isArray(errorData.email)
+              ? errorData.email[0]
+              : errorData.email;
             hasFieldErrors = true;
           }
           if (errorData.username) {
-            newErrors.general = `Username: ${Array.isArray(errorData.username) ? errorData.username[0] : errorData.username}`;
+            newErrors.general = `Username: ${
+              Array.isArray(errorData.username)
+                ? errorData.username[0]
+                : errorData.username
+            }`;
             hasFieldErrors = true;
           }
           if (errorData.password) {
-            newErrors.password = Array.isArray(errorData.password) ? errorData.password[0] : errorData.password;
+            newErrors.password = Array.isArray(errorData.password)
+              ? errorData.password[0]
+              : errorData.password;
             hasFieldErrors = true;
           }
           if (errorData.password_confirm) {
-            newErrors.repeatPassword = Array.isArray(errorData.password_confirm) ? errorData.password_confirm[0] : errorData.password_confirm;
+            newErrors.repeatPassword = Array.isArray(errorData.password_confirm)
+              ? errorData.password_confirm[0]
+              : errorData.password_confirm;
             hasFieldErrors = true;
           }
-          
+
           if (hasFieldErrors) {
             setErrors(newErrors);
             setIsLoading(false);
             return;
           }
-
-          errMsg = Object.keys(errorData)
-            .map((key) => `${key}: ${JSON.stringify(errorData[key])}`)
-            .join("\n");
         }
       }
       setErrors({ general: errMsg });
@@ -257,407 +227,577 @@ export default function SignInStep6Screen() {
     }
   };
 
+  const hasMinLength = password.length >= 6;
+  const passwordsMatch = password.length > 0 && password === repeatPassword;
+
   return (
-    <SafeAreaView className="flex-1 bg-[#FFF8F0] justify-between">
-
-      {/* Top Navigation Header (Fixed) */}
-      <View>
-        <View className="flex-row items-center justify-between w-full px-6 py-3">
-          <TouchableOpacity
-            onPress={() => router.back()}
-            className="w-16 h-10 items-start justify-center"
-            activeOpacity={0.7}
-          >
-            <Text
-              className="text-[#212842] text-2xl font-bold"
-              style={{ fontFamily: "PublicSans-Bold" }}
-            >
-              {"<"}
-            </Text>
-          </TouchableOpacity>
-
-          <Logo width={36} height={36} />
-
-          <TouchableOpacity
-            onPress={() => router.replace("/(auth)/login")}
-            className="w-16 h-10 items-end justify-center"
-            activeOpacity={0.7}
-          >
-            <Text
-              className="text-[#212842] text-sm"
-              style={{ fontFamily: "PublicSans-Bold", textDecorationLine: "underline" }}
-            >
-              Log In
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Animated Progress Bar */}
-        <View className="w-full h-[2px] bg-[#EBE7DF]">
-          <Animated.View
-            style={{ width: progressWidth }}
-            className="h-full bg-[#212842]"
-          />
-        </View>
-      </View>
-
-      {/* Main content wrapped in KeyboardAvoidingView for premium UX */}
+    <SafeAreaView className="flex-1 bg-[#FFF8F0]">
       <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "padding"}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 80 : 0}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
         className="flex-1"
       >
-        <ScrollView
-          className="flex-1 px-6 pt-8"
-          contentContainerStyle={{ paddingBottom: 80 }}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-        >
-          {/* Header Title & Subtitle */}
-          <View>
-            <Text
-              className="text-[#212842] text-start leading-tight"
-              style={{ fontFamily: "Newsreader-Bold", fontSize: 36 }}
-            >
-              Secure your{"\n"}archive
-            </Text>
-            <Text
-              className="text-base text-[#5C5E69] text-start mt-4 leading-relaxed"
-              style={{ fontFamily: "PublicSans-Regular" }}
-            >
-              Your thoughts are the most personal artifacts you possess. To preserve the sanctity of your digital curation, we require a unique master key that ensures your archive remains yours alone.
-            </Text>
+        <View className="flex-1 justify-between">
+          {/* Top Bar + Progress Indicator */}
+          <View className="px-6 pt-3">
+            <View className="flex-row justify-between items-center mb-3">
+              <TouchableOpacity
+                onPress={() => router.back()}
+                disabled={isLoading}
+                activeOpacity={0.75}
+                className="w-10 h-10 rounded-full bg-[#FAF3E8] border border-[#E6DACB] items-center justify-center"
+              >
+                <Icon name="arrowLeft" size={18} color="#212842" />
+              </TouchableOpacity>
 
-            {/* General Error Banner */}
-            {errors.general && (
-              <View className="mt-6 p-4 rounded-2xl bg-[#FFF5F5] border border-[#FAD2D2] flex-row items-center">
-                <Text className="text-xl mr-3">⚠️</Text>
+              <View className="flex-row items-center px-3 py-1.5 rounded-full bg-[#FAF3E8] border border-[#E6DACB]">
+                <Logo width={16} height={16} />
                 <Text
-                  className="flex-1 text-[#C53030] text-sm"
                   style={{ fontFamily: "PublicSans-Bold" }}
+                  className="text-[11px] tracking-[1.5px] text-[#212842] uppercase ml-2"
                 >
-                  {errors.general}
+                  Step 6 of 6
                 </Text>
               </View>
-            )}
 
-            {/* Input Form Fields */}
-            <View className="mt-10">
-              {/* Email Address Input */}
-              <View className="mb-6">
+              <TouchableOpacity
+                onPress={() => router.replace("/(auth)/login")}
+                disabled={isLoading}
+                activeOpacity={0.75}
+                className="px-3.5 py-2 rounded-full bg-[#FAF3E8] border border-[#E6DACB]"
+              >
                 <Text
-                  className={`text-xs tracking-widest uppercase mb-1 ${errors.email ? "text-[#E57A7A]" : "text-[#8E8B82]"}`}
                   style={{ fontFamily: "PublicSans-Bold" }}
+                  className="text-[#C95F44] text-xs"
                 >
-                  EMAIL ADDRESS
+                  Sign In
                 </Text>
-                <View className="w-full relative pb-[2px]">
+              </TouchableOpacity>
+            </View>
+
+            {/* Progress Bar */}
+            <View className="w-full h-1.5 bg-[#EDE3D5] rounded-full overflow-hidden mb-2">
+              <Animated.View
+                style={{ width: progressWidth }}
+                className="h-full bg-[#C95F44] rounded-full"
+              />
+            </View>
+          </View>
+
+          {/* Main Scrollable Content */}
+          <ScrollView
+            contentContainerStyle={{ paddingHorizontal: 24, paddingTop: 12, paddingBottom: 24 }}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            {/* Header Section */}
+            <View className="mb-5">
+              <Text
+                style={{ fontFamily: "PublicSans-Bold" }}
+                className="text-[11px] tracking-[2px] text-[#C95F44] uppercase mb-1.5"
+              >
+                Final Step
+              </Text>
+              <Text
+                style={{ fontFamily: "Newsreader-Bold" }}
+                className="text-[32px] text-[#212842] leading-[38px] mb-2"
+              >
+                Secure your{" "}
+                <Text
+                  style={{ fontFamily: "Newsreader-Italic" }}
+                  className="text-[#C95F44]"
+                >
+                  Reedo account
+                </Text>
+              </Text>
+              <Text
+                style={{ fontFamily: "PublicSans-Regular" }}
+                className="text-[14px] text-[#5A6075] leading-[21px]"
+              >
+                Enter your email address and create a password so your library, streaks, and reading notes stay backed up on any device.
+              </Text>
+
+              {/* Profile Setup Summary Card */}
+              <View className="mt-4 bg-[#FAF3E8] border border-[#E6DACB] rounded-2xl p-3.5 flex-row items-center justify-between">
+                <View className="flex-row items-center flex-1 mr-2">
+                  <View className="w-9 h-9 rounded-full bg-[#212842] items-center justify-center mr-3">
+                    <Text
+                      style={{ fontFamily: "Newsreader-Bold" }}
+                      className="text-sm text-[#FFF8F0]"
+                    >
+                      {(full_name || "R").charAt(0).toUpperCase()}
+                    </Text>
+                  </View>
+                  <View className="flex-1">
+                    <Text
+                      style={{ fontFamily: "PublicSans-Bold" }}
+                      className="text-xs text-[#212842]"
+                      numberOfLines={1}
+                    >
+                      {full_name || "New Reader"}{" "}
+                      <Text
+                        style={{ fontFamily: "PublicSans-Regular" }}
+                        className="text-[#C95F44]"
+                      >
+                        @{username || "reader"}
+                      </Text>
+                    </Text>
+                    <Text
+                      style={{ fontFamily: "PublicSans-Regular" }}
+                      className="text-[11px] text-[#64748B] mt-0.5"
+                      numberOfLines={1}
+                    >
+                      {favorite_genres.length} genres • {favorite_authors.length} authors •{" "}
+                      {favorite_books.length} books ready
+                    </Text>
+                  </View>
+                </View>
+                <Icon name="sealCheck" size={18} color="#C95F44" />
+              </View>
+            </View>
+
+            {/* Form Inputs */}
+            <Animated.View
+              style={{ transform: [{ translateX: shakeAnim }] }}
+              className="w-full"
+            >
+              {errors.general && (
+                <View className="bg-[#FDF2F0] border border-[#E8B4B4] rounded-2xl p-3.5 mb-4 flex-row items-start">
+                  <View className="w-5 h-5 rounded-full bg-[#C94444]/15 items-center justify-center mr-2.5 mt-0.5">
+                    <Icon name="cancel" size={13} color="#C94444" />
+                  </View>
+                  <Text
+                    style={{ fontFamily: "PublicSans-Regular" }}
+                    className="text-[#9E2A2B] text-xs flex-1 leading-5"
+                  >
+                    {errors.general}
+                  </Text>
+                </View>
+              )}
+
+              {/* Email Field */}
+              <View className="mb-4">
+                <Text
+                  style={{ fontFamily: "PublicSans-Bold" }}
+                  className={`text-xs tracking-[1px] uppercase mb-1.5 ${
+                    errors.email ? "text-[#C94444]" : "text-[#212842]"
+                  }`}
+                >
+                  Email Address
+                </Text>
+
+                <View
+                  className={`flex-row items-center rounded-2xl px-4 py-1 border ${
+                    errors.email
+                      ? "bg-[#FDF2F0] border-[#C94444]"
+                      : focusedField === "email"
+                      ? "bg-white border-[#212842]"
+                      : "bg-[#FAF3E8] border-[#E6DACB]"
+                  }`}
+                >
+                  <Icon
+                    name="bookOpen"
+                    size={17}
+                    color={
+                      errors.email
+                        ? "#C94444"
+                        : focusedField === "email"
+                        ? "#212842"
+                        : "#8E8B82"
+                    }
+                  />
                   <TextInput
-                    ref={emailRef}
-                    className="w-full text-xl py-2 text-[#212842]"
-                    style={{ fontFamily: "Newsreader-Italic" }}
-                    placeholder="curator@reedo.com"
-                    placeholderTextColor="#C5C2BA"
+                    value={email}
+                    onChangeText={(text) => {
+                      setEmail(text);
+                      if (errors.email || errors.general) setErrors({});
+                    }}
+                    onFocus={() => setFocusedField("email")}
+                    onBlur={() => setFocusedField(null)}
+                    placeholder="you@example.com"
+                    placeholderTextColor="#A9A49A"
                     keyboardType="email-address"
                     autoCapitalize="none"
                     autoCorrect={false}
                     returnKeyType="next"
                     onSubmitEditing={() => passwordRef.current?.focus()}
-                    onFocus={() => {
-                      setFocusedField("email");
-                      animateFocus(emailFocusAnim, 1);
-                    }}
-                    onBlur={() => {
-                      setFocusedField(null);
-                      animateFocus(emailFocusAnim, 0);
-                    }}
-                    value={email}
-                    onChangeText={(val) => {
-                      setEmail(val);
-                      setStep6(val.trim());
-                      if (errors.email) setErrors(prev => ({ ...prev, email: undefined }));
-                    }}
                     editable={!isLoading}
-                  />
-                  {/* Background Line */}
-                  <View className={`absolute bottom-0 left-0 w-full h-[1px] ${errors.email ? "bg-[#F5C2C2]" : "bg-[#E5E0D8]"}`} />
-                  {/* Animated Active Line */}
-                  <Animated.View
-                    style={{
-                      position: "absolute",
-                      bottom: 0,
-                      left: 0,
-                      width: emailLineWidth,
-                      height: 2,
-                      backgroundColor: errors.email ? "#E57A7A" : "#212842",
-                    }}
+                    style={{ fontFamily: "PublicSans-Regular" }}
+                    className="flex-1 text-base text-[#212842] py-3.5 ml-3"
                   />
                 </View>
+
                 {errors.email && (
                   <Text
-                    className="text-[#E57A7A] text-xs mt-1"
                     style={{ fontFamily: "PublicSans-Regular" }}
+                    className="text-xs text-[#C94444] mt-1.5 px-1"
                   >
                     {errors.email}
                   </Text>
                 )}
               </View>
 
-              {/* Master Password Input */}
-              <View className="mb-6">
+              {/* Password Field */}
+              <View className="mb-4">
                 <Text
-                  className={`text-xs tracking-widest uppercase mb-1 ${errors.password ? "text-[#E57A7A]" : "text-[#8E8B82]"}`}
                   style={{ fontFamily: "PublicSans-Bold" }}
+                  className={`text-xs tracking-[1px] uppercase mb-1.5 ${
+                    errors.password ? "text-[#C94444]" : "text-[#212842]"
+                  }`}
                 >
-                  MASTER PASSWORD
+                  Create Password
                 </Text>
-                <View className="w-full relative pb-[2px]">
-                  <View className="flex-row items-center w-full">
-                    <TextInput
-                      ref={passwordRef}
-                      className="flex-1 text-xl py-2 text-[#212842]"
-                      style={{ fontFamily: "Newsreader-Italic" }}
-                      placeholder="•••••••"
-                      placeholderTextColor="#C5C2BA"
-                      secureTextEntry={!showPassword}
-                      autoCapitalize="none"
-                      autoCorrect={false}
-                      returnKeyType="next"
-                      onSubmitEditing={() => repeatPasswordRef.current?.focus()}
-                      onFocus={() => {
-                        setFocusedField("password");
-                        animateFocus(passwordFocusAnim, 1);
-                      }}
-                      onBlur={() => {
-                        setFocusedField(null);
-                        animateFocus(passwordFocusAnim, 0);
-                      }}
-                      value={password}
-                      onChangeText={(val) => {
-                        setPassword(val);
-                        if (errors.password) setErrors(prev => ({ ...prev, password: undefined }));
-                      }}
-                      editable={!isLoading}
-                    />
-                    <TouchableOpacity
-                      onPress={() => setShowPassword(!showPassword)}
-                      className="pl-3 py-2"
-                      activeOpacity={0.7}
-                      disabled={isLoading}
-                    >
-                      <Text
-                        className="text-lg font-bold"
-                        style={{ color: showPassword ? "#212842" : "#C5C2BA" }}
-                      >
-                        👁
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                  {/* Background Line */}
-                  <View className={`absolute bottom-0 left-0 w-full h-[1px] ${errors.password ? "bg-[#F5C2C2]" : "bg-[#E5E0D8]"}`} />
-                  {/* Animated Active Line */}
-                  <Animated.View
-                    style={{
-                      position: "absolute",
-                      bottom: 0,
-                      left: 0,
-                      width: passwordLineWidth,
-                      height: 2,
-                      backgroundColor: errors.password ? "#E57A7A" : "#212842",
-                    }}
+
+                <View
+                  className={`flex-row items-center rounded-2xl px-4 py-1 border ${
+                    errors.password
+                      ? "bg-[#FDF2F0] border-[#C94444]"
+                      : focusedField === "password"
+                      ? "bg-white border-[#212842]"
+                      : "bg-[#FAF3E8] border-[#E6DACB]"
+                  }`}
+                >
+                  <Icon
+                    name="lockOpen"
+                    size={18}
+                    color={
+                      errors.password
+                        ? "#C94444"
+                        : focusedField === "password"
+                        ? "#212842"
+                        : "#8E8B82"
+                    }
                   />
+                  <TextInput
+                    ref={passwordRef}
+                    value={password}
+                    onChangeText={(text) => {
+                      setPassword(text);
+                      if (errors.password || errors.general) setErrors({});
+                    }}
+                    onFocus={() => setFocusedField("password")}
+                    onBlur={() => setFocusedField(null)}
+                    placeholder="At least 6 characters"
+                    placeholderTextColor="#A9A49A"
+                    secureTextEntry={!showPassword}
+                    autoCapitalize="none"
+                    returnKeyType="next"
+                    onSubmitEditing={() => repeatPasswordRef.current?.focus()}
+                    editable={!isLoading}
+                    style={{ fontFamily: "PublicSans-Regular" }}
+                    className="flex-1 text-base text-[#212842] py-3.5 ml-3"
+                  />
+                  <TouchableOpacity
+                    onPress={() => setShowPassword(!showPassword)}
+                    className="pl-2 py-2"
+                    disabled={isLoading}
+                  >
+                    <Icon
+                      name={showPassword ? "eyeOutline" : "eyeClosedSolid"}
+                      size={18}
+                      color="#64748B"
+                    />
+                  </TouchableOpacity>
                 </View>
+
                 {errors.password && (
                   <Text
-                    className="text-[#E57A7A] text-xs mt-1"
                     style={{ fontFamily: "PublicSans-Regular" }}
+                    className="text-xs text-[#C94444] mt-1.5 px-1"
                   >
                     {errors.password}
                   </Text>
                 )}
               </View>
 
-              {/* Repeat Password Input */}
-              <View className="mb-6">
+              {/* Confirm Password Field */}
+              <View className="mb-4">
                 <Text
-                  className={`text-xs tracking-widest uppercase mb-1 ${errors.repeatPassword ? "text-[#E57A7A]" : "text-[#8E8B82]"}`}
                   style={{ fontFamily: "PublicSans-Bold" }}
+                  className={`text-xs tracking-[1px] uppercase mb-1.5 ${
+                    errors.repeatPassword ? "text-[#C94444]" : "text-[#212842]"
+                  }`}
                 >
-                  REPEAT PASSWORD
+                  Confirm Password
                 </Text>
-                <View className="w-full relative pb-[2px]">
-                  <View className="flex-row items-center w-full">
-                    <TextInput
-                      ref={repeatPasswordRef}
-                      className="flex-1 text-xl py-2 text-[#212842]"
-                      style={{ fontFamily: "Newsreader-Italic" }}
-                      placeholder="•••••••"
-                      placeholderTextColor="#C5C2BA"
-                      secureTextEntry={!showRepeatPassword}
-                      autoCapitalize="none"
-                      autoCorrect={false}
-                      returnKeyType="done"
-                      onSubmitEditing={handleFinalize}
-                      onFocus={() => {
-                        setFocusedField("repeatPassword");
-                        animateFocus(repeatPasswordFocusAnim, 1);
-                      }}
-                      onBlur={() => {
-                        setFocusedField(null);
-                        animateFocus(repeatPasswordFocusAnim, 0);
-                      }}
-                      value={repeatPassword}
-                      onChangeText={(val) => {
-                        setRepeatPassword(val);
-                        if (errors.repeatPassword) setErrors(prev => ({ ...prev, repeatPassword: undefined }));
-                      }}
-                      editable={!isLoading}
-                    />
-                    <TouchableOpacity
-                      onPress={() => setShowRepeatPassword(!showRepeatPassword)}
-                      className="pl-3 py-2"
-                      activeOpacity={0.7}
-                      disabled={isLoading}
-                    >
-                      <Text
-                        className="text-lg font-bold"
-                        style={{ color: showRepeatPassword ? "#212842" : "#C5C2BA" }}
-                      >
-                        👁
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                  {/* Background Line */}
-                  <View className={`absolute bottom-0 left-0 w-full h-[1px] ${errors.repeatPassword ? "bg-[#F5C2C2]" : "bg-[#E5E0D8]"}`} />
-                  {/* Animated Active Line */}
-                  <Animated.View
-                    style={{
-                      position: "absolute",
-                      bottom: 0,
-                      left: 0,
-                      width: repeatPasswordLineWidth,
-                      height: 2,
-                      backgroundColor: errors.repeatPassword ? "#E57A7A" : "#212842",
-                    }}
+
+                <View
+                  className={`flex-row items-center rounded-2xl px-4 py-1 border ${
+                    errors.repeatPassword
+                      ? "bg-[#FDF2F0] border-[#C94444]"
+                      : focusedField === "confirm"
+                      ? "bg-white border-[#212842]"
+                      : "bg-[#FAF3E8] border-[#E6DACB]"
+                  }`}
+                >
+                  <Icon
+                    name="lockOpen"
+                    size={18}
+                    color={
+                      errors.repeatPassword
+                        ? "#C94444"
+                        : focusedField === "confirm"
+                        ? "#212842"
+                        : "#8E8B82"
+                    }
                   />
+                  <TextInput
+                    ref={repeatPasswordRef}
+                    value={repeatPassword}
+                    onChangeText={(text) => {
+                      setRepeatPassword(text);
+                      if (errors.repeatPassword || errors.general) setErrors({});
+                    }}
+                    onFocus={() => setFocusedField("confirm")}
+                    onBlur={() => setFocusedField(null)}
+                    placeholder="Re-enter your password"
+                    placeholderTextColor="#A9A49A"
+                    secureTextEntry={!showRepeatPassword}
+                    autoCapitalize="none"
+                    returnKeyType="done"
+                    onSubmitEditing={handleFinalize}
+                    editable={!isLoading}
+                    style={{ fontFamily: "PublicSans-Regular" }}
+                    className="flex-1 text-base text-[#212842] py-3.5 ml-3"
+                  />
+                  <TouchableOpacity
+                    onPress={() => setShowRepeatPassword(!showRepeatPassword)}
+                    className="pl-2 py-2"
+                    disabled={isLoading}
+                  >
+                    <Icon
+                      name={showRepeatPassword ? "eyeOutline" : "eyeClosedSolid"}
+                      size={18}
+                      color="#64748B"
+                    />
+                  </TouchableOpacity>
                 </View>
+
                 {errors.repeatPassword && (
                   <Text
-                    className="text-[#E57A7A] text-xs mt-1"
                     style={{ fontFamily: "PublicSans-Regular" }}
+                    className="text-xs text-[#C94444] mt-1.5 px-1"
                   >
                     {errors.repeatPassword}
                   </Text>
                 )}
               </View>
-            </View>
-            {/* Cozy and welcoming UX Login Shortcut */}
-            <TouchableOpacity
-              onPress={() => router.replace("/(auth)/login")}
-              className="mt-8 py-2 w-full justify-center items-center flex-row"
-              activeOpacity={0.7}
-            >
-              <Text className="text-[#5C5E69] text-sm" style={{ fontFamily: "PublicSans-Regular" }}>
-                Already curating?{" "}
-                <Text className="text-[#212842]" style={{ fontFamily: "PublicSans-Bold", textDecorationLine: "underline" }}>
-                  Access your archive
+
+              {/* Live Password Checklist Pills */}
+              <View className="flex-row items-center gap-2 mb-4">
+                <View
+                  className={`flex-row items-center px-3 py-1.5 rounded-full border ${
+                    hasMinLength
+                      ? "bg-[#16A34A]/10 border-[#16A34A]/30"
+                      : "bg-[#FAF3E8] border-[#E6DACB]"
+                  }`}
+                >
+                  <Icon
+                    name="checkCircle"
+                    size={13}
+                    color={hasMinLength ? "#16A34A" : "#9A968E"}
+                  />
+                  <Text
+                    style={{ fontFamily: "PublicSans-Bold" }}
+                    className={`text-[11px] ml-1.5 ${
+                      hasMinLength ? "text-[#15803D]" : "text-[#64748B]"
+                    }`}
+                  >
+                    6+ characters
+                  </Text>
+                </View>
+
+                <View
+                  className={`flex-row items-center px-3 py-1.5 rounded-full border ${
+                    passwordsMatch
+                      ? "bg-[#16A34A]/10 border-[#16A34A]/30"
+                      : "bg-[#FAF3E8] border-[#E6DACB]"
+                  }`}
+                >
+                  <Icon
+                    name="checkCircle"
+                    size={13}
+                    color={passwordsMatch ? "#16A34A" : "#9A968E"}
+                  />
+                  <Text
+                    style={{ fontFamily: "PublicSans-Bold" }}
+                    className={`text-[11px] ml-1.5 ${
+                      passwordsMatch ? "text-[#15803D]" : "text-[#64748B]"
+                    }`}
+                  >
+                    Passwords match
+                  </Text>
+                </View>
+              </View>
+
+              {/* Legal Notice */}
+              <Text
+                style={{ fontFamily: "PublicSans-Regular" }}
+                className="text-xs text-[#64748B] leading-[18px] text-center px-2"
+              >
+                By creating your account, you agree to Reedo's{" "}
+                <Text
+                  onPress={() => setActiveLegalModal("terms")}
+                  style={{ fontFamily: "PublicSans-Bold" }}
+                  className="text-[#C95F44] underline"
+                >
+                  Terms of Service
+                </Text>{" "}
+                and{" "}
+                <Text
+                  onPress={() => setActiveLegalModal("privacy")}
+                  style={{ fontFamily: "PublicSans-Bold" }}
+                  className="text-[#C95F44] underline"
+                >
+                  Privacy Policy
                 </Text>
+                .
               </Text>
-            </TouchableOpacity>
-          </View>
+            </Animated.View>
+          </ScrollView>
 
-        </ScrollView>
-
-        {/* Pinned Footer (Always visible at the bottom) */}
-        <View className="px-6 bg-[#FFF8F0] pb-6 pt-2 border-t border-[#EBE7DF]">
-          {/* Finalize Button */}
-          <TouchableOpacity
-            className={`w-full rounded-full py-4 mt-2 flex-row justify-center items-center ${isLoading ? "bg-[#5C5E69]" : "bg-[#212842]"}`}
-            onPress={handleFinalize}
-            activeOpacity={0.9}
-            disabled={isLoading}
-          >
-            {isLoading ? (
-              <ActivityIndicator color="#FFFFFF" size="small" />
-            ) : (
-              <Text
-                className="text-[#FFFFFF] text-center text-lg mr-2"
-                style={{ fontFamily: "PublicSans-Bold" }}
-              >
-                Publish Profile
-              </Text>
-            )}
-          </TouchableOpacity>
-
-          {/* Legal Documents Links */}
-          <View className="flex-row justify-between w-full mt-3 px-2">
-            <TouchableOpacity activeOpacity={0.7}>
-              <Text
-                className="text-[10px] text-[#5C5E69] font-bold tracking-wider"
-                style={{ fontFamily: "PublicSans-Bold", textDecorationLine: "underline" }}
-              >
-                PRIVACY POLICY
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity activeOpacity={0.7}>
-              <Text
-                className="text-[10px] text-[#5C5E69] font-bold tracking-wider"
-                style={{ fontFamily: "PublicSans-Bold", textDecorationLine: "underline" }}
-              >
-                TERMS OF CURATION
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Horizontal Line with Logo Divider */}
-          <View className="flex-row items-center w-full mt-3">
-            <View className="flex-1 h-[1px] bg-[#EBE7DF]" />
-            <View className="mx-4">
-              <Logo width={24} height={24} />
-            </View>
-            <View className="flex-1 h-[1px] bg-[#EBE7DF]" />
-          </View>
-
-          {/* Step Counter & Animated Indicators */}
-          <View className="flex-row justify-between items-center w-full mt-2.5">
-            <Text
-              className="text-xs text-[#8E8B82]"
-              style={{ fontFamily: "PublicSans-Bold" }}
+          {/* Streamlined Pinned Bottom Bar */}
+          <View className="px-6 pt-3 pb-5 bg-[#FFF8F0] border-t border-[#EDE3D5]">
+            <TouchableOpacity
+              onPress={handleFinalize}
+              disabled={isLoading}
+              activeOpacity={0.85}
+              className={`w-full py-4 rounded-2xl flex-row items-center justify-center shadow-md ${
+                isLoading ? "bg-[#C95F44]/70" : "bg-[#C95F44]"
+              }`}
             >
-              STEP 6 OF 6
-            </Text>
-            <View className="flex-row items-center">
-              {/* Inactive Dots 1, 2, 3, 4 */}
-              <View className="w-2 h-2 rounded-full bg-[#EBE7DF] mx-1" />
-              <View className="w-2 h-2 rounded-full bg-[#EBE7DF] mx-1" />
-              <View className="w-2 h-2 rounded-full bg-[#EBE7DF] mx-1" />
-              <View className="w-2 h-2 rounded-full bg-[#EBE7DF] mx-1" />
-
-              {/* Animated Dot 5 (Step 5 Active -> Inactive) */}
-              <Animated.View
-                style={{
-                  width: dot5Width,
-                  height: 8,
-                  borderRadius: 4,
-                  backgroundColor: dot5Color,
-                  marginHorizontal: 4,
-                }}
-              />
-
-              {/* Animated Dot 6 (Step 6 Inactive -> Active) */}
-              <Animated.View
-                style={{
-                  width: dot6Width,
-                  height: 8,
-                  borderRadius: 4,
-                  backgroundColor: dot6Color,
-                  marginHorizontal: 4,
-                }}
-              />
-            </View>
+              {isLoading ? (
+                <View className="flex-row items-center">
+                  <ActivityIndicator color="#FFF8F0" size="small" />
+                  <Text
+                    style={{ fontFamily: "PublicSans-Bold" }}
+                    className="text-[#FFF8F0] text-[15px] ml-2.5"
+                  >
+                    Creating your account...
+                  </Text>
+                </View>
+              ) : (
+                <View className="flex-row items-center">
+                  <Text
+                    style={{ fontFamily: "PublicSans-Bold" }}
+                    className="text-[#FFF8F0] text-[15px] tracking-wide mr-2"
+                  >
+                    Create My Free Account
+                  </Text>
+                  <Icon name="checkCircle" size={18} color="#FFF8F0" />
+                </View>
+              )}
+            </TouchableOpacity>
           </View>
         </View>
       </KeyboardAvoidingView>
+
+      {/* Legal Modal */}
+      <Modal
+        visible={activeLegalModal !== null}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setActiveLegalModal(null)}
+      >
+        <View className="flex-1 bg-black/50 justify-end">
+          <View className="bg-[#FFF8F0] rounded-t-3xl px-6 pt-6 pb-10 max-h-[82%] border-t border-[#E5DEC9]">
+            <View className="flex-row justify-between items-center mb-4 pb-3 border-b border-[#E5DEC9]">
+              <View>
+                <Text
+                  style={{ fontFamily: "PublicSans-Bold" }}
+                  className="text-[10px] tracking-[2px] text-[#C95F44] uppercase mb-1"
+                >
+                  Reedo Legal
+                </Text>
+                <Text
+                  style={{ fontFamily: "Newsreader-Bold" }}
+                  className="text-2xl text-[#212842]"
+                >
+                  {activeLegalModal === "terms" ? "Terms of Service" : "Privacy Policy"}
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setActiveLegalModal(null)}
+                className="w-9 h-9 rounded-full bg-[#FAF3E8] border border-[#E6DACB] items-center justify-center"
+              >
+                <Icon name="cancel" size={16} color="#212842" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} className="mb-6">
+              {activeLegalModal === "terms" ? (
+                <View>
+                  <Text
+                    style={{ fontFamily: "PublicSans-Bold" }}
+                    className="text-sm text-[#212842] mb-1"
+                  >
+                    1. Welcome to Reedo
+                  </Text>
+                  <Text
+                    style={{ fontFamily: "PublicSans-Regular" }}
+                    className="text-sm text-[#5A6075] leading-6 mb-4"
+                  >
+                    By creating an account on Reedo, you agree to use the platform respectfully to organize your personal library, track reading sessions, and share constructive literary reflections ("Echoes").
+                  </Text>
+
+                  <Text
+                    style={{ fontFamily: "PublicSans-Bold" }}
+                    className="text-sm text-[#212842] mb-1"
+                  >
+                    2. Your Content & Notes
+                  </Text>
+                  <Text
+                    style={{ fontFamily: "PublicSans-Regular" }}
+                    className="text-sm text-[#5A6075] leading-6 mb-4"
+                  >
+                    You retain ownership of all reading notes, reviews, and echoes you create. Public echoes must respect community standards and remain free of harassment or spam.
+                  </Text>
+                </View>
+              ) : (
+                <View>
+                  <Text
+                    style={{ fontFamily: "PublicSans-Bold" }}
+                    className="text-sm text-[#212842] mb-1"
+                  >
+                    1. Information We Collect
+                  </Text>
+                  <Text
+                    style={{ fontFamily: "PublicSans-Regular" }}
+                    className="text-sm text-[#5A6075] leading-6 mb-4"
+                  >
+                    We collect your name, @username, email address, optional birth date, and reading preferences (favorite genres, followed authors, saved books, and reading progress) solely to deliver and personalize your Reedo experience.
+                  </Text>
+
+                  <Text
+                    style={{ fontFamily: "PublicSans-Bold" }}
+                    className="text-sm text-[#212842] mb-1"
+                  >
+                    2. How Your Data Powers Recommendations
+                  </Text>
+                  <Text
+                    style={{ fontFamily: "PublicSans-Regular" }}
+                    className="text-sm text-[#5A6075] leading-6 mb-4"
+                  >
+                    Your followed authors, searches, and saved books are used to recommend books and related authors inside the app. We never sell your personal information to third parties.
+                  </Text>
+                </View>
+              )}
+            </ScrollView>
+
+            <TouchableOpacity
+              onPress={() => setActiveLegalModal(null)}
+              activeOpacity={0.85}
+              className="bg-[#212842] w-full py-4 rounded-2xl items-center shadow-sm"
+            >
+              <Text
+                style={{ fontFamily: "PublicSans-Bold" }}
+                className="text-[#FFF8F0] text-sm tracking-wide"
+              >
+                Got It
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }

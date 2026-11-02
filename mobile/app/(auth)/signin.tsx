@@ -1,48 +1,160 @@
-/**
- * @project Reedo
- * @module signin
- * @author José Antonio Montaño (Lead Developer)
- * @inspired-by Alondra Gamino (Constant Inspiration)
- * @date 2026-05-30
- */
-import React, { useState, useRef, useEffect } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
-  Text,
-  View,
-  TouchableOpacity,
-  TextInput,
-  KeyboardAvoidingView,
-  ScrollView,
-  Platform,
-  Animated,
-  Easing,
   ActivityIndicator,
+  Animated,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Logo from "../assets/LOGO.svg";
-import { useSignUpStore } from "../../store/useSignUpStore";
+import Icon from "../../core/Icon";
 import api from "../../store/api";
+import { useSignUpStore } from "../../store/useSignUpStore";
 
 export default function SignInStep1Screen() {
   const router = useRouter();
-  const { full_name: storedFullName, username: storedUsername, setStep1 } = useSignUpStore();
+  const {
+    full_name: storedFullName,
+    username: storedUsername,
+    setStep1,
+  } = useSignUpStore();
 
   const [fullName, setFullName] = useState(storedFullName || "");
   const [username, setUsername] = useState(storedUsername || "");
   const [isLoading, setIsLoading] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [isUsernameManual, setIsUsernameManual] = useState(false);
+  const [focusedField, setFocusedField] = useState<"fullName" | "username" | null>(null);
   const [errors, setErrors] = useState<{ fullName?: string; username?: string }>({});
 
-  const [isUsernameManual, setIsUsernameManual] = useState(false);
-  const generateTimeoutRef = useRef<any>(null);
+  const usernameRef = useRef<TextInput>(null);
+  const generateTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Animations
+  const fadeHeader = useRef(new Animated.Value(0)).current;
+  const slideHeader = useRef(new Animated.Value(18)).current;
+  const fadeForm = useRef(new Animated.Value(0)).current;
+  const slideForm = useRef(new Animated.Value(22)).current;
+  const fadeFooter = useRef(new Animated.Value(0)).current;
+  const shakeAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
+    Animated.stagger(100, [
+      Animated.parallel([
+        Animated.timing(fadeHeader, {
+          toValue: 1,
+          duration: 420,
+          useNativeDriver: true,
+        }),
+        Animated.timing(slideHeader, {
+          toValue: 0,
+          duration: 420,
+          useNativeDriver: true,
+        }),
+      ]),
+      Animated.parallel([
+        Animated.timing(fadeForm, {
+          toValue: 1,
+          duration: 420,
+          useNativeDriver: true,
+        }),
+        Animated.timing(slideForm, {
+          toValue: 0,
+          duration: 420,
+          useNativeDriver: true,
+        }),
+      ]),
+      Animated.timing(fadeFooter, {
+        toValue: 1,
+        duration: 380,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
     return () => {
       if (generateTimeoutRef.current) {
         clearTimeout(generateTimeoutRef.current);
       }
     };
-  }, []);
+  }, [fadeFooter, fadeForm, fadeHeader, slideForm, slideHeader]);
+
+  const triggerShake = () => {
+    Animated.sequence([
+      Animated.timing(shakeAnim, { toValue: 10, duration: 50, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue: -10, duration: 50, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue: 8, duration: 50, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue: -8, duration: 50, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue: 0, duration: 50, useNativeDriver: true }),
+    ]).start();
+  };
+
+  const handleFullNameChange = (text: string) => {
+    setFullName(text);
+    if (errors.fullName) setErrors((prev) => ({ ...prev, fullName: undefined }));
+
+    if (!isUsernameManual) {
+      if (generateTimeoutRef.current) {
+        clearTimeout(generateTimeoutRef.current);
+      }
+
+      if (!text.trim()) {
+        setUsername("");
+        return;
+      }
+
+      generateTimeoutRef.current = setTimeout(async () => {
+        try {
+          setIsGenerating(true);
+          const response = await api.post("api/users/generate-username/", {
+            full_name: text.trim(),
+          });
+          if (response.data?.username) {
+            setUsername(response.data.username);
+          }
+        } catch (e) {
+          console.warn("Failed to auto-generate unique username:", e);
+        } finally {
+          setIsGenerating(false);
+        }
+      }, 450);
+    }
+  };
+
+  const handleUsernameChange = (text: string) => {
+    const cleaned = text.replace(/^@/, "").replace(/\s+/g, "").toLowerCase();
+    setUsername(cleaned);
+    if (errors.username) setErrors((prev) => ({ ...prev, username: undefined }));
+
+    if (cleaned.length > 0) {
+      setIsUsernameManual(true);
+    } else {
+      setIsUsernameManual(false);
+      if (fullName.trim()) {
+        if (generateTimeoutRef.current) clearTimeout(generateTimeoutRef.current);
+        generateTimeoutRef.current = setTimeout(async () => {
+          try {
+            setIsGenerating(true);
+            const response = await api.post("api/users/generate-username/", {
+              full_name: fullName.trim(),
+            });
+            if (response.data?.username) {
+              setUsername(response.data.username);
+            }
+          } catch (e) {
+            console.warn("Failed to auto-generate unique username:", e);
+          } finally {
+            setIsGenerating(false);
+          }
+        }, 450);
+      }
+    }
+  };
 
   const handleContinue = async () => {
     setErrors({});
@@ -53,9 +165,9 @@ export default function SignInStep1Screen() {
       localErrors.fullName = "Please enter your full name.";
       hasLocalError = true;
     }
-    const cleanUsername = username.trim();
-    if (!username.trim()) {
-      localErrors.username = "Please enter a unique username.";
+    const cleanUsername = username.trim().replace(/^@/, "");
+    if (!cleanUsername) {
+      localErrors.username = "Please choose a unique @username.";
       hasLocalError = true;
     } else if (cleanUsername.length < 3) {
       localErrors.username = "Username must be at least 3 characters long.";
@@ -64,6 +176,7 @@ export default function SignInStep1Screen() {
 
     if (hasLocalError) {
       setErrors(localErrors);
+      triggerShake();
       return;
     }
 
@@ -72,9 +185,12 @@ export default function SignInStep1Screen() {
       const response = await api.post("api/users/check-username/", {
         username: cleanUsername,
       });
-      
+
       if (response.data?.exists) {
-        setErrors({ username: "This username is already taken. Please choose another." });
+        setErrors({
+          username: "This username is already taken. Try adding numbers or initials.",
+        });
+        triggerShake();
         setIsLoading(false);
         return;
       }
@@ -83,7 +199,6 @@ export default function SignInStep1Screen() {
       router.push("/(auth)/birthday");
     } catch (error) {
       console.warn("Failed to check username availability:", error);
-      // Fallback: Proceed even if request fails due to offline/server state
       setStep1(fullName.trim(), cleanUsername);
       router.push("/(auth)/birthday");
     } finally {
@@ -91,361 +206,349 @@ export default function SignInStep1Screen() {
     }
   };
 
-  // Underline focus animated values
-  const fullNameFocusAnim = useRef(new Animated.Value(0)).current;
-  const usernameFocusAnim = useRef(new Animated.Value(0)).current;
-
-  const animateFocus = (anim: Animated.Value, toValue: number) => {
-    Animated.timing(anim, {
-      toValue,
-      duration: 250,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: false,
-    }).start();
-  };
-
-  const fullNameLineWidth = fullNameFocusAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ["0%", "100%"],
-  });
-
-  const usernameLineWidth = usernameFocusAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ["0%", "100%"],
-  });
+  const isReady = fullName.trim().length > 0 && username.trim().length >= 3;
 
   return (
-    <SafeAreaView className="flex-1 bg-[#FFF8F0] justify-between">
-
-      {/* Top Navigation Header */}
-      <View>
-        <View className="flex-row items-center justify-between w-full px-6 py-3">
-          <TouchableOpacity
-            onPress={() => router.back()}
-            className="w-16 h-10 items-start justify-center"
-            activeOpacity={0.7}
-          >
-            <Text
-              className="text-[#212842] text-2xl font-bold"
-              style={{ fontFamily: "PublicSans-Bold" }}
-            >
-              {"<"}
-            </Text>
-          </TouchableOpacity>
-
-          <Logo width={36} height={36} />
-
-          <TouchableOpacity
-            onPress={() => router.replace("/(auth)/login")}
-            className="w-16 h-10 items-end justify-center"
-            activeOpacity={0.7}
-          >
-            <Text
-              className="text-[#212842] text-sm"
-              style={{ fontFamily: "PublicSans-Bold", textDecorationLine: "underline" }}
-            >
-              Log In
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Progress Bar (Step 1 of 6) */}
-        <View className="w-full h-[2px] bg-[#EBE7DF]">
-          <View className="w-1/6 h-full bg-[#212842]" />
-        </View>
-      </View>
-
+    <SafeAreaView className="flex-1 bg-[#FFF8F0]">
       <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "padding"}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 80 : 0}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
         className="flex-1"
       >
-        <ScrollView
-          className="flex-1 px-6 pt-8"
-          contentContainerStyle={{ paddingBottom: 80 }}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-        >
-          {/* Header Title & Subtitle */}
-          <View>
-            <Text
-              className="text-[#212842] text-start leading-tight"
-              style={{ fontFamily: "Newsreader-Bold", fontSize: 36 }}
-            >
-              Define your{"\n"}Literary Identity
-            </Text>
-            <Text
-              className="text-base text-[#5C5E69] text-start mt-4 leading-relaxed"
-              style={{ fontFamily: "PublicSans-Regular" }}
-            >
-              Your identity is the spine of your digital archive. This name will grace your curated collections and mark every thought you share with the world.
-            </Text>
+        <View className="flex-1 justify-between">
+          {/* Top Bar + Progress Indicator */}
+          <View className="px-6 pt-3">
+            <View className="flex-row justify-between items-center mb-3">
+              <TouchableOpacity
+                onPress={() => (router.canGoBack() ? router.back() : router.replace("/"))}
+                disabled={isLoading}
+                activeOpacity={0.75}
+                className="w-10 h-10 rounded-full bg-[#FAF3E8] border border-[#E6DACB] items-center justify-center"
+              >
+                <Icon name="arrowLeft" size={18} color="#212842" />
+              </TouchableOpacity>
 
-            {/* Input Form Fields */}
-            <View className="mt-10">
-              {/* Full Name Input */}
-              <View className="mb-6">
+              <View className="flex-row items-center px-3 py-1.5 rounded-full bg-[#FAF3E8] border border-[#E6DACB]">
+                <Logo width={16} height={16} />
                 <Text
-                  className={`text-xs tracking-widest uppercase mb-1 ${errors.fullName ? "text-[#E57A7A]" : "text-[#8E8B82]"}`}
                   style={{ fontFamily: "PublicSans-Bold" }}
+                  className="text-[11px] tracking-[1.5px] text-[#212842] uppercase ml-2"
                 >
-                  FULL NAME
+                  Step 1 of 6
                 </Text>
-                <View className="w-full relative pb-[2px]">
-                  <TextInput
-                    className="w-full text-xl py-2 text-[#212842]"
-                    style={{ fontFamily: "Newsreader-Italic" }}
-                    placeholder="E.g., Julian Thorne"
-                    placeholderTextColor="#C5C2BA"
-                    onFocus={() => animateFocus(fullNameFocusAnim, 1)}
-                    onBlur={() => animateFocus(fullNameFocusAnim, 0)}
-                    value={fullName}
-                    onChangeText={(val) => {
-                      setFullName(val);
-                      if (errors.fullName) setErrors(prev => ({ ...prev, fullName: undefined }));
+              </View>
 
-                      if (!isUsernameManual) {
-                        // Instant local generation for immediate visual feedback
-                        const localUsername = val
-                          .normalize("NFD")
-                          .replace(/[\u0300-\u036f]/g, "")
-                          .toLowerCase()
-                          .replace(/[^a-z0-9]+/g, "_")
-                          .replace(/^_+|_+$/g, "");
-                        
-                        setUsername(localUsername);
+              <TouchableOpacity
+                onPress={() => router.replace("/(auth)/login")}
+                disabled={isLoading}
+                activeOpacity={0.75}
+                className="px-3.5 py-2 rounded-full bg-[#FAF3E8] border border-[#E6DACB]"
+              >
+                <Text
+                  style={{ fontFamily: "PublicSans-Bold" }}
+                  className="text-[#C95F44] text-xs"
+                >
+                  Sign In
+                </Text>
+              </TouchableOpacity>
+            </View>
 
-                        if (generateTimeoutRef.current) {
-                          clearTimeout(generateTimeoutRef.current);
-                        }
+            {/* Progress Bar */}
+            <View className="w-full h-1.5 bg-[#EDE3D5] rounded-full overflow-hidden mb-2">
+              <View className="w-1/6 h-full bg-[#C95F44] rounded-full" />
+            </View>
+          </View>
 
-                        if (val.trim()) {
-                          generateTimeoutRef.current = setTimeout(async () => {
-                            try {
-                              const response = await api.post("api/users/generate-username/", {
-                                fullname: val.trim(),
-                              });
-                              if (response.data?.username && !isUsernameManual) {
-                                setUsername(response.data.username);
-                              }
-                            } catch (e) {
-                              console.warn("Failed to auto-generate unique username:", e);
-                            }
-                          }, 500);
-                        } else {
-                          setUsername("");
-                        }
-                      }
-                    }}
-                    editable={!isLoading}
-                  />
-                  {/* Background Line */}
-                  <View className={`absolute bottom-0 left-0 w-full h-[1px] ${errors.fullName ? "bg-[#F5C2C2]" : "bg-[#E5E0D8]"}`} />
-                  {/* Animated Active Line */}
-                  <Animated.View
-                    style={{
-                      position: "absolute",
-                      bottom: 0,
-                      left: 0,
-                      width: fullNameLineWidth,
-                      height: 2,
-                      backgroundColor: errors.fullName ? "#E57A7A" : "#212842",
-                    }}
-                  />
+          {/* Main Scrollable Content */}
+          <ScrollView
+            contentContainerStyle={{ paddingHorizontal: 24, paddingTop: 14, paddingBottom: 24 }}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            {/* Header Section */}
+            <Animated.View
+              style={{
+                opacity: fadeHeader,
+                transform: [{ translateY: slideHeader }],
+              }}
+              className="mb-6"
+            >
+              <Text
+                style={{ fontFamily: "PublicSans-Bold" }}
+                className="text-[11px] tracking-[2px] text-[#C95F44] uppercase mb-1.5"
+              >
+                Reader Profile
+              </Text>
+              <Text
+                style={{ fontFamily: "Newsreader-Bold" }}
+                className="text-[34px] text-[#212842] leading-[40px] mb-2"
+              >
+                How should we{" "}
+                <Text
+                  style={{ fontFamily: "Newsreader-Italic" }}
+                  className="text-[#C95F44]"
+                >
+                  introduce you?
+                </Text>
+              </Text>
+              <Text
+                style={{ fontFamily: "PublicSans-Regular" }}
+                className="text-[15px] text-[#5A6075] leading-[22px]"
+              >
+                Tell us your name and choose a unique @username. Your handle appears on your bookshelves and community echoes.
+              </Text>
+            </Animated.View>
+
+            {/* Form Inputs */}
+            <Animated.View
+              style={{
+                opacity: fadeForm,
+                transform: [{ translateY: slideForm }, { translateX: shakeAnim }],
+              }}
+              className="w-full"
+            >
+              {/* Full Name Field */}
+              <View className="mb-5">
+                <View className="flex-row justify-between items-center mb-2">
+                  <Text
+                    style={{ fontFamily: "PublicSans-Bold" }}
+                    className={`text-xs tracking-[1px] uppercase ${
+                      errors.fullName ? "text-[#C94444]" : "text-[#212842]"
+                    }`}
+                  >
+                    Your Full Name
+                  </Text>
+                  <Text
+                    style={{ fontFamily: "PublicSans-Regular" }}
+                    className="text-[11px] text-[#8E8B82]"
+                  >
+                    Displayed on your profile
+                  </Text>
                 </View>
+
+                <View
+                  className={`flex-row items-center rounded-2xl px-4 py-1 border ${
+                    errors.fullName
+                      ? "bg-[#FDF2F0] border-[#C94444]"
+                      : focusedField === "fullName"
+                      ? "bg-white border-[#212842]"
+                      : "bg-[#FAF3E8] border-[#E6DACB]"
+                  }`}
+                >
+                  <Icon
+                    name="quillWrite"
+                    size={18}
+                    color={
+                      errors.fullName
+                        ? "#C94444"
+                        : focusedField === "fullName"
+                        ? "#212842"
+                        : "#8E8B82"
+                    }
+                  />
+                  <TextInput
+                    value={fullName}
+                    onChangeText={handleFullNameChange}
+                    onFocus={() => setFocusedField("fullName")}
+                    onBlur={() => setFocusedField(null)}
+                    placeholder="e.g. Julian Vance"
+                    placeholderTextColor="#A9A49A"
+                    autoCapitalize="words"
+                    returnKeyType="next"
+                    onSubmitEditing={() => usernameRef.current?.focus()}
+                    editable={!isLoading}
+                    style={{ fontFamily: "PublicSans-Regular" }}
+                    className="flex-1 text-base text-[#212842] py-3.5 ml-3"
+                  />
+                  {fullName.length > 0 && !isLoading && (
+                    <TouchableOpacity
+                      onPress={() => {
+                        setFullName("");
+                        if (!isUsernameManual) setUsername("");
+                      }}
+                    >
+                      <Icon name="cancel" size={16} color="#9A968E" />
+                    </TouchableOpacity>
+                  )}
+                </View>
+
                 {errors.fullName && (
                   <Text
-                    className="text-[#E57A7A] text-xs mt-1"
                     style={{ fontFamily: "PublicSans-Regular" }}
+                    className="text-xs text-[#C94444] mt-1.5 px-1"
                   >
                     {errors.fullName}
                   </Text>
                 )}
               </View>
 
-              {/* Username Input */}
-              <View className="mb-6">
-                <View className="flex-row justify-between items-center mb-1">
+              {/* Username Field */}
+              <View className="mb-4">
+                <View className="flex-row justify-between items-center mb-2">
                   <Text
-                    className={`text-xs tracking-widest uppercase ${errors.username ? "text-[#E57A7A]" : "text-[#8E8B82]"}`}
                     style={{ fontFamily: "PublicSans-Bold" }}
+                    className={`text-xs tracking-[1px] uppercase ${
+                      errors.username ? "text-[#C94444]" : "text-[#212842]"
+                    }`}
                   >
-                    USERNAME
+                    Unique Handle (@username)
                   </Text>
-                  <Text
-                    className="text-[10px] text-[#C5C2BA] italic"
-                    style={{ fontFamily: "PublicSans-Regular" }}
-                  >
-                    Unique Identifier
-                  </Text>
+                  {isGenerating ? (
+                    <View className="flex-row items-center">
+                      <ActivityIndicator size="small" color="#C95F44" />
+                      <Text
+                        style={{ fontFamily: "PublicSans-Bold" }}
+                        className="text-[11px] text-[#C95F44] ml-1.5"
+                      >
+                        Suggesting...
+                      </Text>
+                    </View>
+                  ) : username.trim().length > 0 ? (
+                    <View className="px-2.5 py-0.5 rounded-full bg-[#C95F44]/12">
+                      <Text
+                        style={{ fontFamily: "PublicSans-Bold" }}
+                        className="text-[10px] text-[#C95F44]"
+                      >
+                        {isUsernameManual ? "Custom handle" : "Auto-suggested"}
+                      </Text>
+                    </View>
+                  ) : null}
                 </View>
-                <View className="flex-row items-center w-full relative pb-[2px]">
+
+                <View
+                  className={`flex-row items-center rounded-2xl px-4 py-1 border ${
+                    errors.username
+                      ? "bg-[#FDF2F0] border-[#C94444]"
+                      : focusedField === "username"
+                      ? "bg-white border-[#212842]"
+                      : "bg-[#FAF3E8] border-[#E6DACB]"
+                  }`}
+                >
                   <Text
-                    className="text-xl py-2 text-[#212842] mr-1"
-                    style={{ fontFamily: "Newsreader-Italic" }}
+                    style={{ fontFamily: "PublicSans-Bold" }}
+                    className={`text-base ${
+                      errors.username ? "text-[#C94444]" : "text-[#C95F44]"
+                    }`}
                   >
                     @
                   </Text>
                   <TextInput
-                    className="flex-1 text-xl py-2 text-[#212842]"
-                    style={{ fontFamily: "Newsreader-Italic" }}
-                    placeholder="curator_j"
-                    placeholderTextColor="#C5C2BA"
+                    ref={usernameRef}
+                    value={username}
+                    onChangeText={handleUsernameChange}
+                    onFocus={() => setFocusedField("username")}
+                    onBlur={() => setFocusedField(null)}
+                    placeholder="julian_reads"
+                    placeholderTextColor="#A9A49A"
                     autoCapitalize="none"
                     autoCorrect={false}
-                    onFocus={() => animateFocus(usernameFocusAnim, 1)}
-                    onBlur={() => animateFocus(usernameFocusAnim, 0)}
-                    value={username}
-                    onChangeText={(val) => {
-                      const cleaned = val.replace(/@/g, "").replace(/\s+/g, "").toLowerCase();
-                      setUsername(cleaned);
-                      if (errors.username) setErrors(prev => ({ ...prev, username: undefined }));
-
-                      if (cleaned.length > 0) {
-                        setIsUsernameManual(true);
-                      } else {
-                        setIsUsernameManual(false);
-                        // Reset and auto-regenerate immediately from current fullName if cleared
-                        if (fullName.trim()) {
-                          const localUsername = fullName
-                            .normalize("NFD")
-                            .replace(/[\u0300-\u036f]/g, "")
-                            .toLowerCase()
-                            .replace(/[^a-z0-9]+/g, "_")
-                            .replace(/^_+|_+$/g, "");
-                          
-                          setUsername(localUsername);
-
-                          if (generateTimeoutRef.current) {
-                            clearTimeout(generateTimeoutRef.current);
-                          }
-                          generateTimeoutRef.current = setTimeout(async () => {
-                            try {
-                              const response = await api.post("api/users/generate-username/", {
-                                fullname: fullName.trim(),
-                              });
-                              if (response.data?.username) {
-                                setUsername(response.data.username);
-                              }
-                            } catch (e) {
-                              console.warn("Failed to auto-generate unique username:", e);
-                            }
-                          }, 500);
-                        }
-                      }
-                    }}
+                    returnKeyType="done"
+                    onSubmitEditing={handleContinue}
                     editable={!isLoading}
-                  />
-                  {/* Background Line */}
-                  <View className={`absolute bottom-0 left-0 w-full h-[1px] ${errors.username ? "bg-[#F5C2C2]" : "bg-[#E5E0D8]"}`} />
-                  {/* Animated Active Line */}
-                  <Animated.View
-                    style={{
-                      position: "absolute",
-                      bottom: 0,
-                      left: 0,
-                      width: usernameLineWidth,
-                      height: 2,
-                      backgroundColor: errors.username ? "#E57A7A" : "#212842",
-                    }}
+                    style={{ fontFamily: "PublicSans-Regular" }}
+                    className="flex-1 text-base text-[#212842] py-3.5 ml-1.5"
                   />
                 </View>
-                {errors.username && (
+
+                {errors.username ? (
                   <Text
-                    className="text-[#E57A7A] text-xs mt-1"
                     style={{ fontFamily: "PublicSans-Regular" }}
+                    className="text-xs text-[#C94444] mt-1.5 px-1"
                   >
                     {errors.username}
                   </Text>
+                ) : (
+                  <Text
+                    style={{ fontFamily: "PublicSans-Regular" }}
+                    className="text-xs text-[#64748B] mt-2 leading-[18px]"
+                  >
+                    We automatically suggest an available handle from your name, or you can type your own.
+                  </Text>
                 )}
               </View>
-            </View>
 
-            {/* Cozy and welcoming UX Login Shortcut */}
+              {/* Live Profile Preview Card */}
+              {isReady && (
+                <View className="mt-2 bg-[#FAF3E8] border border-[#E6DACB] rounded-2xl p-4 flex-row items-center">
+                  <View className="w-11 h-11 rounded-full bg-[#212842] items-center justify-center mr-3.5">
+                    <Text
+                      style={{ fontFamily: "Newsreader-Bold" }}
+                      className="text-lg text-[#FFF8F0]"
+                    >
+                      {fullName.trim().charAt(0).toUpperCase()}
+                    </Text>
+                  </View>
+                  <View className="flex-1">
+                    <View className="flex-row items-center">
+                      <Text
+                        style={{ fontFamily: "PublicSans-Bold" }}
+                        className="text-sm text-[#212842]"
+                        numberOfLines={1}
+                      >
+                        {fullName.trim()}
+                      </Text>
+                      <View className="ml-1.5">
+                        <Icon name="sealCheck" size={14} color="#C95F44" />
+                      </View>
+                    </View>
+                    <Text
+                      style={{ fontFamily: "PublicSans-Regular" }}
+                      className="text-xs text-[#C95F44]"
+                      numberOfLines={1}
+                    >
+                      @{username.trim()}
+                    </Text>
+                  </View>
+                  <View className="px-2.5 py-1 rounded-full bg-[#F0E6D8]">
+                    <Text
+                      style={{ fontFamily: "PublicSans-Bold" }}
+                      className="text-[10px] text-[#5A6075]"
+                    >
+                      Preview
+                    </Text>
+                  </View>
+                </View>
+              )}
+            </Animated.View>
+          </ScrollView>
+
+          {/* Streamlined Pinned Bottom Bar */}
+          <Animated.View
+            style={{ opacity: fadeFooter }}
+            className="px-6 pt-3 pb-5 bg-[#FFF8F0] border-t border-[#EDE3D5]"
+          >
             <TouchableOpacity
-              onPress={() => router.replace("/(auth)/login")}
-              className="mt-8 py-2 w-full justify-center items-center flex-row"
-              activeOpacity={0.7}
+              onPress={handleContinue}
+              disabled={isLoading || isGenerating}
+              activeOpacity={0.85}
+              className={`w-full py-4 rounded-2xl flex-row items-center justify-center shadow-md ${
+                isLoading || isGenerating ? "bg-[#212842]/70" : "bg-[#212842]"
+              }`}
             >
-              <Text className="text-[#5C5E69] text-sm" style={{ fontFamily: "PublicSans-Regular" }}>
-                Already curating?{" "}
-                <Text className="text-[#212842]" style={{ fontFamily: "PublicSans-Bold", textDecorationLine: "underline" }}>
-                  Access your archive
-                </Text>
-              </Text>
+              {isLoading ? (
+                <View className="flex-row items-center">
+                  <ActivityIndicator color="#FFF8F0" size="small" />
+                  <Text
+                    style={{ fontFamily: "PublicSans-Bold" }}
+                    className="text-[#FFF8F0] text-[15px] ml-2.5"
+                  >
+                    Checking @username...
+                  </Text>
+                </View>
+              ) : (
+                <View className="flex-row items-center">
+                  <Text
+                    style={{ fontFamily: "PublicSans-Bold" }}
+                    className="text-[#FFF8F0] text-[15px] tracking-wide mr-2"
+                  >
+                    Continue to Step 2
+                  </Text>
+                  <Icon name="arrowRight" size={16} color="#FFF8F0" />
+                </View>
+              )}
             </TouchableOpacity>
-          </View>
-
-        </ScrollView>
-
-        {/* Footer Elements (Button, Quote, Logo Divider, Step Indicator) */}
-        <View className="px-6 bg-[#FFF8F0] pb-6 pt-2 border-t border-[#EBE7DF]">
-          {/* Continue Journey Button */}
-          <TouchableOpacity
-            className={`w-full rounded-full py-4 mt-2 flex-row justify-center items-center ${isLoading ? "bg-[#5C5E69]" : "bg-[#212842]"}`}
-            onPress={handleContinue}
-            activeOpacity={0.9}
-            disabled={isLoading}
-          >
-            {isLoading ? (
-              <ActivityIndicator color="#FFFFFF" size="small" />
-            ) : (
-              <>
-                <Text
-                  className="text-[#FFFFFF] text-center text-lg mr-2"
-                  style={{ fontFamily: "PublicSans-Bold" }}
-                >
-                  Begin My Story
-                </Text>
-                <Text
-                  className="text-[#FFFFFF] text-lg font-bold"
-                  style={{ fontFamily: "PublicSans-Bold" }}
-                >
-                  {" >"}
-                </Text>
-              </>
-            )}
-          </TouchableOpacity>
-
-          {/* Quote */}
-          <Text
-            className="text-[#A9A695] text-center text-sm italic mt-4"
-            style={{ fontFamily: "Newsreader-Italic" }}
-          >
-            "Words are a footprint in the archive of time"
-          </Text>
-
-          {/* Horizontal Line with Logo Divider */}
-          <View className="flex-row items-center w-full mt-4">
-            <View className="flex-1 h-[1px] bg-[#EBE7DF]" />
-            <View className="mx-4">
-              <Logo width={28} height={28} />
-            </View>
-            <View className="flex-1 h-[1px] bg-[#EBE7DF]" />
-          </View>
-
-          {/* Step Counter & Indicators */}
-          <View className="flex-row justify-between items-center w-full mt-3 mb-1">
-            <Text
-              className="text-xs text-[#8E8B82]"
-              style={{ fontFamily: "PublicSans-Bold" }}
-            >
-              STEP 1 OF 6
-            </Text>
-            <View className="flex-row items-center">
-              {/* Active Pill for Step 1 */}
-              <View className="w-5 h-2 rounded-full bg-[#212842] mx-1" />
-              {/* Inactive Dots for Steps 2 to 6 */}
-              <View className="w-2 h-2 rounded-full bg-[#EBE7DF] mx-1" />
-              <View className="w-2 h-2 rounded-full bg-[#EBE7DF] mx-1" />
-              <View className="w-2 h-2 rounded-full bg-[#EBE7DF] mx-1" />
-              <View className="w-2 h-2 rounded-full bg-[#EBE7DF] mx-1" />
-              <View className="w-2 h-2 rounded-full bg-[#EBE7DF] mx-1" />
-            </View>
-          </View>
+          </Animated.View>
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
-

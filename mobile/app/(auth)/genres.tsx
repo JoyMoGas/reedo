@@ -1,367 +1,420 @@
-/**
- * @project Reedo
- * @module genres
- * @author José Antonio Montaño (Lead Developer)
- * @inspired-by Alondra Gamino (Constant Inspiration)
- * @date 2026-05-30
- */
-import React, { useState, useRef, useEffect } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
-  Text,
-  View,
-  TouchableOpacity,
-  ScrollView,
   Animated,
   Easing,
-  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useQuery } from "@tanstack/react-query";
 import Logo from "../assets/LOGO.svg";
+import Icon from "../../core/Icon";
 import api from "../../store/api";
 import { useSignUpStore } from "../../store/useSignUpStore";
-import { useQuery } from "@tanstack/react-query";
 
-const genreSymbols: { [key: string]: string } = {
-  "fiction": "📖",
-  "fantasy": "✨",
-  "science": "🚀",
-  "computers": "💻",
-  "history": "🏛️",
-  "biography": "👤",
-  "mystery": "🔍",
-  "poetry": "✒️",
-  "business": "💼",
-  "self-help": "🧠",
-  "romance": "💖",
-  "classic": "📚",
-};
+interface GenreItem {
+  id: string;
+  name: string;
+  category: string;
+}
 
-const getSymbol = (name: string) => {
-  const norm = name.toLowerCase();
-  for (const key in genreSymbols) {
-    if (norm.includes(key)) {
-      return genreSymbols[key];
-    }
-  }
-  return "📚";
-};
+const FALLBACK_CURATED_GENRES: GenreItem[] = [
+  { id: "Literary Fiction", name: "Literary Fiction", category: "Fiction" },
+  { id: "Classic Literature", name: "Classic Literature", category: "Fiction" },
+  { id: "Contemporary Fiction", name: "Contemporary Fiction", category: "Fiction" },
+  { id: "Historical Fiction", name: "Historical Fiction", category: "Fiction" },
+  { id: "Science Fiction", name: "Science Fiction", category: "Speculative" },
+  { id: "Fantasy", name: "Fantasy", category: "Speculative" },
+  { id: "Dystopian", name: "Dystopian", category: "Speculative" },
+  { id: "Magical Realism", name: "Magical Realism", category: "Speculative" },
+  { id: "Mystery & Thriller", name: "Mystery & Thriller", category: "Suspense" },
+  { id: "Crime & Noir", name: "Crime & Noir", category: "Suspense" },
+  { id: "Horror & Gothic", name: "Horror & Gothic", category: "Suspense" },
+  { id: "Romance", name: "Romance", category: "Fiction" },
+  { id: "Adventure", name: "Adventure", category: "Fiction" },
+  { id: "Young Adult", name: "Young Adult", category: "Fiction" },
+  { id: "Philosophy", name: "Philosophy", category: "Non-Fiction" },
+  { id: "Psychology", name: "Psychology", category: "Non-Fiction" },
+  { id: "History", name: "History", category: "Non-Fiction" },
+  { id: "Biography & Memoir", name: "Biography & Memoir", category: "Non-Fiction" },
+  { id: "Self-Help", name: "Self-Help", category: "Non-Fiction" },
+  { id: "Science & Nature", name: "Science & Nature", category: "Non-Fiction" },
+  { id: "Business & Economics", name: "Business & Economics", category: "Non-Fiction" },
+  { id: "Poetry", name: "Poetry", category: "Literature" },
+  { id: "Essays & Criticism", name: "Essays & Criticism", category: "Literature" },
+  { id: "Mythology & Folklore", name: "Mythology & Folklore", category: "Literature" },
+  { id: "Art & Architecture", name: "Art & Architecture", category: "Culture" },
+  { id: "Politics & Society", name: "Politics & Society", category: "Non-Fiction" },
+  { id: "True Crime", name: "True Crime", category: "Non-Fiction" },
+  { id: "Humor & Satire", name: "Humor & Satire", category: "Fiction" },
+];
 
 export default function SignInStep3Screen() {
   const router = useRouter();
   const favoriteGenres = useSignUpStore((state) => state.favorite_genres);
   const setFavoriteGenres = useSignUpStore((state) => state.setFavoriteGenres);
-  const [selectedGenres, setSelectedGenres] = useState<string[]>(favoriteGenres);
 
-  const { data: genres = [], isLoading: loading } = useQuery({
-    queryKey: ["genres"],
-    queryFn: async () => {
-      const response = await api.get("api/books/genres/");
-      return response.data.map((g: any) => ({
-        id: g.id,
-        name: g.genre,
-        symbol: getSymbol(g.genre)
-      }));
-    }
-  });
+  const [selectedGenres, setSelectedGenres] = useState<string[]>(favoriteGenres || []);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
 
-  // Animated values
   const progressAnim = useRef(new Animated.Value(2 / 6)).current;
-  const dotTransition = useRef(new Animated.Value(0)).current;
+  const pulseAnim = useRef(new Animated.Value(0.4)).current;
 
   useEffect(() => {
-    // Top progress bar animation: from 2/6 (step 2) to 3/6 (step 3)
     Animated.timing(progressAnim, {
       toValue: 3 / 6,
-      duration: 800,
+      duration: 600,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: false,
     }).start();
 
-    // Bottom dots animation: transitioning active pill from dot 2 to dot 3
-    Animated.timing(dotTransition, {
-      toValue: 1,
-      duration: 800,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: false,
-    }).start();
-  }, []);
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 0.8,
+          duration: 800,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 0.4,
+          duration: 800,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+  }, [progressAnim, pulseAnim]);
 
-  // Pre-select some genres once loaded, only if we don't have any selected yet
   useEffect(() => {
-    if (genres.length > 0 && selectedGenres.length === 0) {
-      const preselected = genres
-        .filter((g: any) => 
-          g.name.toLowerCase().includes("fiction") || 
-          g.name.toLowerCase().includes("fantasy") || 
-          g.name.toLowerCase().includes("history") ||
-          g.name.toLowerCase().includes("science")
-        )
-        .map((g: any) => g.id);
-      setSelectedGenres(preselected.slice(0, 3));
+    if (!searchQuery.trim()) {
+      setDebouncedQuery("");
+      return;
     }
-  }, [genres]);
+    const timer = setTimeout(() => {
+      setDebouncedQuery(searchQuery.trim());
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  const { data: genres = [], isLoading: loading } = useQuery({
+    queryKey: ["onboardingGenres", debouncedQuery],
+    queryFn: async () => {
+      try {
+        const response = await api.get("api/books/genres/", {
+          params: debouncedQuery ? { q: debouncedQuery } : {},
+        });
+        if (Array.isArray(response.data) && response.data.length > 0) {
+          return response.data.map((g: any) => ({
+            id: String(g.id),
+            name: g.genre,
+            category: g.category || "Book Filter",
+          }));
+        }
+      } catch (err) {
+        console.warn("Using fallback genre filters:", err);
+      }
+
+      if (!debouncedQuery) return FALLBACK_CURATED_GENRES;
+      const q = debouncedQuery.toLowerCase();
+      return FALLBACK_CURATED_GENRES.filter(
+        (g) => g.name.toLowerCase().includes(q) || g.category.toLowerCase().includes(q)
+      );
+    },
+  });
+
+  const isSearching = searchQuery.trim().length > 0 && searchQuery.trim() !== debouncedQuery;
+  const showSkeleton = loading || isSearching;
 
   const progressWidth = progressAnim.interpolate({
     inputRange: [0, 1],
     outputRange: ["0%", "100%"],
   });
 
-  const dot2Width = dotTransition.interpolate({
-    inputRange: [0, 1],
-    outputRange: [20, 8],
-  });
-
-  const dot3Width = dotTransition.interpolate({
-    inputRange: [0, 1],
-    outputRange: [8, 20],
-  });
-
-  const dot2Color = dotTransition.interpolate({
-    inputRange: [0, 1],
-    outputRange: ["#212842", "#EBE7DF"],
-  });
-
-  const dot3Color = dotTransition.interpolate({
-    inputRange: [0, 1],
-    outputRange: ["#EBE7DF", "#212842"],
-  });
-
   const toggleGenre = (id: string) => {
-    if (selectedGenres.includes(id)) {
-      setSelectedGenres(selectedGenres.filter((g) => g !== id));
-    } else {
-      setSelectedGenres([...selectedGenres, id]);
-    }
+    setSelectedGenres((prev) =>
+      prev.includes(id) ? prev.filter((g) => g !== id) : [...prev, id]
+    );
   };
 
   const handleContinue = () => {
-    // Guardar en el store y avanzar a autores
     setFavoriteGenres(selectedGenres);
     router.push("/(auth)/authors");
   };
 
+  const handleSkip = () => {
+    setFavoriteGenres([]);
+    router.push("/(auth)/authors");
+  };
+
+  const count = selectedGenres.length;
+
   return (
     <SafeAreaView className="flex-1 bg-[#FFF8F0]">
-
-      {/* Top Navigation Header (Fixed) */}
-      <View>
-        <View className="flex-row items-center justify-between w-full px-6 py-3">
-          <TouchableOpacity
-            onPress={() => router.back()}
-            className="w-16 h-10 items-start justify-center"
-            activeOpacity={0.7}
-          >
-            <Text
-              className="text-[#212842] text-2xl font-bold"
-              style={{ fontFamily: "PublicSans-Bold" }}
-            >
-              {"<"}
-            </Text>
-          </TouchableOpacity>
-
-          <Logo width={36} height={36} />
-
-          <TouchableOpacity
-            onPress={() => router.replace("/(auth)/login")}
-            className="w-16 h-10 items-end justify-center"
-            activeOpacity={0.7}
-          >
-            <Text
-              className="text-[#212842] text-sm"
-              style={{ fontFamily: "PublicSans-Bold", textDecorationLine: "underline" }}
-            >
-              Log In
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Animated Progress Bar */}
-        <View className="w-full h-[2px] bg-[#EBE7DF]">
-          <Animated.View
-            style={{ width: progressWidth }}
-            className="h-full bg-[#212842]"
-          />
-        </View>
-      </View>
-
-      {/* Scrollable central content */}
-      <ScrollView
-        className="flex-1 px-6 pt-6"
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 24 }}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        className="flex-1"
       >
-        {/* Header Title & Subtitle */}
-        <Text
-          className="text-[#212842] text-start leading-tight"
-          style={{ fontFamily: "Newsreader-Bold", fontSize: 36 }}
-        >
-          Your Literary{"\n"}Landscape
-        </Text>
-        <Text
-          className="text-base text-[#5C5E69] text-start mt-4 leading-relaxed"
-          style={{ fontFamily: "PublicSans-Regular" }}
-        >
-          Select at least three to curate your first private collection. This will define the initial textures of your personal archive.
-        </Text>
+        <View className="flex-1 justify-between">
+          {/* Top Bar + Progress Indicator */}
+          <View className="px-6 pt-3">
+            <View className="flex-row justify-between items-center mb-3">
+              <TouchableOpacity
+                onPress={() => router.back()}
+                activeOpacity={0.75}
+                className="w-10 h-10 rounded-full bg-[#FAF3E8] items-center justify-center"
+              >
+                <Icon name="arrowLeft" size={18} color="#212842" />
+              </TouchableOpacity>
 
-        {/* Grid Layout of Genre Cards */}
-        {loading ? (
-          <View className="py-20 justify-center items-center">
-            <ActivityIndicator size="large" color="#212842" />
-          </View>
-        ) : (
-          <View className="flex-row flex-wrap justify-between w-full mt-8">
-            {genres.map((genre: any) => {
-              const isSelected = selectedGenres.includes(genre.id);
-              return (
-                <TouchableOpacity
-                  key={genre.id}
-                  onPress={() => toggleGenre(genre.id)}
-                  className={`w-[47%] h-36 rounded-2xl mb-4 items-center justify-center relative border-2 ${
-                    isSelected
-                      ? "bg-[#FFF8F0] border-[#212842]"
-                      : "bg-[#FAF3E8] border-transparent"
-                  }`}
-                  activeOpacity={0.8}
+              <View className="flex-row items-center px-3.5 py-1.5 rounded-full bg-[#FAF3E8]">
+                <Logo width={16} height={16} />
+                <Text
+                  style={{ fontFamily: "PublicSans-Bold" }}
+                  className="text-[11px] tracking-[1.5px] text-[#212842] uppercase ml-2"
                 >
-                  <Text className="text-3xl mb-3">{genre.symbol}</Text>
+                  Step 3 of 6
+                </Text>
+              </View>
+
+              <TouchableOpacity
+                onPress={handleSkip}
+                activeOpacity={0.75}
+                className="px-3.5 py-2 rounded-full bg-[#FAF3E8]"
+              >
+                <Text
+                  style={{ fontFamily: "PublicSans-Bold" }}
+                  className="text-[#5A6075] text-xs"
+                >
+                  Skip
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Progress Bar */}
+            <View className="w-full h-1.5 bg-[#EDE3D5] rounded-full overflow-hidden mb-2">
+              <Animated.View
+                style={{ width: progressWidth }}
+                className="h-full bg-[#C95F44] rounded-full"
+              />
+            </View>
+          </View>
+
+          {/* Scrollable Content */}
+          <ScrollView
+            contentContainerStyle={{ paddingHorizontal: 24, paddingTop: 12, paddingBottom: 24 }}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            {/* Header Section */}
+            <View className="mb-5">
+              <View className="flex-row items-center justify-between mb-1.5">
+                <Text
+                  style={{ fontFamily: "PublicSans-Bold" }}
+                  className="text-[11px] tracking-[2px] text-[#C95F44] uppercase"
+                >
+                  Reading Taste
+                </Text>
+                <View
+                  className={`px-3 py-1 rounded-full ${
+                    count > 0 ? "bg-[#212842]" : "bg-[#FAF3E8]"
+                  }`}
+                >
                   <Text
-                    className="text-[#212842] text-center text-lg"
-                    style={{ fontFamily: "Newsreader-Bold" }}
+                    style={{ fontFamily: "PublicSans-Bold" }}
+                    className={`text-[11px] ${
+                      count > 0 ? "text-[#FFF8F0]" : "text-[#5A6075]"
+                    }`}
                   >
-                    {genre.name}
+                    {count} selected
                   </Text>
+                </View>
+              </View>
 
-                  {/* Checkbox Badge */}
-                  {isSelected && (
-                    <View className="absolute top-3 right-3 w-5 h-5 rounded-full bg-[#212842] items-center justify-center">
-                      <Text className="text-[#FFF8F0] text-[10px] font-bold">✓</Text>
-                    </View>
-                  )}
-                </TouchableOpacity>
-              );
-            })}
+              <Text
+                style={{ fontFamily: "Newsreader-Bold" }}
+                className="text-[32px] text-[#212842] leading-[38px] mb-2"
+              >
+                What genres do you{" "}
+                <Text
+                  style={{ fontFamily: "Newsreader-Italic" }}
+                  className="text-[#C95F44]"
+                >
+                  enjoy reading?
+                </Text>
+              </Text>
+
+              <Text
+                style={{ fontFamily: "PublicSans-Regular" }}
+                className="text-[14px] text-[#5A6075] leading-[21px] mb-5"
+              >
+                Select the literary genres and subjects you enjoy. We use these filters to curate real books and authors for your library.
+              </Text>
+
+              {/* Soft Borderless Search Bar (matches Discover screen) */}
+              <View className="flex-row items-center w-full bg-[#FAF3E8] rounded-full px-4 py-2.5">
+                <Icon name="search" size={20} color="#76767E" />
+                <TextInput
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                  placeholder="Search genres or topics (e.g. Sci-Fi, Philosophy)..."
+                  placeholderTextColor="#B5B1A8"
+                  style={{ fontFamily: "PublicSans-Regular" }}
+                  className="flex-1 text-sm text-[#212842] py-1.5 ml-2.5"
+                  returnKeyType="search"
+                />
+                {searchQuery.length > 0 && (
+                  <TouchableOpacity onPress={() => setSearchQuery("")} className="p-1">
+                    <Icon name="cancel" size={18} color="#76767E" />
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
+
+            {/* Soft Borderless Skeleton Loader vs Clean Genre Cards */}
+            {showSkeleton ? (
+              <View className="flex-row flex-wrap justify-between">
+                {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((item) => (
+                  <View
+                    key={item}
+                    style={{ width: "48%" }}
+                    className="mb-3.5 p-4 rounded-2xl bg-[#FAF3E8]"
+                  >
+                    <Animated.View
+                      style={{
+                        opacity: pulseAnim,
+                        width: 58,
+                        height: 9,
+                        backgroundColor: "#EFE7D6",
+                      }}
+                      className="rounded mb-3"
+                    />
+                    <Animated.View
+                      style={{
+                        opacity: pulseAnim,
+                        width: "80%",
+                        height: 16,
+                        backgroundColor: "#EFE7D6",
+                      }}
+                      className="rounded mb-1.5"
+                    />
+                    <Animated.View
+                      style={{
+                        opacity: pulseAnim,
+                        width: "45%",
+                        height: 12,
+                        backgroundColor: "#F4EDE0",
+                      }}
+                      className="rounded"
+                    />
+                  </View>
+                ))}
+              </View>
+            ) : genres.length === 0 ? (
+              <View className="py-14 items-center justify-center bg-[#FAF3E8] rounded-2xl px-6">
+                <Text
+                  style={{ fontFamily: "Newsreader-Bold" }}
+                  className="text-lg text-[#212842] mb-1"
+                >
+                  No matching genres found
+                </Text>
+                <Text
+                  style={{ fontFamily: "PublicSans-Regular" }}
+                  className="text-xs text-[#76767E] text-center"
+                >
+                  Try searching with a broader literary genre or subject name.
+                </Text>
+              </View>
+            ) : (
+              <View className="flex-row flex-wrap justify-between">
+                {genres.map((genre: GenreItem) => {
+                  const isSelected = selectedGenres.includes(genre.id);
+                  return (
+                    <TouchableOpacity
+                      key={genre.id}
+                      onPress={() => toggleGenre(genre.id)}
+                      activeOpacity={0.8}
+                      style={{ width: "48%" }}
+                      className={`mb-3.5 p-4 rounded-2xl justify-between ${
+                        isSelected ? "bg-[#212842]" : "bg-[#FAF3E8]"
+                      }`}
+                    >
+                      <View className="flex-row items-center justify-between mb-2">
+                        <Text
+                          style={{ fontFamily: "PublicSans-Bold" }}
+                          className={`text-[9px] tracking-[1.4px] uppercase ${
+                            isSelected ? "text-[#E8A598]" : "text-[#C95F44]"
+                          }`}
+                          numberOfLines={1}
+                        >
+                          {genre.category}
+                        </Text>
+
+                        <View
+                          className={`w-4 h-4 rounded-full items-center justify-center ${
+                            isSelected ? "bg-[#C95F44]" : "bg-[#EDE5D8]"
+                          }`}
+                        >
+                          {isSelected && (
+                            <View className="w-1.5 h-1.5 rounded-full bg-[#FFF8F0]" />
+                          )}
+                        </View>
+                      </View>
+
+                      <Text
+                        style={{ fontFamily: "Newsreader-Bold" }}
+                        className={`text-[17px] leading-[21px] ${
+                          isSelected ? "text-[#FFF8F0]" : "text-[#212842]"
+                        }`}
+                        numberOfLines={2}
+                      >
+                        {genre.name}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )}
+          </ScrollView>
+
+          {/* Streamlined Pinned Bottom Bar */}
+          <View className="px-6 pt-3 pb-5 bg-[#FFF8F0]">
+            <TouchableOpacity
+              onPress={handleContinue}
+              activeOpacity={0.85}
+              className="bg-[#212842] w-full py-4 rounded-2xl flex-row items-center justify-center shadow-sm mb-2"
+            >
+              <Text
+                style={{ fontFamily: "PublicSans-Bold" }}
+                className="text-[#FFF8F0] text-[15px] tracking-wide mr-2"
+              >
+                {count > 0
+                  ? `Continue with ${count} ${count === 1 ? "Genre" : "Genres"}`
+                  : "Continue to Step 4"}
+              </Text>
+              <Icon name="arrowRight" size={16} color="#FFF8F0" />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={handleSkip}
+              activeOpacity={0.7}
+              className="py-1 items-center"
+            >
+              <Text
+                style={{ fontFamily: "PublicSans-Bold" }}
+                className="text-xs text-[#76767E]"
+              >
+                Skip genre selection for now
+              </Text>
+            </TouchableOpacity>
           </View>
-        )}
-
-        {/* Cozy and welcoming UX Login Shortcut */}
-        <TouchableOpacity
-          onPress={() => router.replace("/(auth)/login")}
-          className="mt-8 py-2 w-full justify-center items-center flex-row"
-          activeOpacity={0.7}
-        >
-          <Text className="text-[#5C5E69] text-sm" style={{ fontFamily: "PublicSans-Regular" }}>
-            Already curating?{" "}
-            <Text className="text-[#212842]" style={{ fontFamily: "PublicSans-Bold", textDecorationLine: "underline" }}>
-              Access your archive
-            </Text>
-          </Text>
-        </TouchableOpacity>
-      </ScrollView>
-
-      {/* Pinned Footer (Always visible at the bottom) */}
-      <View className="px-6 bg-[#FFF8F0] pt-4 pb-4 border-t border-[#EBE7DF]">
-        {/* Quote */}
-        <View className="mb-4">
-          <Text
-            className="text-[#212842] text-center text-xl italic leading-snug"
-            style={{ fontFamily: "Newsreader-Italic" }}
-          >
-            "A library is not a luxury but one of the necessities of life."
-          </Text>
-          <Text
-            className="text-[#8E8B82] text-center text-[10px] uppercase tracking-widest mt-1"
-            style={{ fontFamily: "PublicSans-Bold" }}
-          >
-            — Henry Ward Beecher
-          </Text>
         </View>
-
-        {/* Continue Journey Button */}
-        <TouchableOpacity
-          className="w-full bg-[#212842] rounded-full py-4 flex-row justify-center items-center"
-          onPress={handleContinue}
-          activeOpacity={0.9}
-        >
-          <Text
-            className="text-[#FFFFFF] text-center text-lg mr-2"
-            style={{ fontFamily: "PublicSans-Bold" }}
-          >
-            Define My Taste
-          </Text>
-          <Text
-            className="text-[#FFFFFF] text-lg font-bold"
-            style={{ fontFamily: "PublicSans-Bold" }}
-          >
-            {" >"}
-          </Text>
-        </TouchableOpacity>
-
-        {/* Skip / Random option */}
-        <TouchableOpacity
-          className="mt-3 py-1"
-          onPress={handleContinue}
-          activeOpacity={0.7}
-        >
-          <Text
-            className="text-[#5C5E69] text-center text-sm"
-            style={{ fontFamily: "PublicSans-Regular" }}
-          >
-            Surprise me with any landscape
-          </Text>
-        </TouchableOpacity>
-
-        {/* Horizontal Line with Logo Divider */}
-        <View className="flex-row items-center w-full mt-4">
-          <View className="flex-1 h-[1px] bg-[#EBE7DF]" />
-          <View className="mx-4">
-            <Logo width={24} height={24} />
-          </View>
-          <View className="flex-1 h-[1px] bg-[#EBE7DF]" />
-        </View>
-
-        {/* Step Counter & Animated Indicators */}
-        <View className="flex-row justify-between items-center w-full mt-3">
-          <Text
-            className="text-xs text-[#8E8B82]"
-            style={{ fontFamily: "PublicSans-Bold" }}
-          >
-            STEP 3 OF 6
-          </Text>
-          <View className="flex-row items-center">
-            {/* Inactive Dot 1 */}
-            <View className="w-2 h-2 rounded-full bg-[#EBE7DF] mx-1" />
-
-            {/* Animated Dot 2 (Step 2 Active -> Inactive) */}
-            <Animated.View
-              style={{
-                width: dot2Width,
-                height: 8,
-                borderRadius: 4,
-                backgroundColor: dot2Color,
-                marginHorizontal: 4,
-              }}
-            />
-
-            {/* Animated Dot 3 (Step 3 Inactive -> Active) */}
-            <Animated.View
-              style={{
-                width: dot3Width,
-                height: 8,
-                borderRadius: 4,
-                backgroundColor: dot3Color,
-                marginHorizontal: 4,
-              }}
-            />
-
-            {/* Inactive Dots for Steps 4 to 6 */}
-            <View className="w-2 h-2 rounded-full bg-[#EBE7DF] mx-1" />
-            <View className="w-2 h-2 rounded-full bg-[#EBE7DF] mx-1" />
-            <View className="w-2 h-2 rounded-full bg-[#EBE7DF] mx-1" />
-          </View>
-        </View>
-      </View>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

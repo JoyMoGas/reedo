@@ -17,7 +17,7 @@ interface IconProps {
   style?: any;
 }
 
-export default function Icon({ name, size = 24, color = "#212842", style }: IconProps) {
+export function Icon({ name, size = 24, color = "#212842", style }: IconProps) {
   const iconifyName = (iconMap as Record<string, string>)[name];
 
   if (!iconifyName) {
@@ -27,3 +27,5 @@ export default function Icon({ name, size = 24, color = "#212842", style }: Icon
 
   return <Iconify icon={iconifyName} size={size} color={color} style={style} />;
 }
+
+export default Icon;

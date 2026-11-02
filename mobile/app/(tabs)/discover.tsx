@@ -32,6 +32,13 @@ import { Avatar } from "../../components/Avatar";
 import { useRouter } from "expo-router";
 import BookCard from "../../components/BookCard";
 import AddToLibraryModal from "../../components/library/AddToLibraryModal";
+import { useLibraryStore } from "../../store/useLibraryStore";
+import {
+  useAuthorFollowStore,
+  buildRecommendationSignals,
+  rankBooksByRecommendationSignals,
+  buildRelatedAuthorsSpotlight,
+} from "../../store/useAuthorFollowStore";
 
 interface TrendingBook {
   id: string;
@@ -75,10 +82,38 @@ export default function DiscoverScreen() {
 
   const [isAdvancedSearch, setIsAdvancedSearch] = useState(false);
 
+  const mainScrollRef = useRef<ScrollView | null>(null);
   const carouselRef = useRef<any>(null);
   const contentWidthRef = useRef(0);
   const layoutWidthRef = useRef(0);
   const scrollXRef = useRef(0);
+
+  const shelves = useLibraryStore((state) => state.shelves);
+  const followedAuthors = useAuthorFollowStore((state) => state.followedAuthors);
+  const recentSearches = useAuthorFollowStore((state) => state.recentSearches);
+  const likedBookSignals = useAuthorFollowStore((state) => state.likedBookSignals);
+  const toggleFollowAuthor = useAuthorFollowStore((state) => state.toggleFollowAuthor);
+  const recordSearchQuery = useAuthorFollowStore((state) => state.recordSearchQuery);
+  const syncFromServerAuthors = useAuthorFollowStore((state) => state.syncFromServerAuthors);
+
+  const recSignals = React.useMemo(
+    () =>
+      buildRecommendationSignals(
+        userBooksData,
+        shelves,
+        followedAuthors,
+        recentSearches,
+        likedBookSignals
+      ),
+    [userBooksData, shelves, followedAuthors, recentSearches, likedBookSignals]
+  );
+
+  const handleExploreAuthorBooks = (authorName: string) => {
+    if (!authorName) return;
+    setSearchQuery(authorName);
+    setDebouncedQuery(authorName);
+    mainScrollRef.current?.scrollTo({ y: 0, animated: true });
+  };
 
   const pulseAnim = useRef(new Animated.Value(0.4)).current;
 
@@ -101,6 +136,14 @@ export default function DiscoverScreen() {
 
   useEffect(() => {
     setNavbarVisible(true);
+    api
+      .get("api/users/profile/authors/")
+      .then((res) => {
+        if (Array.isArray(res.data?.favorite_authors)) {
+          syncFromServerAuthors(res.data.favorite_authors);
+        }
+      })
+      .catch(() => {});
   }, []);
 
   // Debounce logic for search query
@@ -111,7 +154,9 @@ export default function DiscoverScreen() {
       return;
     }
     const timer = setTimeout(() => {
-      setDebouncedQuery(searchQuery);
+      const trimmed = searchQuery.trim();
+      setDebouncedQuery(trimmed);
+      recordSearchQuery(trimmed);
     }, 500);
     return () => clearTimeout(timer);
   }, [searchQuery]);
@@ -215,21 +260,121 @@ export default function DiscoverScreen() {
   });
 
   // Fetch author spotlight reactively using react-query
-  const { data: authorSpotlight = [] } = useQuery({
-    queryKey: ["authorSpotlight"],
+  const { data: rawAuthorSpotlight = [] } = useQuery({
+    queryKey: [
+      "authorSpotlight",
+      recSignals.followedAuthorNames.join(","),
+      recSignals.savedAndLikedAuthorNames.slice(0, 4).join(","),
+    ],
     queryFn: async () => {
-      const response = await api.get("api/books/author-spotlight/");
+      const response = await api.get("api/books/author-spotlight/", {
+        params: {
+          followed_authors: recSignals.followedAuthorNames.slice(0, 6).join(","),
+          saved_authors: recSignals.savedAndLikedAuthorNames.slice(0, 5).join(","),
+          liked_genres: recSignals.preferredGenres.slice(0, 5).join(","),
+        },
+      });
       return response.data;
-    }
+    },
   });
 
-  // Fetch based on history books reactively using react-query
+  const authorSpotlight = React.useMemo(
+    () => buildRelatedAuthorsSpotlight(rawAuthorSpotlight, recSignals),
+    [rawAuthorSpotlight, recSignals]
+  );
+
+  // Fetch based on history / followed authors / searches / saved & liked books
   const { data: basedOnHistory } = useQuery({
-    queryKey: ["basedOnHistory"],
+    queryKey: [
+      "basedOnHistory",
+      recSignals.followedAuthorNames.slice(0, 4).join(","),
+      recSignals.recentSearches.slice(0, 3).join(","),
+      recSignals.savedAndLikedAuthorNames.slice(0, 4).join(","),
+    ],
     queryFn: async () => {
-      const response = await api.get("api/books/based-on-history/");
-      return response.data;
-    }
+      const response = await api.get("api/books/based-on-history/", {
+        params: {
+          followed_authors: recSignals.followedAuthorNames.slice(0, 6).join(","),
+          saved_authors: recSignals.savedAndLikedAuthorNames.slice(0, 5).join(","),
+          liked_genres: recSignals.preferredGenres.slice(0, 5).join(","),
+          recent_searches: recSignals.recentSearches.slice(0, 4).join(","),
+        },
+      });
+      const baseData = response.data || { books: [] };
+      let combinedBooks: any[] = Array.isArray(baseData.books)
+        ? [...baseData.books]
+        : [];
+
+      // Also query books from followed authors or recent searches to guarantee rich personalized recommendations
+      const queriesToFetch = [
+        ...recSignals.followedAuthorNames.slice(0, 2),
+        ...recSignals.recentSearches.slice(0, 1),
+        ...recSignals.savedAndLikedAuthorNames.slice(0, 1),
+      ].filter(Boolean);
+
+      for (const q of queriesToFetch.slice(0, 2)) {
+        try {
+          const searchRes = await api.get("api/books/search/", {
+            params: { q },
+          });
+          if (Array.isArray(searchRes.data)) {
+            const existingIds = new Set(combinedBooks.map((b) => String(b.id)));
+            for (const sb of searchRes.data.slice(0, 6)) {
+              if (
+                sb?.id &&
+                !existingIds.has(String(sb.id)) &&
+                !recSignals.excludedBookIds.has(String(sb.id))
+              ) {
+                existingIds.add(String(sb.id));
+                combinedBooks.unshift(sb);
+              }
+            }
+          }
+        } catch {}
+      }
+
+      const rankedBooks = rankBooksByRecommendationSignals(
+        combinedBooks.filter(
+          (b) => !recSignals.excludedBookIds.has(String(b.id))
+        ),
+        recSignals
+      );
+
+      let sectionTitle = baseData.section_title || "More from Victorian England";
+      let reasonSubtitle =
+        baseData.reason_subtitle || "Because you explored classic literature";
+
+      if (recSignals.followedAuthorNames.length > 0) {
+        sectionTitle = `From ${recSignals.followedAuthorNames[0]} & Related Voices`;
+        const reasons: string[] = [
+          `you follow ${recSignals.followedAuthorNames.slice(0, 2).join(", ")}`,
+        ];
+        if (recSignals.recentSearches.length > 0) {
+          reasons.push(`searched '${recSignals.recentSearches[0]}'`);
+        } else if (recSignals.savedBookTitles.length > 0) {
+          reasons.push(`saved '${recSignals.savedBookTitles[0]}'`);
+        }
+        reasonSubtitle = `Because ${reasons.join(" and ")}`;
+      } else if (recSignals.recentSearches.length > 0) {
+        sectionTitle = `Inspired by '${recSignals.recentSearches[0]}'`;
+        reasonSubtitle =
+          recSignals.savedBookTitles.length > 0
+            ? `Based on your searches and '${recSignals.savedBookTitles[0]}'`
+            : "Based on your recent searches and reading taste";
+      } else if (recSignals.savedBookTitles.length > 0) {
+        sectionTitle = `Because You Saved '${recSignals.savedBookTitles[0]}'`;
+        reasonSubtitle =
+          recSignals.preferredGenres.length > 0
+            ? `More in ${recSignals.preferredGenres.slice(0, 2).join(" & ")}`
+            : "Recommended from your library and favorite books";
+      }
+
+      return {
+        section_title: sectionTitle,
+        reason_subtitle: reasonSubtitle,
+        books: rankedBooks.length > 0 ? rankedBooks.slice(0, 15) : combinedBooks.slice(0, 15),
+      };
+    },
   });
 
   const formatReleaseDate = (dateStr: string) => {
@@ -349,6 +494,7 @@ export default function DiscoverScreen() {
       className="flex-1 bg-[#FFF8F0]"
     >
       <ScrollView
+        ref={mainScrollRef}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{
           paddingHorizontal: 24,
@@ -557,6 +703,52 @@ export default function DiscoverScreen() {
                         >
                           by {book.author}
                         </Text>
+                        {book.author &&
+                          book.author.toLowerCase() !== "unknown author" && (
+                            <TouchableOpacity
+                              onPress={(e) => {
+                                e.stopPropagation();
+                                const primaryAuthor = book.author
+                                  .split(",")[0]
+                                  .trim();
+                                toggleFollowAuthor({ name: primaryAuthor });
+                              }}
+                              activeOpacity={0.75}
+                              className="flex-row items-center self-start mt-2 px-2.5 py-1 rounded-full bg-[#FAF3E8] border border-[#D8D2C5]"
+                            >
+                              <Icon
+                                name={
+                                  followedAuthors.some(
+                                    (fa) =>
+                                      fa.name.trim().toLowerCase() ===
+                                      book.author
+                                        .split(",")[0]
+                                        .trim()
+                                        .toLowerCase()
+                                  )
+                                    ? "checkCircle"
+                                    : "plus"
+                                }
+                                size={11}
+                                color="#212842"
+                              />
+                              <Text
+                                className="text-[10px] text-[#212842] ml-1 uppercase tracking-wider"
+                                style={{ fontFamily: "PublicSans-Bold" }}
+                              >
+                                {followedAuthors.some(
+                                  (fa) =>
+                                    fa.name.trim().toLowerCase() ===
+                                    book.author
+                                      .split(",")[0]
+                                      .trim()
+                                      .toLowerCase()
+                                )
+                                  ? "Following Author"
+                                  : "Follow Author"}
+                              </Text>
+                            </TouchableOpacity>
+                          )}
                       </View>
 
                       <View className="justify-center">
@@ -1056,14 +1248,117 @@ export default function DiscoverScreen() {
                 </View>
               </View>
 
-              {/* Author Spotlight */}
+              {/* Followed Authors List */}
+              {followedAuthors.length > 0 && (
+                <View className="w-full mt-2 mb-6">
+                  <View className="flex-row justify-between items-center mb-3">
+                    <View>
+                      <Text
+                        className="text-xl font-bold text-[#76767E] tracking-widest"
+                        style={{ fontFamily: "PublicSans-Bold" }}
+                      >
+                        AUTHORS YOU FOLLOW
+                      </Text>
+                      <Text
+                        className="text-xs text-[#625E52] mt-0.5"
+                        style={{ fontFamily: "PublicSans-Italic" }}
+                      >
+                        Tap an author to explore their books, or manage your list
+                      </Text>
+                    </View>
+                    <View className="bg-[#FAF3E8] px-3 py-1 rounded-full border border-[#EBE7DF]">
+                      <Text
+                        className="text-[10px] text-[#212842] uppercase tracking-wider"
+                        style={{ fontFamily: "PublicSans-Bold" }}
+                      >
+                        {followedAuthors.length} FOLLOWED
+                      </Text>
+                    </View>
+                  </View>
+
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={{ gap: 12, paddingVertical: 4 }}
+                  >
+                    {followedAuthors.map((fa) => (
+                      <View
+                        key={fa.name}
+                        className="flex-row items-center bg-white rounded-2xl px-3.5 py-2.5 border border-[#EBE7DF]"
+                        style={{
+                          shadowColor: "#212842",
+                          shadowOffset: { width: 0, height: 3 },
+                          shadowOpacity: 0.05,
+                          shadowRadius: 6,
+                          elevation: 2,
+                        }}
+                      >
+                        <TouchableOpacity
+                          onPress={() => handleExploreAuthorBooks(fa.name)}
+                          activeOpacity={0.75}
+                          className="flex-row items-center"
+                        >
+                          <View
+                            style={{
+                              width: 36,
+                              height: 36,
+                              borderRadius: 18,
+                              backgroundColor: fa.bg || "#FAF3E8",
+                            }}
+                            className="items-center justify-center mr-2.5"
+                          >
+                            <Text
+                              className="text-xs text-white"
+                              style={{ fontFamily: "Newsreader-Bold" }}
+                            >
+                              {fa.initials}
+                            </Text>
+                          </View>
+                          <View className="mr-3">
+                            <Text
+                              className="text-sm text-[#212842]"
+                              style={{ fontFamily: "Newsreader-Bold" }}
+                            >
+                              {fa.name}
+                            </Text>
+                            <Text
+                              className="text-[10px] text-[#8A7C5C] uppercase tracking-wider"
+                              style={{ fontFamily: "PublicSans-Bold" }}
+                            >
+                              View books →
+                            </Text>
+                          </View>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          onPress={() =>
+                            toggleFollowAuthor({ id: fa.id, name: fa.name })
+                          }
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                          className="p-1.5 rounded-full bg-[#FAF3E8]"
+                        >
+                          <Icon name="cancel" size={14} color="#76767E" />
+                        </TouchableOpacity>
+                      </View>
+                    ))}
+                  </ScrollView>
+                </View>
+              )}
+
+              {/* Author Spotlight (Related & Recommended Authors) */}
               {authorSpotlight && authorSpotlight.length > 0 && (
                 <View className="w-full mt-4 mb-6">
                   <Text
-                    className="text-xl font-bold text-[#76767E] tracking-widest mb-3"
+                    className="text-xl font-bold text-[#76767E] tracking-widest mb-1"
                     style={{ fontFamily: "PublicSans-Bold" }}
                   >
                     AUTHOR SPOTLIGHT
+                  </Text>
+                  <Text
+                    className="text-xs text-[#625E52] mb-3"
+                    style={{ fontFamily: "PublicSans-Italic" }}
+                  >
+                    Related authors recommended from your followed voices, searches & library
                   </Text>
                   <ScrollView
                     horizontal
@@ -1071,104 +1366,147 @@ export default function DiscoverScreen() {
                     className="w-full"
                     contentContainerStyle={{ paddingVertical: 4, gap: 16 }}
                   >
-                    {authorSpotlight.map((author: any) => (
-                      <View
-                        key={author.id}
-                        style={{
-                          width: 320,
-                          backgroundColor: "#FFFFFF",
-                          borderRadius: 24,
-                          padding: 22,
-                          borderColor: "#EBE7DF",
-                          borderWidth: 1,
-                          shadowColor: "#212842",
-                          shadowOffset: { width: 0, height: 6 },
-                          shadowOpacity: 0.08,
-                          shadowRadius: 12,
-                          elevation: 4,
-                        }}
-                        className="flex-col justify-between"
-                      >
-                        <View>
-                          <Text
-                            className="text-2xl font-bold text-[#212842] mb-1 leading-tight"
-                            style={{ fontFamily: "Newsreader-Bold" }}
-                          >
-                            {author.headline || "Master of Storytelling"}
-                          </Text>
-                          <Text
-                            className="text-xs text-[#76767E] mb-5"
-                            style={{ fontFamily: "PublicSans-Italic" }}
-                          >
-                            {author.reason || "Recommended for you"}
-                          </Text>
-
-                          <View className="flex-row items-center gap-4">
-                            {/* Left: Initials Circle instead of image */}
-                            <View
-                              style={{
-                                width: 95,
-                                height: 95,
-                                borderRadius: 48,
-                                backgroundColor: "#FAF3E8",
-                                borderColor: "#EBE7DF",
-                                borderWidth: 1,
-                                shadowColor: "#000",
-                                shadowOffset: { width: 0, height: 2 },
-                                shadowOpacity: 0.06,
-                                shadowRadius: 4,
-                                elevation: 2,
-                              }}
-                              className="items-center justify-center"
+                    {authorSpotlight.map((author: any) => {
+                      const isFollowed = followedAuthors.some(
+                        (fa) =>
+                          fa.name.trim().toLowerCase() ===
+                          (author.name || "").trim().toLowerCase()
+                      );
+                      return (
+                        <View
+                          key={author.id || author.name}
+                          style={{
+                            width: 320,
+                            backgroundColor: "#FFFFFF",
+                            borderRadius: 24,
+                            padding: 22,
+                            borderColor: "#EBE7DF",
+                            borderWidth: 1,
+                            shadowColor: "#212842",
+                            shadowOffset: { width: 0, height: 6 },
+                            shadowOpacity: 0.08,
+                            shadowRadius: 12,
+                            elevation: 4,
+                          }}
+                          className="flex-col justify-between"
+                        >
+                          <View>
+                            <Text
+                              className="text-2xl font-bold text-[#212842] mb-1 leading-tight"
+                              style={{ fontFamily: "Newsreader-Bold" }}
                             >
-                              <Text
-                                className="text-2xl font-bold text-[#8A7C5C] tracking-wider"
-                                style={{ fontFamily: "Newsreader-Bold" }}
-                              >
-                                {author.initials || "A.S."}
-                              </Text>
-                            </View>
+                              {author.headline || "Master of Storytelling"}
+                            </Text>
+                            <Text
+                              className="text-xs text-[#C95F44] mb-5"
+                              style={{ fontFamily: "PublicSans-Italic" }}
+                            >
+                              {author.reason || "Recommended for you"}
+                            </Text>
 
-                            {/* Right Info */}
-                            <View className="flex-1 flex-col justify-center">
-                              <Text
-                                className="text-lg font-bold text-[#212842] mb-0.5"
-                                style={{ fontFamily: "Newsreader-Bold" }}
+                            <View className="flex-row items-center gap-4">
+                              {/* Left: Initials Circle instead of image */}
+                              <View
+                                style={{
+                                  width: 95,
+                                  height: 95,
+                                  borderRadius: 48,
+                                  backgroundColor: "#FAF3E8",
+                                  borderColor: "#EBE7DF",
+                                  borderWidth: 1,
+                                  shadowColor: "#000",
+                                  shadowOffset: { width: 0, height: 2 },
+                                  shadowOpacity: 0.06,
+                                  shadowRadius: 4,
+                                  elevation: 2,
+                                }}
+                                className="items-center justify-center"
                               >
-                                {author.name}
-                              </Text>
-                              <Text
-                                className="text-[10px] font-bold text-[#8A7C5C] uppercase tracking-wider mb-2"
-                                style={{ fontFamily: "PublicSans-Bold" }}
-                              >
-                                {author.tag || "Literary Excellence"}
-                              </Text>
-                              <Text
-                                className="text-xs text-[#76767E] leading-relaxed"
-                                style={{ fontFamily: "PublicSans-Regular" }}
-                                numberOfLines={3}
-                              >
-                                {author.description || "Renowned author whose remarkable storytelling has left a lasting imprint on the literary world."}
-                              </Text>
+                                <Text
+                                  className="text-2xl font-bold text-[#8A7C5C] tracking-wider"
+                                  style={{ fontFamily: "Newsreader-Bold" }}
+                                >
+                                  {author.initials || "A.S."}
+                                </Text>
+                              </View>
+
+                              {/* Right Info */}
+                              <View className="flex-1 flex-col justify-center">
+                                <Text
+                                  className="text-lg font-bold text-[#212842] mb-0.5"
+                                  style={{ fontFamily: "Newsreader-Bold" }}
+                                >
+                                  {author.name}
+                                </Text>
+                                <Text
+                                  className="text-[10px] font-bold text-[#8A7C5C] uppercase tracking-wider mb-2"
+                                  style={{ fontFamily: "PublicSans-Bold" }}
+                                >
+                                  {author.tag || "Literary Excellence"}
+                                </Text>
+                                <Text
+                                  className="text-xs text-[#76767E] leading-relaxed"
+                                  style={{ fontFamily: "PublicSans-Regular" }}
+                                  numberOfLines={3}
+                                >
+                                  {author.description ||
+                                    "Renowned author whose remarkable storytelling has left a lasting imprint on the literary world."}
+                                </Text>
+                              </View>
                             </View>
                           </View>
-                        </View>
 
-                        <TouchableOpacity
-                          activeOpacity={0.7}
-                          onPress={() => router.push("/(auth)/authors")}
-                          style={{ alignSelf: "flex-start" }}
-                          className="border border-[#212842] rounded-full py-2 px-5 mt-5 items-center justify-center bg-transparent"
-                        >
-                          <Text
-                            className="text-[10px] font-bold text-[#212842] uppercase tracking-wider"
-                            style={{ fontFamily: "PublicSans-Bold" }}
-                          >
-                            VIEW CATALOG
-                          </Text>
-                        </TouchableOpacity>
-                      </View>
-                    ))}
+                          <View className="flex-row items-center gap-3 mt-5">
+                            <TouchableOpacity
+                              activeOpacity={0.8}
+                              onPress={() =>
+                                toggleFollowAuthor({
+                                  id: author.id,
+                                  name: author.name,
+                                  tag: author.tag,
+                                })
+                              }
+                              className={`flex-row items-center justify-center rounded-full py-2.5 px-5 border ${
+                                isFollowed
+                                  ? "bg-[#212842] border-[#212842]"
+                                  : "bg-[#FAF3E8] border-[#212842]"
+                              }`}
+                            >
+                              <Icon
+                                name={isFollowed ? "checkCircle" : "plus"}
+                                size={13}
+                                color={isFollowed ? "#FFF8F0" : "#212842"}
+                              />
+                              <Text
+                                className={`text-[10px] font-bold uppercase tracking-wider ml-1.5 ${
+                                  isFollowed
+                                    ? "text-[#FFF8F0]"
+                                    : "text-[#212842]"
+                                }`}
+                                style={{ fontFamily: "PublicSans-Bold" }}
+                              >
+                                {isFollowed ? "FOLLOWING" : "FOLLOW"}
+                              </Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                              activeOpacity={0.7}
+                              onPress={() =>
+                                handleExploreAuthorBooks(author.name)
+                              }
+                              className="border border-[#EBE7DF] rounded-full py-2.5 px-4 items-center justify-center bg-transparent"
+                            >
+                              <Text
+                                className="text-[10px] font-bold text-[#212842] uppercase tracking-wider"
+                                style={{ fontFamily: "PublicSans-Bold" }}
+                              >
+                                VIEW BOOKS
+                              </Text>
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+                      );
+                    })}
                   </ScrollView>
                 </View>
               )}

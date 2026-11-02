@@ -5,7 +5,7 @@
  * @inspired-by Alondra Gamino (Constant Inspiration)
  * @date 2026-06-27
  */
-import React, { useRef, useState, useEffect } from "react";
+import React, { useRef, useState, useEffect, useMemo } from "react";
 import { Text, View, TouchableOpacity, Image, ScrollView, Animated } from "react-native";
 import * as SecureStore from "expo-secure-store";
 import api from "../../store/api";
@@ -13,6 +13,12 @@ import Icon from "../../core/Icon";
 import NoCover from "../../app/assets/NoCover.svg";
 import { useQuery } from "@tanstack/react-query";
 import BookCard from "../BookCard";
+import { useLibraryStore } from "../../store/useLibraryStore";
+import {
+  useAuthorFollowStore,
+  buildRecommendationSignals,
+  rankBooksByRecommendationSignals,
+} from "../../store/useAuthorFollowStore";
 
 interface DiscoverBook {
   id: string;
@@ -41,37 +47,111 @@ export default function DiscoverNext({ refreshTrigger = 0, onLoadEnd }: Discover
 
   const pulseAnim = useRef(new Animated.Value(0.4)).current;
 
+  const shelves = useLibraryStore((state) => state.shelves);
+  const followedAuthors = useAuthorFollowStore((state) => state.followedAuthors);
+  const recentSearches = useAuthorFollowStore((state) => state.recentSearches);
+  const likedBookSignals = useAuthorFollowStore((state) => state.likedBookSignals);
+
+  const { data: userBooksData = [] } = useQuery({
+    queryKey: ["userBooks"],
+    queryFn: async () => {
+      try {
+        const response = await api.get("api/books/userbook/");
+        return Array.isArray(response.data) ? response.data : [];
+      } catch {
+        return [];
+      }
+    },
+  });
+
+  const recSignals = useMemo(
+    () =>
+      buildRecommendationSignals(
+        userBooksData,
+        shelves,
+        followedAuthors,
+        recentSearches,
+        likedBookSignals
+      ),
+    [userBooksData, shelves, followedAuthors, recentSearches, likedBookSignals]
+  );
+
   // React Query fetch definition
-  const { data: books = [], isLoading: loading, refetch } = useQuery({
-    queryKey: ["discoverBooks"],
+  const { data: rawBooks = [], isLoading: loading, refetch } = useQuery({
+    queryKey: [
+      "discoverBooks",
+      recSignals.followedAuthorNames.slice(0, 3).join(","),
+      recSignals.recentSearches.slice(0, 2).join(","),
+    ],
     queryFn: async () => {
       // 1. Read keep IDs from secure store
       const keptIdsStr = await SecureStore.getItemAsync("discover_keep_ids");
       const keptIds = keptIdsStr ? keptIdsStr.split(",") : [];
 
-      // 2. Query discover endpoint with kept IDs
+      // 2. Query discover endpoint with personalization signals & kept IDs
       const response = await api.get("api/books/discover/", {
-        params: { keep: keptIds.join(",") }
+        params: {
+          keep: keptIds.join(","),
+          followed_authors: recSignals.followedAuthorNames.slice(0, 5).join(","),
+          saved_authors: recSignals.savedAndLikedAuthorNames.slice(0, 5).join(","),
+          liked_genres: recSignals.preferredGenres.slice(0, 5).join(","),
+          recent_searches: recSignals.recentSearches.slice(0, 4).join(","),
+        },
       });
 
-      const fetchedBooks = response.data.map((b: any) => ({
-        id: b.id,
+      const mapBook = (b: any): DiscoverBook => ({
+        id: String(b.id || b.book_id),
         title: b.title,
-        author: Array.isArray(b.authors) ? b.authors.join(", ") : (b.author || "Unknown Author"),
-        cover: b.cover_image || "",
-        genres: b.genres ? b.genres.join(",") : "",
+        author: Array.isArray(b.authors)
+          ? b.authors.join(", ")
+          : b.author || "Unknown Author",
+        cover: b.cover_image || b.cover_url || "",
+        genres: Array.isArray(b.genres) ? b.genres.join(",") : b.genres || "",
         totalPages: b.total_pages ? b.total_pages.toString() : "",
         averageRating: b.average_rating ? b.average_rating.toString() : "",
-        description: b.synopsis || "",
-      }));
+        description: b.synopsis || b.description || "",
+      });
+
+      let fetchedBooks: DiscoverBook[] = (response.data || []).map(mapBook);
+
+      // 2b. Also fetch books by top followed author or recent search to ensure personalization even if backend cache hit
+      const seedQuery =
+        recSignals.followedAuthorNames[0] ||
+        recSignals.recentSearches[0] ||
+        recSignals.savedAndLikedAuthorNames[0];
+      if (seedQuery) {
+        try {
+          const searchResp = await api.get("api/books/search/", {
+            params: { q: seedQuery },
+          });
+          const extraBooks: DiscoverBook[] = (searchResp.data || [])
+            .slice(0, 5)
+            .map(mapBook);
+          const existingIds = new Set(fetchedBooks.map((fb) => fb.id));
+          for (const eb of extraBooks) {
+            if (eb.cover && !existingIds.has(eb.id)) {
+              existingIds.add(eb.id);
+              fetchedBooks.unshift(eb);
+            }
+          }
+        } catch {}
+      }
 
       // 3. Keep the first 5 IDs for subsequent cold starts
       const firstFiveIds = fetchedBooks.slice(0, 5).map((b: any) => b.id);
       await SecureStore.setItemAsync("discover_keep_ids", firstFiveIds.join(","));
 
       return fetchedBooks;
-    }
+    },
   });
+
+  const books = useMemo(() => {
+    const unSaved = rawBooks.filter(
+      (b) => !recSignals.excludedBookIds.has(String(b.id))
+    );
+    const pool = unSaved.length >= 4 ? unSaved : rawBooks;
+    return rankBooksByRecommendationSignals(pool, recSignals);
+  }, [rawBooks, recSignals]);
 
   useEffect(() => {
     if (loading) {

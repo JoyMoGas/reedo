@@ -6,7 +6,7 @@
  * @date 2026-08-04
  */
 import BookCover from "../components/BookCover";
-import React, { useState, useMemo, useRef } from "react";
+import React, { useState, useMemo, useRef, useEffect } from "react";
 import { View, Text, ScrollView, TouchableOpacity, Linking, StyleSheet, TouchableWithoutFeedback, Animated, Dimensions, PanResponder, ActivityIndicator } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
@@ -18,6 +18,7 @@ import { ReviewItem } from "../components/book/ReviewItem";
 import { useAuthStore } from "../store/useAuthStore";
 import { useLibraryStore } from "../store/useLibraryStore";
 import { useSyncQueueStore } from "../store/useSyncQueueStore";
+import { useAuthorFollowStore } from "../store/useAuthorFollowStore";
 import AddToLibraryModal from "../components/library/AddToLibraryModal";
 
 interface BookDetailProps {
@@ -338,6 +339,21 @@ function BookDetails() {
   };
 
   const storeLinks = getStoreLinks("", bookName || "");
+  const followedAuthors = useAuthorFollowStore((state) => state.followedAuthors);
+  const toggleFollowAuthor = useAuthorFollowStore((state) => state.toggleFollowAuthor);
+  const recordBookSignal = useAuthorFollowStore((state) => state.recordBookSignal);
+
+  useEffect(() => {
+    if (bookName) {
+      recordBookSignal({
+        bookId: String(bookId || bookName),
+        title: bookName,
+        authors: author || "",
+        genres: genres || "",
+        weight: 1,
+      });
+    }
+  }, [bookId, bookName, author, genres]);
 
   return (
     <SafeAreaView className="flex-1 bg-[#FFF8F0]">
@@ -387,15 +403,59 @@ function BookDetails() {
               {bookName}
             </Text>
             {author
-              ? author.split(",").map((auth, index) => (
-                  <Text
-                    key={index}
-                    className="text-xl text-[#76767E] text-center"
-                    style={{ fontFamily: "PublicSans-Italic" }}
-                  >
-                    {auth.trim()}
-                  </Text>
-                ))
+              ? author.split(",").map((auth, index) => {
+                  const cleanAuth = auth.trim();
+                  const isFollowed = followedAuthors.some(
+                    (fa) => fa.name.trim().toLowerCase() === cleanAuth.toLowerCase()
+                  );
+                  const canFollow =
+                    cleanAuth.length > 0 &&
+                    cleanAuth.toLowerCase() !== "unknown author";
+
+                  return (
+                    <View
+                      key={index}
+                      className="flex-row items-center justify-center flex-wrap gap-2 mt-1"
+                    >
+                      <Text
+                        className="text-xl text-[#76767E] text-center"
+                        style={{ fontFamily: "PublicSans-Italic" }}
+                      >
+                        {cleanAuth}
+                      </Text>
+                      {canFollow && (
+                        <TouchableOpacity
+                          onPress={() =>
+                            toggleFollowAuthor({
+                              name: cleanAuth,
+                              tag: genres ? genres.split(",")[0]?.trim() : "Author",
+                            })
+                          }
+                          activeOpacity={0.75}
+                          className={`flex-row items-center px-3 py-1 rounded-full border ${
+                            isFollowed
+                              ? "bg-[#212842] border-[#212842]"
+                              : "bg-[#F5EEDF] border-[#D8D2C5]"
+                          }`}
+                        >
+                          <Icon
+                            name={isFollowed ? "checkCircle" : "plus"}
+                            size={12}
+                            color={isFollowed ? "#FFF8F0" : "#212842"}
+                          />
+                          <Text
+                            className={`text-[10px] uppercase tracking-wider ml-1 ${
+                              isFollowed ? "text-[#FFF8F0]" : "text-[#212842]"
+                            }`}
+                            style={{ fontFamily: "PublicSans-Bold" }}
+                          >
+                            {isFollowed ? "Following" : "Follow"}
+                          </Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  );
+                })
               : null}
           </View>
           <View className="flex-row flex-wrap justify-center gap-2 mt-6">

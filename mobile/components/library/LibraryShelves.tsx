@@ -16,6 +16,7 @@ import {
   filterNotesForBook,
   formatImmersionTimestamp,
 } from "../../store/useReadingNotesStore";
+import { useAuthorFollowStore } from "../../store/useAuthorFollowStore";
 
 export default function LibraryShelves() {
   const insets = useSafeAreaInsets();
@@ -23,6 +24,12 @@ export default function LibraryShelves() {
   const currentUser = useAuthStore((state) => state.user);
   const shelves = useLibraryStore((state) => state.shelves);
   const allNotes = useReadingNotesStore((state) => state.notes);
+  const followedAuthors = useAuthorFollowStore(
+    (state) => state.followedAuthors
+  );
+  const toggleFollowAuthor = useAuthorFollowStore(
+    (state) => state.toggleFollowAuthor
+  );
   const [selectedActionBook, setSelectedActionBook] = useState<any | null>(
     null
   );
@@ -560,6 +567,122 @@ export default function LibraryShelves() {
           </View>
         </View>
       )}
+
+      {/* Followed Authors */}
+      <View className="mb-10 border-t border-[#EAE2D5] pt-6">
+        <View className="flex-row justify-between items-end mb-4">
+          <View>
+            <Text
+              className="text-[#8E8B82] text-xs tracking-widest uppercase mb-1"
+              style={{ fontFamily: "PublicSans-Bold" }}
+            >
+              LITERARY VOICES
+            </Text>
+            <Text
+              className="text-[#212842] text-2xl"
+              style={{ fontFamily: "Newsreader-Medium" }}
+            >
+              Followed Authors
+            </Text>
+          </View>
+          <Text
+            className="text-[#8E8B82] text-xs tracking-widest pb-1"
+            style={{ fontFamily: "PublicSans-Bold" }}
+          >
+            {followedAuthors.length} TOTAL
+          </Text>
+        </View>
+
+        {followedAuthors.length === 0 ? (
+          <View className="bg-[#FDF8F0] rounded-2xl p-5 border border-[#F5EEDF] items-center">
+            <Text
+              className="text-[#212842] text-base mb-1"
+              style={{ fontFamily: "Newsreader-Bold" }}
+            >
+              No Followed Authors Yet
+            </Text>
+            <Text
+              className="text-[#8E8B82] text-xs text-center leading-relaxed mb-3"
+              style={{ fontFamily: "PublicSans-Regular" }}
+            >
+              Follow authors from Book Details or Discover to get personalized
+              book and related-author recommendations.
+            </Text>
+            <TouchableOpacity
+              onPress={() => router.push("/(tabs)/discover")}
+              className="bg-[#212842] px-4 py-2 rounded-full"
+              activeOpacity={0.8}
+            >
+              <Text
+                className="text-[#FFF8F0] text-[10px] uppercase tracking-widest"
+                style={{ fontFamily: "PublicSans-Bold" }}
+              >
+                Explore Authors in Discover
+              </Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <View className="gap-3">
+            {followedAuthors.map((author) => (
+              <View
+                key={author.name}
+                className="flex-row items-center justify-between bg-[#FDF8F0] rounded-2xl px-4 py-3 border border-[#F5EEDF]"
+              >
+                <View className="flex-row items-center flex-1 mr-3">
+                  <View
+                    style={{
+                      width: 42,
+                      height: 42,
+                      borderRadius: 21,
+                      backgroundColor: author.bg || "#8A7C5C",
+                    }}
+                    className="items-center justify-center mr-3"
+                  >
+                    <Text
+                      className="text-white text-sm"
+                      style={{ fontFamily: "Newsreader-Bold" }}
+                    >
+                      {author.initials}
+                    </Text>
+                  </View>
+                  <View className="flex-1">
+                    <Text
+                      className="text-[#212842] text-base"
+                      style={{ fontFamily: "Newsreader-Bold" }}
+                      numberOfLines={1}
+                    >
+                      {author.name}
+                    </Text>
+                    <Text
+                      className="text-[#8E8B82] text-[10px] uppercase tracking-wider"
+                      style={{ fontFamily: "PublicSans-Bold" }}
+                      numberOfLines={1}
+                    >
+                      {author.tag || "Followed Voice"}
+                    </Text>
+                  </View>
+                </View>
+
+                <TouchableOpacity
+                  onPress={() =>
+                    toggleFollowAuthor({ id: author.id, name: author.name })
+                  }
+                  activeOpacity={0.75}
+                  className="flex-row items-center bg-[#212842] px-3 py-1.5 rounded-full"
+                >
+                  <Icon name="checkCircle" size={12} color="#FFF8F0" />
+                  <Text
+                    className="text-[10px] text-[#FFF8F0] uppercase tracking-wider ml-1.5"
+                    style={{ fontFamily: "PublicSans-Bold" }}
+                  >
+                    Following
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            ))}
+          </View>
+        )}
+      </View>
 
       {/* Following */}
       {friendsList.length > 0 && (

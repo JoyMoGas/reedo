@@ -1,29 +1,23 @@
-/**
- * @project Reedo
- * @module authors
- * @author José Antonio Montaño (Lead Developer)
- * @inspired-by Alondra Gamino (Constant Inspiration)
- * @date 2026-05-30
- */
-import React, { useState, useRef, useEffect } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
-  Text,
-  View,
-  TouchableOpacity,
-  TextInput,
-  ScrollView,
   Animated,
   Easing,
-  Platform,
   KeyboardAvoidingView,
-  ActivityIndicator,
+  Platform,
+  ScrollView,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-import Logo from "../assets/LOGO.svg";
-import api from "../../store/api";
-import { useSignUpStore } from "../../store/useSignUpStore";
 import { useQuery } from "@tanstack/react-query";
+import Logo from "../assets/LOGO.svg";
+import Icon from "../../core/Icon";
+import api from "../../store/api";
+import { useAuthorFollowStore } from "../../store/useAuthorFollowStore";
+import { useSignUpStore } from "../../store/useSignUpStore";
 
 const colors = ["#C69A5C", "#697A5A", "#C86B4F", "#5C7C8A", "#8A7C5C", "#7C5C8A"];
 
@@ -48,43 +42,50 @@ export default function SignInStep4Screen() {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
-  
+
   const favoriteGenres = useSignUpStore((state) => state.favorite_genres);
   const favoriteAuthors = useSignUpStore((state) => state.favorite_authors);
   const setFavoriteAuthors = useSignUpStore((state) => state.setFavoriteAuthors);
-  const [followedAuthors, setFollowedAuthors] = useState<string[]>(favoriteAuthors);
+  const syncFromServerAuthors = useAuthorFollowStore((state) => state.syncFromServerAuthors);
 
-  // Animated values
+  const [followedAuthors, setFollowedAuthors] = useState<string[]>(favoriteAuthors || []);
+  const [followedAuthorNames, setFollowedAuthorNames] = useState<Record<string, string>>({});
+
   const progressAnim = useRef(new Animated.Value(3 / 6)).current;
-  const dotTransition = useRef(new Animated.Value(0)).current;
+  const pulseAnim = useRef(new Animated.Value(0.4)).current;
 
   useEffect(() => {
-    // Top progress bar animation: from 3/6 (step 3) to 4/6 (step 4)
     Animated.timing(progressAnim, {
       toValue: 4 / 6,
-      duration: 800,
+      duration: 600,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: false,
     }).start();
 
-    // Bottom dots animation: transitioning active pill from dot 3 to dot 4
-    Animated.timing(dotTransition, {
-      toValue: 1,
-      duration: 800,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: false,
-    }).start();
-  }, []);
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 0.8,
+          duration: 800,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 0.4,
+          duration: 800,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+  }, [progressAnim, pulseAnim]);
 
-  // Debounce search query
   useEffect(() => {
     if (!searchQuery.trim()) {
       setDebouncedQuery("");
       return;
     }
     const timer = setTimeout(() => {
-      setDebouncedQuery(searchQuery);
-    }, 500);
+      setDebouncedQuery(searchQuery.trim());
+    }, 450);
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
@@ -93,14 +94,14 @@ export default function SignInStep4Screen() {
     queryKey: ["suggestedAuthors", favoriteGenres],
     queryFn: async () => {
       const response = await api.get("api/books/authors/suggestions/", {
-        params: { genres: favoriteGenres.join(",") }
+        params: { genres: favoriteGenres.join(",") },
       });
       return response.data.map((a: any) => ({
-        id: a.id,
+        id: String(a.id),
         name: a.name,
-        role: "LITERARY VOICE",
+        role: "RECOMMENDED VOICE",
         initials: getInitials(a.name),
-        bg: getColorForName(a.name)
+        bg: getColorForName(a.name),
       }));
     },
   });
@@ -110,338 +111,359 @@ export default function SignInStep4Screen() {
     queryKey: ["authorsSearch", debouncedQuery],
     queryFn: async () => {
       const response = await api.get("api/books/authors/search/", {
-        params: { q: debouncedQuery }
+        params: { q: debouncedQuery },
       });
       return response.data.map((a: any) => ({
-        id: a.id,
+        id: String(a.id),
         name: a.name,
         role: "SEARCH RESULT",
         initials: getInitials(a.name),
-        bg: getColorForName(a.name)
+        bg: getColorForName(a.name),
       }));
     },
     enabled: debouncedQuery.trim().length > 0,
   });
 
-  const loading = searchQuery.trim().length > 0 ? (debouncedQuery ? searchLoading : true) : suggestionsLoading;
-  const filteredAuthors = searchQuery.trim().length > 0 ? (debouncedQuery ? searchResults : []) : suggestedAuthors;
-
-  // Pre-select some initial author if suggestions are loaded and we have no selection
-  useEffect(() => {
-    if (suggestedAuthors.length > 0 && followedAuthors.length === 0) {
-      setFollowedAuthors([suggestedAuthors[0].id]);
-    }
-  }, [suggestedAuthors]);
+  const loading =
+    searchQuery.trim().length > 0
+      ? debouncedQuery
+        ? searchLoading
+        : true
+      : suggestionsLoading;
+  const filteredAuthors =
+    searchQuery.trim().length > 0
+      ? debouncedQuery
+        ? searchResults
+        : []
+      : suggestedAuthors;
 
   const progressWidth = progressAnim.interpolate({
     inputRange: [0, 1],
     outputRange: ["0%", "100%"],
   });
 
-  const dot3Width = dotTransition.interpolate({
-    inputRange: [0, 1],
-    outputRange: [20, 8],
-  });
-
-  const dot4Width = dotTransition.interpolate({
-    inputRange: [0, 1],
-    outputRange: [8, 20],
-  });
-
-  const dot3Color = dotTransition.interpolate({
-    inputRange: [0, 1],
-    outputRange: ["#212842", "#EBE7DF"],
-  });
-
-  const dot4Color = dotTransition.interpolate({
-    inputRange: [0, 1],
-    outputRange: ["#EBE7DF", "#212842"],
-  });
-
-  const toggleFollow = (id: string) => {
+  const toggleFollow = (id: string, name: string) => {
     if (followedAuthors.includes(id)) {
       setFollowedAuthors(followedAuthors.filter((a) => a !== id));
     } else {
       setFollowedAuthors([...followedAuthors, id]);
+      setFollowedAuthorNames((prev) => ({ ...prev, [id]: name }));
     }
   };
 
   const handleContinue = () => {
-    // Save to Zustand and navigate to Step 5
     setFavoriteAuthors(followedAuthors);
+    const selectedAuthorObjects = followedAuthors
+      .map((id) => ({
+        id,
+        name: followedAuthorNames[id] || "",
+      }))
+      .filter((a) => Boolean(a.name));
+    if (selectedAuthorObjects.length > 0 && typeof syncFromServerAuthors === "function") {
+      syncFromServerAuthors(selectedAuthorObjects);
+    }
     router.push("/(auth)/books");
   };
 
+  const handleSkip = () => {
+    setFavoriteAuthors([]);
+    router.push("/(auth)/books");
+  };
 
+  const count = followedAuthors.length;
 
   return (
-    <SafeAreaView className="flex-1 bg-[#FFF8F0] justify-between">
-
-      {/* Top Navigation Header (Fixed) */}
-      <View>
-        <View className="flex-row items-center justify-between w-full px-6 py-3">
-          <TouchableOpacity
-            onPress={() => router.back()}
-            className="w-16 h-10 items-start justify-center"
-            activeOpacity={0.7}
-          >
-            <Text
-              className="text-[#212842] text-2xl font-bold"
-              style={{ fontFamily: "PublicSans-Bold" }}
-            >
-              {"<"}
-            </Text>
-          </TouchableOpacity>
-
-          <Logo width={36} height={36} />
-
-          <TouchableOpacity
-            onPress={() => router.replace("/(auth)/login")}
-            className="w-16 h-10 items-end justify-center"
-            activeOpacity={0.7}
-          >
-            <Text
-              className="text-[#212842] text-sm"
-              style={{ fontFamily: "PublicSans-Bold", textDecorationLine: "underline" }}
-            >
-              Log In
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Animated Progress Bar */}
-        <View className="w-full h-[2px] bg-[#EBE7DF]">
-          <Animated.View
-            style={{ width: progressWidth }}
-            className="h-full bg-[#212842]"
-          />
-        </View>
-      </View>
-
+    <SafeAreaView className="flex-1 bg-[#FFF8F0]">
       <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "padding"}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 80 : 0}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
         className="flex-1"
       >
-        {/* Scrollable central content */}
-        <ScrollView
-          className="flex-1 px-6 pt-6"
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingBottom: 24 }}
-        >
-        {/* Header Title & Subtitle */}
-        <Text
-          className="text-[#212842] text-start leading-tight"
-          style={{ fontFamily: "Newsreader-Bold", fontSize: 36 }}
-        >
-          Influential{"\n"}Authors
-        </Text>
-        <Text
-          className="text-base text-[#5C5E69] text-start mt-4 leading-relaxed"
-          style={{ fontFamily: "PublicSans-Regular" }}
-        >
-          Follow at least three voices that guide your thoughts.
-        </Text>
+        <View className="flex-1 justify-between">
+          {/* Top Bar + Progress Indicator */}
+          <View className="px-6 pt-3">
+            <View className="flex-row justify-between items-center mb-3">
+              <TouchableOpacity
+                onPress={() => router.back()}
+                activeOpacity={0.75}
+                className="w-10 h-10 rounded-full bg-[#FAF3E8] items-center justify-center"
+              >
+                <Icon name="arrowLeft" size={18} color="#212842" />
+              </TouchableOpacity>
 
-        {/* Search Bar Input */}
-        <View className="flex-row items-center w-full bg-[#FAF3E8] rounded-full px-4 py-3 mt-6 mb-6">
-          <Text className="text-[#8E8B82] mr-2 text-base">🔍</Text>
-          <TextInput
-            className="flex-1 text-base text-[#212842]"
-            style={{ fontFamily: "PublicSans-Regular" }}
-            placeholder="Search for author, poets, or critics..."
-            placeholderTextColor="#C5C2BA"
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-          />
-        </View>
-
-        {/* Grid Layout of Author Cards */}
-        {loading ? (
-          <View className="py-20 w-full justify-center items-center">
-            <ActivityIndicator size="large" color="#212842" />
-          </View>
-        ) : (
-          <View className="flex-row flex-wrap justify-between w-full">
-            {filteredAuthors.map((author: any) => {
-              const isFollowing = followedAuthors.includes(author.id);
-              return (
-                <View
-                  key={author.id}
-                  className="w-[47%] bg-[#FAF3E8] rounded-3xl p-3 mb-4 flex-col justify-between"
+              <View className="flex-row items-center px-3.5 py-1.5 rounded-full bg-[#FAF3E8]">
+                <Logo width={16} height={16} />
+                <Text
+                  style={{ fontFamily: "PublicSans-Bold" }}
+                  className="text-[11px] tracking-[1.5px] text-[#212842] uppercase ml-2"
                 >
-                  <View>
-                    {/* Initials as Profile Picture */}
-                    <View
-                      style={{ backgroundColor: author.bg }}
-                      className="w-full aspect-square rounded-2xl items-center justify-center mb-3"
-                    >
-                      <Text
-                        className="text-[#FFF8F0] text-3xl font-bold"
-                        style={{ fontFamily: "Newsreader-Bold" }}
-                      >
-                        {author.initials}
-                      </Text>
-                    </View>
+                  Step 4 of 6
+                </Text>
+              </View>
 
-                    {/* Author Name */}
-                    <Text
-                      className="text-[#212842] text-lg leading-tight"
-                      style={{ fontFamily: "Newsreader-Bold" }}
-                    >
-                      {author.name}
-                    </Text>
+              <TouchableOpacity
+                onPress={handleSkip}
+                activeOpacity={0.75}
+                className="px-3.5 py-2 rounded-full bg-[#FAF3E8]"
+              >
+                <Text
+                  style={{ fontFamily: "PublicSans-Bold" }}
+                  className="text-[#5A6075] text-xs"
+                >
+                  Skip
+                </Text>
+              </TouchableOpacity>
+            </View>
 
-                    {/* Role / Tagline */}
-                    <Text
-                      className="text-[9px] text-[#8E8B82] tracking-wider mt-1 uppercase"
-                      style={{ fontFamily: "PublicSans-Bold" }}
-                    >
-                      {author.role}
-                    </Text>
-                  </View>
+            {/* Progress Bar */}
+            <View className="w-full h-1.5 bg-[#EDE3D5] rounded-full overflow-hidden mb-2">
+              <Animated.View
+                style={{ width: progressWidth }}
+                className="h-full bg-[#C95F44] rounded-full"
+              />
+            </View>
+          </View>
 
-                  {/* Follow Button */}
-                  <TouchableOpacity
-                    onPress={() => toggleFollow(author.id)}
-                    className={`w-full rounded-full py-2 mt-4 items-center justify-center ${
-                      isFollowing ? "bg-[#212842]" : "bg-transparent border border-[#212842]"
+          {/* Scrollable Content */}
+          <ScrollView
+            contentContainerStyle={{ paddingHorizontal: 24, paddingTop: 12, paddingBottom: 24 }}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            {/* Header Section */}
+            <View className="mb-5">
+              <View className="flex-row items-center justify-between mb-1.5">
+                <Text
+                  style={{ fontFamily: "PublicSans-Bold" }}
+                  className="text-[11px] tracking-[2px] text-[#C95F44] uppercase"
+                >
+                  Literary Voices
+                </Text>
+                <View
+                  className={`px-3 py-1 rounded-full ${
+                    count > 0 ? "bg-[#212842]" : "bg-[#FAF3E8]"
+                  }`}
+                >
+                  <Text
+                    style={{ fontFamily: "PublicSans-Bold" }}
+                    className={`text-[11px] ${
+                      count > 0 ? "text-[#FFF8F0]" : "text-[#5A6075]"
                     }`}
-                    activeOpacity={0.8}
                   >
-                    <Text
-                      className={`text-sm ${
-                        isFollowing ? "text-[#FFFFFF]" : "text-[#212842]"
-                      }`}
-                      style={{ fontFamily: "PublicSans-Bold" }}
-                    >
-                      {isFollowing ? "✓ Following" : "Follow"}
-                    </Text>
-                  </TouchableOpacity>
+                    {count} following
+                  </Text>
                 </View>
-              );
-            })}
+              </View>
+
+              <Text
+                style={{ fontFamily: "Newsreader-Bold" }}
+                className="text-[32px] text-[#212842] leading-[38px] mb-2"
+              >
+                Follow authors{" "}
+                <Text
+                  style={{ fontFamily: "Newsreader-Italic" }}
+                  className="text-[#C95F44]"
+                >
+                  you admire
+                </Text>
+              </Text>
+
+              <Text
+                style={{ fontFamily: "PublicSans-Regular" }}
+                className="text-[14px] text-[#5A6075] leading-[21px] mb-5"
+              >
+                We'll recommend books by the authors you follow and suggest related writers in similar genres.
+              </Text>
+
+              {/* Soft Borderless Search Bar */}
+              <View className="flex-row items-center w-full bg-[#FAF3E8] rounded-full px-4 py-2.5">
+                <Icon name="search" size={20} color="#76767E" />
+                <TextInput
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                  placeholder="Search any author (e.g. Borges, Woolf, Murakami)..."
+                  placeholderTextColor="#B5B1A8"
+                  style={{ fontFamily: "PublicSans-Regular" }}
+                  className="flex-1 text-sm text-[#212842] py-1.5 ml-2.5"
+                  returnKeyType="search"
+                />
+                {searchQuery.length > 0 && (
+                  <TouchableOpacity onPress={() => setSearchQuery("")} className="p-1">
+                    <Icon name="cancel" size={18} color="#76767E" />
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
+
+            {/* Soft Borderless Skeleton Loader vs Authors Grid */}
+            {loading ? (
+              <View className="flex-row flex-wrap justify-between">
+                {[1, 2, 3, 4, 5, 6].map((item) => (
+                  <View
+                    key={item}
+                    style={{ width: "48%" }}
+                    className="mb-4 rounded-2xl p-4 items-center bg-[#FAF3E8]"
+                  >
+                    <Animated.View
+                      style={{
+                        opacity: pulseAnim,
+                        width: 64,
+                        height: 64,
+                        borderRadius: 32,
+                        backgroundColor: "#EFE7D6",
+                      }}
+                      className="mb-3"
+                    />
+                    <Animated.View
+                      style={{
+                        opacity: pulseAnim,
+                        width: "75%",
+                        height: 15,
+                        backgroundColor: "#EFE7D6",
+                      }}
+                      className="rounded mb-2"
+                    />
+                    <Animated.View
+                      style={{
+                        opacity: pulseAnim,
+                        width: "50%",
+                        height: 10,
+                        backgroundColor: "#F4EDE0",
+                      }}
+                      className="rounded mb-4"
+                    />
+                    <Animated.View
+                      style={{
+                        opacity: pulseAnim,
+                        width: "100%",
+                        height: 32,
+                        backgroundColor: "#EFE7D6",
+                      }}
+                      className="rounded-full"
+                    />
+                  </View>
+                ))}
+              </View>
+            ) : filteredAuthors.length === 0 ? (
+              <View className="py-14 items-center justify-center bg-[#FAF3E8] rounded-2xl px-6">
+                <Icon name="bookSearch" size={28} color="#94A3B8" />
+                <Text
+                  style={{ fontFamily: "Newsreader-Bold" }}
+                  className="text-lg text-[#212842] mt-2 mb-1"
+                >
+                  No authors found
+                </Text>
+                <Text
+                  style={{ fontFamily: "PublicSans-Regular" }}
+                  className="text-xs text-[#76767E] text-center"
+                >
+                  Try searching with a different spelling or author name.
+                </Text>
+              </View>
+            ) : (
+              <View className="flex-row flex-wrap justify-between">
+                {filteredAuthors.map((author: any) => {
+                  const isFollowing = followedAuthors.includes(author.id);
+                  return (
+                    <TouchableOpacity
+                      key={author.id}
+                      onPress={() => toggleFollow(author.id, author.name)}
+                      activeOpacity={0.85}
+                      style={{ width: "48%" }}
+                      className={`mb-4 rounded-2xl p-4 items-center ${
+                        isFollowing ? "bg-[#212842]" : "bg-[#FAF3E8]"
+                      }`}
+                    >
+                      {/* Avatar Circle */}
+                      <View
+                        style={{ backgroundColor: author.bg }}
+                        className="w-16 h-16 rounded-full items-center justify-center mb-3"
+                      >
+                        <Text
+                          style={{ fontFamily: "Newsreader-Bold" }}
+                          className="text-[#FFF8F0] text-xl"
+                        >
+                          {author.initials}
+                        </Text>
+                      </View>
+
+                      <Text
+                        style={{ fontFamily: "Newsreader-Bold" }}
+                        className={`text-center text-base leading-tight ${
+                          isFollowing ? "text-[#FFF8F0]" : "text-[#212842]"
+                        }`}
+                        numberOfLines={2}
+                      >
+                        {author.name}
+                      </Text>
+
+                      <Text
+                        style={{ fontFamily: "PublicSans-Bold" }}
+                        className={`text-center text-[9px] tracking-[1.2px] uppercase mt-1 ${
+                          isFollowing ? "text-[#E8A598]" : "text-[#C95F44]"
+                        }`}
+                      >
+                        {author.role}
+                      </Text>
+
+                      <View
+                        className={`w-full rounded-full py-2 mt-3.5 flex-row items-center justify-center ${
+                          isFollowing ? "bg-[#C95F44]" : "bg-[#FFF8F0]"
+                        }`}
+                      >
+                        <Icon
+                          name={isFollowing ? "checkCircle" : "akarPlus"}
+                          size={12}
+                          color={isFollowing ? "#FFF8F0" : "#212842"}
+                        />
+                        <Text
+                          style={{ fontFamily: "PublicSans-Bold" }}
+                          className={`text-xs ml-1.5 ${
+                            isFollowing ? "text-[#FFF8F0]" : "text-[#212842]"
+                          }`}
+                        >
+                          {isFollowing ? "Following" : "Follow"}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )}
+          </ScrollView>
+
+          {/* Streamlined Pinned Bottom Bar */}
+          <View className="px-6 pt-3 pb-5 bg-[#FFF8F0]">
+            <TouchableOpacity
+              onPress={handleContinue}
+              activeOpacity={0.85}
+              className="bg-[#212842] w-full py-4 rounded-2xl flex-row items-center justify-center shadow-sm mb-2"
+            >
+              <Text
+                style={{ fontFamily: "PublicSans-Bold" }}
+                className="text-[#FFF8F0] text-[15px] tracking-wide mr-2"
+              >
+                {count > 0
+                  ? `Continue Following ${count} ${count === 1 ? "Author" : "Authors"}`
+                  : "Continue to Step 5"}
+              </Text>
+              <Icon name="arrowRight" size={16} color="#FFF8F0" />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={handleSkip}
+              activeOpacity={0.7}
+              className="py-1 items-center"
+            >
+              <Text
+                style={{ fontFamily: "PublicSans-Bold" }}
+                className="text-xs text-[#76767E]"
+              >
+                I'll follow authors later
+              </Text>
+            </TouchableOpacity>
           </View>
-        )}
-
-        {/* Cozy and welcoming UX Login Shortcut */}
-        <TouchableOpacity
-          onPress={() => router.replace("/(auth)/login")}
-          className="mt-8 py-2 w-full justify-center items-center flex-row"
-          activeOpacity={0.7}
-        >
-          <Text className="text-[#5C5E69] text-sm" style={{ fontFamily: "PublicSans-Regular" }}>
-            Already curating?{" "}
-            <Text className="text-[#212842]" style={{ fontFamily: "PublicSans-Bold", textDecorationLine: "underline" }}>
-              Access your archive
-            </Text>
-          </Text>
-        </TouchableOpacity>
-      </ScrollView>
-
-      {/* Pinned Footer (Always visible at the bottom) */}
-      <View className="px-6 bg-[#FFF8F0] pt-4 pb-4 border-t border-[#EBE7DF]">
-        {/* Quote */}
-        <View className="mb-4">
-          <Text
-            className="text-[#212842] text-center text-lg italic leading-snug"
-            style={{ fontFamily: "Newsreader-Italic" }}
-          >
-            "A great book should leave you with many experiences, and slightly exhausted at the end. You live several lives while reading."
-          </Text>
-          <Text
-            className="text-[#8E8B82] text-center text-[10px] uppercase tracking-widest mt-1"
-            style={{ fontFamily: "PublicSans-Bold" }}
-          >
-            — William Styron
-          </Text>
         </View>
-
-        {/* Continue Journey Button */}
-        <TouchableOpacity
-          className="w-full bg-[#212842] rounded-full py-4 flex-row justify-center items-center"
-          onPress={handleContinue}
-          activeOpacity={0.9}
-        >
-          <Text
-            className="text-[#FFFFFF] text-center text-lg mr-2"
-            style={{ fontFamily: "PublicSans-Bold" }}
-          >
-            Follow My Guides
-          </Text>
-          <Text
-            className="text-[#FFFFFF] text-lg font-bold"
-            style={{ fontFamily: "PublicSans-Bold" }}
-          >
-            {" >"}
-          </Text>
-        </TouchableOpacity>
-
-        {/* Skip option */}
-        <TouchableOpacity
-          className="mt-3 py-1"
-          onPress={handleContinue}
-          activeOpacity={0.7}
-        >
-          <Text
-            className="text-[#5C5E69] text-center text-sm"
-            style={{ fontFamily: "PublicSans-Regular" }}
-          >
-            I'll seek my mentors later
-          </Text>
-        </TouchableOpacity>
-
-        {/* Horizontal Line with Logo Divider */}
-        <View className="flex-row items-center w-full mt-4">
-          <View className="flex-1 h-[1px] bg-[#EBE7DF]" />
-          <View className="mx-4">
-            <Logo width={24} height={24} />
-          </View>
-          <View className="flex-1 h-[1px] bg-[#EBE7DF]" />
-        </View>
-
-        {/* Step Counter & Animated Indicators */}
-        <View className="flex-row justify-between items-center w-full mt-3">
-          <Text
-            className="text-xs text-[#8E8B82]"
-            style={{ fontFamily: "PublicSans-Bold" }}
-          >
-            STEP 4 OF 6
-          </Text>
-          <View className="flex-row items-center">
-            {/* Inactive Dots 1 and 2 */}
-            <View className="w-2 h-2 rounded-full bg-[#EBE7DF] mx-1" />
-            <View className="w-2 h-2 rounded-full bg-[#EBE7DF] mx-1" />
-
-            {/* Animated Dot 3 (Step 3 Active -> Inactive) */}
-            <Animated.View
-              style={{
-                width: dot3Width,
-                height: 8,
-                borderRadius: 4,
-                backgroundColor: dot3Color,
-                marginHorizontal: 4,
-              }}
-            />
-
-            {/* Animated Dot 4 (Step 4 Inactive -> Active) */}
-            <Animated.View
-              style={{
-                width: dot4Width,
-                height: 8,
-                borderRadius: 4,
-                backgroundColor: dot4Color,
-                marginHorizontal: 4,
-              }}
-            />
-
-            {/* Inactive Dots 5 and 6 */}
-            <View className="w-2 h-2 rounded-full bg-[#EBE7DF] mx-1" />
-            <View className="w-2 h-2 rounded-full bg-[#EBE7DF] mx-1" />
-          </View>
-        </View>
-      </View>
-    </KeyboardAvoidingView>
-  </SafeAreaView>
-);
+      </KeyboardAvoidingView>
+    </SafeAreaView>
+  );
 }
